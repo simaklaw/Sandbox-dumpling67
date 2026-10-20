@@ -1,0 +1,181 @@
+Файл,Приоритет,Группа,"Длительность, с",Что это,Запрос для поиска (англ.),Источник/ссылка,Лицензия,Готово (да/нет)
+voice_arrow_normal.ogg,P1,Голос,до 1.5,"голос, живая запись: «Стрела!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_arrow_carrot.ogg,P1,Голос,до 1.5,"голос, живая запись: «Морковка!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_arrow_star.ogg,P1,Голос,до 1.5,"голос, живая запись: «Звёздочка!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+praise_1.ogg,P1,Голос,до 1.5,"голос, живая запись: «Молодец!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+praise_2.ogg,P1,Голос,до 1.5,"голос, живая запись: «Умничка!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+praise_3.ogg,P1,Голос,до 1.5,"голос, живая запись: «Ура!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+peekaboo_1.ogg,P1,Голос,до 1.5,"голос, живая запись: «Ку-ку!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+peekaboo_2.ogg,P1,Голос,до 1.5,"голос, живая запись: «Ку-ку! А вот и я!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+animal_dog_1.ogg,P1,Животные,0.6-1.0,весёлый лай щенка (1-2 гав),small dog bark happy single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_dog_2.ogg,P1,Животные,0.6-1.0,весёлый лай щенка (1-2 гав),small dog bark happy single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_cat_1.ogg,P1,Животные,0.5-0.9,мягкое мяу котёнка,kitten meow single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_cat_2.ogg,P1,Животные,0.5-0.9,мягкое мяу котёнка,kitten meow single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_cow_1.ogg,P1,Животные,1.0-1.5,протяжное му,cow moo short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_cow_2.ogg,P1,Животные,1.0-1.5,протяжное му,cow moo short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_horse_1.ogg,P1,Животные,0.8-1.2,короткое ржание,horse neigh short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_horse_2.ogg,P1,Животные,0.8-1.2,короткое ржание,horse neigh short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_pig_1.ogg,P1,Животные,0.6-1.0,хрю-хрю,pig oink short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_pig_2.ogg,P1,Животные,0.6-1.0,хрю-хрю,pig oink short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_sheep_1.ogg,P1,Животные,0.8-1.3,бе-е-е,sheep baa single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_sheep_2.ogg,P1,Животные,0.8-1.3,бе-е-е,sheep baa single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_goose_1.ogg,P1,Животные,0.7-1.1,га-га,goose honk short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_goose_2.ogg,P1,Животные,0.7-1.1,га-га,goose honk short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_rooster_1.ogg,P1,Животные,1.0-1.6,ку-ка-ре-ку (можно укороченное),rooster crow short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_rooster_2.ogg,P1,Животные,1.0-1.6,ку-ка-ре-ку (можно укороченное),rooster crow short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_frog_1.ogg,P1,Животные,0.5-0.8,ква-ква,frog ribbit single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_frog_2.ogg,P1,Животные,0.5-0.8,ква-ква,frog ribbit single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_crow_1.ogg,P1,Животные,0.6-1.0,кар-кар,crow caw short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_crow_2.ogg,P1,Животные,0.6-1.0,кар-кар,crow caw short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_duck_1.ogg,P1,Животные,0.6-1.0,кря-кря,duck quack single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_duck_2.ogg,P1,Животные,0.6-1.0,кря-кря,duck quack single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_bunny_1.ogg,P1,Животные,0.3-0.6,тихое фырканье или писк,rabbit squeak soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_bunny_2.ogg,P1,Животные,0.3-0.6,тихое фырканье или писк,rabbit squeak soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_dog_happy.ogg,P1,Животные,0.5,довольное поскуливание щенка,puppy happy whine,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_cat_happy.ogg,P1,Животные,0.7,мурлыканье,cat purr short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+animal_bunny_happy.ogg,P1,Животные,0.4,тихое довольное фырканье,rabbit happy soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+pickup.ogg,P1,Кормление,0.15,чпок взяли еду,cute pop pickup,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+eat_in.ogg,P1,Кормление,0.25,еда ушла в рот,gulp cute short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+chew_1.ogg,P1,Кормление,0.4,жевание,cartoon chewing,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+chew_2.ogg,P1,Кормление,0.4,жевание вариант,cartoon chewing,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+yum.ogg,P1,Кормление,0.6,довольное ммм,mmm yummy cute,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+tap.ogg,P1,Общие,0.1,мягкий клик кнопки,soft ui click,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+pop.ogg,P1,Общие,0.2,поп пузырька,bubble pop cute,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+whoosh.ogg,P1,Общие,0.5,воздушный вжух,soft whoosh swipe,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+whoosh_soft.ogg,P1,Общие,0.4,"тише, для переходов",gentle swoosh,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+chime.ogg,P1,Общие,0.8,колокольчик успех,cute chime success,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+fanfare_short.ogg,P1,Общие,1.2,радостная мелодия,kids success jingle short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+soft_no.ogg,P1,Общие,0.4,мягкое м-м (не фу),soft negative cute,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+spawn.ogg,P1,Общие,0.3,пуф появления,cute poof appear,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+open.ogg,P1,Общие,0.2,рот открылся,soft pop open,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+lever_clack.ogg,P2,Бизиборд,0.3,рычаг клац,mechanical lever clack,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+lever_hum_loop.ogg,P2,Бизиборд,1.0,гул рычага (цикл),soft mechanical hum loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+confetti_rain.ogg,P2,Бизиборд,1.5,хлопушка,party popper confetti,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+train_toot.ogg,P2,Бизиборд,1.2,свисток паровозика,toy train whistle,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+star_burst.ogg,P2,Бизиборд,1.2,блестящие колокольчики,sparkle magic chimes,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+quack_1.ogg,P2,Бизиборд,0.6,кря,cartoon duck quack,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+quack_2.ogg,P2,Бизиборд,0.6,кря,cartoon duck quack,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+quack_3.ogg,P2,Бизиборд,0.6,кря,cartoon duck quack,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+frog_boing.ogg,P2,Бизиборд,0.5,боинг,boing spring cartoon,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+bubble.ogg,P2,Бизиборд,0.4,бульк,water bubble blip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+firework.ogg,P2,Бизиборд,1.5,мягкий салют,firework burst soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+switch_on.ogg,P2,Бизиборд,0.1,тумблер вкл,plastic toggle switch on,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+switch_off.ogg,P2,Бизиборд,0.1,тумблер выкл (мягче),plastic toggle switch off,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+jingle_lights.ogg,P2,Бизиборд,1.8,весёлая мелодия,cheerful short jingle,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+knob_tick.ogg,P2,Бизиборд,0.05,щелчок ручки,knob click detent,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+door_creak.ogg,P2,Бизиборд,0.5,скрип дверцы,small wooden door creak,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+door_close.ogg,P2,Бизиборд,0.3,дверца закрылась,small door close,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+bell_ding.ogg,P2,Бизиборд,1.2,колокольчик динь,small bell ding,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+yum_voice.ogg,P2,Голос,до 1.5,"голос, живая запись: «Ням-ням!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_hint_tap.ogg,P2,Голос,до 1.5,"голос, живая запись: «Нажми!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_hint_drag.ogg,P2,Голос,до 1.5,"голос, живая запись: «Потяни сюда!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_hint_look.ogg,P2,Голос,до 1.5,"голос, живая запись: «Смотри!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+rain_loop.ogg,P2,Дождик,2.0,тихий дождь (цикл),soft rain loop calm,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+drop_plip_1.ogg,P2,Дождик,0.15,капля плюх,water drop plip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+drop_plip_2.ogg,P2,Дождик,0.15,капля плюх,water drop plip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+drop_plip_3.ogg,P2,Дождик,0.15,капля плюх,water drop plip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rainbow_chime.ogg,P2,Дождик,1.2,радуга появилась,rainbow magic chime,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+sling_fire.ogg,P2,Катапульта,0.4,выстрел из рогатки,slingshot launch whoosh,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+parachute_open.ogg,P2,Катапульта,0.5,раскрылся парашют,parachute open flap,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+land_bounce.ogg,P2,Катапульта,0.3,мягкое приземление,soft landing bounce,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+star_collect.ogg,P2,Катапульта,0.3,звезда собрана,collect star sparkle,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+cloud_bounce.ogg,P2,Катапульта,0.4,облако-батут,trampoline boing soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+box_shake.ogg,P2,Коробки,0.8,коробка гремит,toy box rattle shake,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+box_pop.ogg,P2,Коробки,0.3,крышка подпрыгнула,pop lid cute,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+chick_peep.ogg,P2,Коробки,0.4,цыплёнок пи-пи,chick peep,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+elephant_toot.ogg,P2,Коробки,0.8,слонёнок трубит,baby elephant trumpet soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+robot_beep.ogg,P2,Коробки,0.5,робот пик-пик,cute robot beep,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+dino_soft.ogg,P2,Коробки,0.6,динозаврик мягкое рр,baby dinosaur cute roar soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+bow_pull_loop.ogg,P2,Лук,1.0,скрип тетивы (цикл),bow string creak loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+shoot.ogg,P2,Лук,0.4,выстрел,arrow whoosh shot,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+arrow_hit.ogg,P2,Лук,0.2,стрела в чучело,arrow thud wood soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+carrot_hit.ogg,P2,Лук,0.3,хруст морковки,crunch carrot short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+star_hit.ogg,P2,Лук,0.5,волшебный динь,magic sparkle ding,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+scarecrow_giggle.ogg,P2,Лук,0.8,смешок,funny giggle short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+wobble.ogg,P2,Лук,0.6,качание,cartoon wobble boing,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+thud.ogg,P2,Лук,0.2,мягкий стук (промах),soft thud,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+squish_1.ogg,P2,Мялка,0.3,мялка,squishy slime squeeze,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+squish_2.ogg,P2,Мялка,0.3,мялка,squishy slime squeeze,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+squish_3.ogg,P2,Мялка,0.3,мялка,squishy slime squeeze,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+stretch.ogg,P2,Мялка,0.6,растяжение,stretch rubber cartoon,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+release_boing.ogg,P2,Мялка,0.5,боинг,boing soft cartoon,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+fly.ogg,P2,Мялка,0.8,радостное уиии,cheerful wheee cartoon fly,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+bounce.ogg,P2,Мялка,0.3,отскок,soft bounce boing,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+poke.ogg,P2,Мялка,0.15,тычок,soft poke pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+giggle.ogg,P2,Мялка,1.0,"детский смех, дружелюбный",baby giggle short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+dizzy.ogg,P2,Мялка,1.0,головокружение,cartoon dizzy spiral,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+yawn.ogg,P2,Мялка,1.0,зевок,cute yawn,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+wear.ogg,P2,Мялка,0.4,надели вещь,sparkle ding equip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+gift.ogg,P2,Мялка,1.2,подарок,gift open chimes,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+bumper.ogg,P2,Пинбол,0.25,бампер пинбола,pinball bumper boing,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+sling.ogg,P2,Пинбол,0.2,праща,pinball slingshot,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+flip.ogg,P2,Пинбол,0.08,"щелчок флиппера, тихий",pinball flipper click,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+wall.ogg,P2,Пинбол,0.06,очень тихий тик,soft tick,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+blub.ogg,P2,Пинбол,0.4,шарик ушёл в сток,water blub,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+snap_in.ogg,P2,Фигурки,0.3,фигурка встала на место,wood block snap in soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+splash_small.ogg,P2,Чай,0.4,всплеск в чашке,small water splash,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+stir.ogg,P2,Чай,1.0,ложка мешает,spoon stirring cup,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+steam.ogg,P2,Чай,1.2,пар,steam hiss soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+glug.ogg,P2,Чай,1.0,глык-глык,drinking glug,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+clink.ogg,P2,Чай,0.3,звон ложки о стекло,spoon clink glass,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+voice_name_cow.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_name_dog.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_name_cat.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_name_duck.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_name_pig.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_name_frog.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+decor_sun.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx sun,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_cloud.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx cloud,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_butterfly.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx butterfly,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_bird.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx bird,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_bee.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx bee,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_flower.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx flower,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_tree.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx tree,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_mushroom.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx mushroom,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_snail.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx snail,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_star.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx star,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_fish.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx fish,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_ball.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx ball,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_yarn.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx yarn,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_kite.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx kite,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_rainbow.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx rainbow,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_balloon_fly.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx balloon_fly,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_plant.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx plant,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_pumpkin.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx pumpkin,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_sunflower.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx sunflower,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_gear.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx gear,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_guest.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx guest,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_teapot.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx teapot,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_cake.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx cake,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_mouse.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx mouse,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_bulb.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx bulb,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+decor_crayon.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx crayon,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+splash_soft.ogg,P3,Дождик,0.3,мягкие брызги,soft water splash small,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+sling_pull_loop.ogg,P3,Катапульта,1.0,скрип резинки (цикл),rubber band stretch creak loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+balloon_boost.ogg,P3,Катапульта,0.5,шарики подбрасывают,balloon squeak lift,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+bird_tweet.ogg,P3,Катапульта,0.5,птичка чирикает,bird tweet cute short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+kite_swoosh.ogg,P3,Катапульта,0.5,воздушный змей,kite flutter whoosh,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rainbow_slide.ogg,P3,Катапульта,0.8,скольжение по радуге,magic slide glissando,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+ufo_hello.ogg,P3,Катапульта,0.6,летающая тарелочка,cute ufo hello blip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+wind_loop.ogg,P3,Катапульта,2.0,ветер (цикл),soft wind loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rb_red.ogg,P3,Радужные кнопки,0.3,радужная кнопка: нота/звук цвета,cute xylophone note,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rb_orange.ogg,P3,Радужные кнопки,0.3,радужная кнопка: нота/звук цвета,cute xylophone note,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rb_yellow.ogg,P3,Радужные кнопки,0.3,радужная кнопка: нота/звук цвета,cute xylophone note,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rb_green.ogg,P3,Радужные кнопки,0.3,радужная кнопка: нота/звук цвета,cute xylophone note,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rb_blue.ogg,P3,Радужные кнопки,0.3,радужная кнопка: нота/звук цвета,cute xylophone note,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rb_purple.ogg,P3,Радужные кнопки,0.3,радужная кнопка: нота/звук цвета,cute xylophone note,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+lullaby_short.ogg,P3,Режим отдыха,10-15,тихая колыбельная для режима отдыха,lullaby music box short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+draw_loop.ogg,P3,Рисование,1.0,шорох фломастера (цикл),marker scribble soft loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+grain_pour_loop.ogg,P3,Сыпучие,1.5,сыпется рис (цикл),rice pouring loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+grain_scoop_loop.ogg,P3,Сыпучие,1.0,сгребание песка (цикл),sand scooping hand loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+stamp.ogg,P3,Сыпучие,0.2,штамп,soft stamp press,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+voice_shape_circle.ogg,P3,Фигурки,до 1.0,голос: «Круг»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_shape_square.ogg,P3,Фигурки,до 1.0,голос: «Квадрат»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_shape_triangle.ogg,P3,Фигурки,до 1.0,голос: «Треугольник»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_shape_star.ogg,P3,Фигурки,до 1.0,голос: «Звезда»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_shape_heart.ogg,P3,Фигурки,до 1.0,голос: «Сердце»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_shape_oval.ogg,P3,Фигурки,до 1.0,голос: «Овал»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+balloon_pop_1.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+balloon_pop_2.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+balloon_pop_3.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+rainbow_salute.ogg,P3,Шарики,1.5,весёлый салют,cheerful fireworks short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да

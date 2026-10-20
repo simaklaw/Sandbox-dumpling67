@@ -1,0 +1,8 @@
+{
+  "name": "Песочница пельмешки 67",
+  "description": "Яркая сенсорная брейнрот-игра с Пельмень-Сиксом: раннер Беги и дави, сквиш-мялка, блайнд-боксы и 67 бусты!",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,59 @@
+# Автосборка и unit-тесты при каждом push — именно здесь мы увидим ошибки компиляции,
+# которые нельзя поймать без Android SDK. Логи сборки пришлите Claude.
+name: Android CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверка Gradle-файлов в репозитории
+        run: |
+          missing=0
+          for f in settings.gradle.kts build.gradle.kts app/build.gradle.kts gradle/libs.versions.toml; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Нет файла $f. Экспорт из AI Studio не содержит Gradle-скриптов — добавьте их в репозиторий."
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      # Версия Gradle берётся из gradle-wrapper.properties проекта (9.3.1)
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.3.1
+
+      - name: Unit-тесты
+        run: gradle :app:testDebugUnitTest --stacktrace
+
+      - name: Debug APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Сохранить APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Сохранить отчёты при ошибке
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: |
+            app/build/reports/
+            app/build/test-results/

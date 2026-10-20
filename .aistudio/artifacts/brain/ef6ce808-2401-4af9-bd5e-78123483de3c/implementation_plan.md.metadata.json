@@ -1,0 +1,6 @@
+{
+  "summary": "Plan to fix immediate entry crash by making Room database initialization and SharedPreferences loading fully non-blocking and failure-resistant with fallback defaults, and hardening SoundManager preload routines.",
+  "updatedAt": "2026-10-16T12:52:04.157235578Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

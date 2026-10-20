@@ -1,0 +1,208 @@
+{
+  "name": "PelmenInputActions",
+  "maps": [
+    {
+      "name": "Runner",
+      "id": "runner-map-67",
+      "actions": [
+        {
+          "name": "MoveLane",
+          "type": "Value",
+          "id": "move-lane-id",
+          "expectedControlType": "Vector2",
+          "processors": "",
+          "interactions": ""
+        },
+        {
+          "name": "Jump",
+          "type": "Button",
+          "id": "jump-id",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "Tap"
+        },
+        {
+          "name": "AirSlam",
+          "type": "Button",
+          "id": "slam-id",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "Swipe(direction=Down)"
+        },
+        {
+          "name": "ActivateBoost",
+          "type": "Button",
+          "id": "boost-id",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "MultiTap(tapCount=2)"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "PrimaryTouchSwipe",
+          "id": "bind-swipe",
+          "path": "<Touchscreen>/primaryTouch/delta",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "MoveLane",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "bind-jump-touch",
+          "path": "<Touchscreen>/primaryTouch/tap",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "Jump",
+          "isComposite": false,
+          "isPartOfComposite": false
+        }
+      ]
+    },
+    {
+      "name": "SquishMalka",
+      "id": "squish-map-67",
+      "actions": [
+        {
+          "name": "PrimaryPress",
+          "type": "PassThrough",
+          "id": "squish-press-id",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "Hold(duration=0.01)"
+        },
+        {
+          "name": "PrimaryPosition",
+          "type": "Value",
+          "id": "squish-pos-id",
+          "expectedControlType": "Vector2",
+          "processors": "",
+          "interactions": ""
+        },
+        {
+          "name": "PrimaryDelta",
+          "type": "Value",
+          "id": "squish-delta-id",
+          "expectedControlType": "Vector2",
+          "processors": "",
+          "interactions": ""
+        },
+        {
+          "name": "PrimaryPressure",
+          "type": "Value",
+          "id": "squish-pressure-id",
+          "expectedControlType": "Axis",
+          "processors": "",
+          "interactions": ""
+        },
+        {
+          "name": "SecondaryPress",
+          "type": "PassThrough",
+          "id": "squish-touch1-press-id",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "Hold(duration=0.01)"
+        },
+        {
+          "name": "SecondaryPosition",
+          "type": "Value",
+          "id": "squish-touch1-pos-id",
+          "expectedControlType": "Vector2",
+          "processors": "",
+          "interactions": ""
+        },
+        {
+          "name": "DoubleTapSlap",
+          "type": "Button",
+          "id": "squish-slap-id",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "MultiTap(tapCount=2,tapTime=0.25)"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "",
+          "id": "touch0-press-bind",
+          "path": "<Touchscreen>/touch0/press",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "PrimaryPress",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "touch0-pos-bind",
+          "path": "<Touchscreen>/touch0/position",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "PrimaryPosition",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "touch0-delta-bind",
+          "path": "<Touchscreen>/touch0/delta",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "PrimaryDelta",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "touch0-pressure-bind",
+          "path": "<Touchscreen>/touch0/pressure",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "PrimaryPressure",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "touch1-press-bind",
+          "path": "<Touchscreen>/touch1/press",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "SecondaryPress",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "touch1-pos-bind",
+          "path": "<Touchscreen>/touch1/position",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "SecondaryPosition",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "touch0-slap-bind",
+          "path": "<Touchscreen>/touch0/tap",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "DoubleTapSlap",
+          "isComposite": false,
+          "isPartOfComposite": false
+        }
+      ]
+    }
+  ]
+}

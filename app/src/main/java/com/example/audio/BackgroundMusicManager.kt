@@ -6,15 +6,19 @@ import android.media.AudioTrack
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.Executors
 import kotlin.math.PI
+import kotlin.math.exp
+import kotlin.math.min
 import kotlin.math.sin
 
 /**
@@ -32,8 +36,20 @@ class BackgroundMusicManager {
         val notes: List<Pair<Float, Float>> // Pair(Frequency in Hz, Duration in beats)
     )
 
-    private val scope = CoroutineScope(Dispatchers.Default)
-    private var musicJob: Job? = null
+    /**
+     * ВАЖНО: AudioTrack создаётся, пишется, ставится на паузу и освобождается ТОЛЬКО на этом одном потоке.
+     * Раньше stop()/release()/pause() вызывались из главного потока, пока корутина висела в блокирующем
+     * track.write() — это приводило к нативному SIGSEGV в libaudioclient (AudioTrack::releaseBuffer).
+     * Остальные потоки лишь меняют флаги, а сам плеер-цикл на своём потоке реагирует на них.
+     */
+    private val audioExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "bg-music").apply { isDaemon = true }
+    }
+    private val scope = CoroutineScope(SupervisorJob() + audioExecutor.asCoroutineDispatcher())
+    private var loopJob: Job? = null
+
+    @Volatile private var released = false
+    @Volatile private var restartRequested = false
 
     private val _isPlaying = MutableStateFlow(true)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -44,15 +60,11 @@ class BackgroundMusicManager {
     private val _currentTrackTitle = MutableStateFlow("")
     val currentTrackTitle: StateFlow<String> = _currentTrackTitle.asStateFlow()
 
-    var musicVolume: Float = 0.45f
-    var isEnabled: Boolean = true
+    @Volatile var musicVolume: Float = 0.45f
+    @Volatile var isEnabled: Boolean = true
         set(value) {
             field = value
-            if (!value) {
-                stopMusic()
-            } else if (_isPlaying.value) {
-                startMusic()
-            }
+            if (value && _isPlaying.value) ensureLoop()
         }
 
     // Frequencies (Hz) for standard notes
@@ -71,6 +83,7 @@ class BackgroundMusicManager {
         const val G5 = 783.99f
         const val A5 = 880.00f
         const val REST = 0f
+        private const val TAG = "BackgroundMusicManager"
     }
 
     // Soothing Toddler Playlists
@@ -152,77 +165,63 @@ class BackgroundMusicManager {
 
     init {
         _currentTrackTitle.value = playlist[0].title
-        scope.launch {
-            delay(500L)
-            if (isEnabled && _isPlaying.value) {
-                startMusic()
-            }
-        }
+        ensureLoop()
     }
 
-    private var streamingTrack: AudioTrack? = null
+    private fun keepPlaying(): Boolean =
+        isEnabled && _isPlaying.value && !released && !restartRequested
+
+    private fun ensureLoop() {
+        if (released) return
+        if (loopJob?.isActive == true) return
+        loopJob = scope.launch { runLoop() }
+    }
 
     fun togglePlayPause() {
-        if (_isPlaying.value) {
-            pauseMusic()
-        } else {
-            resumeMusic()
-        }
+        if (_isPlaying.value) pauseMusic() else resumeMusic()
     }
 
+    /** Только ставит флаг: паузу выполнит сам плеер-цикл на своём потоке. */
     fun pauseMusic() {
         _isPlaying.value = false
-        musicJob?.cancel()
-        musicJob = null
-        try {
-            streamingTrack?.pause()
-            streamingTrack?.flush()
-        } catch (_: Exception) {}
     }
 
     fun resumeMusic() {
         if (!isEnabled) return
         _isPlaying.value = true
-        startMusic()
+        ensureLoop()
     }
 
     fun nextTrack() {
-        val nextIdx = (_currentTrackIndex.value + 1) % playlist.size
-        selectTrack(nextIdx)
+        selectTrack((_currentTrackIndex.value + 1) % playlist.size)
     }
 
     fun previousTrack() {
-        val prevIdx = if (_currentTrackIndex.value - 1 < 0) playlist.size - 1 else _currentTrackIndex.value - 1
-        selectTrack(prevIdx)
+        val prev = if (_currentTrackIndex.value - 1 < 0) playlist.size - 1 else _currentTrackIndex.value - 1
+        selectTrack(prev)
     }
 
     fun selectTrack(index: Int) {
         val safeIndex = index.coerceIn(0, playlist.size - 1)
         _currentTrackIndex.value = safeIndex
         _currentTrackTitle.value = playlist[safeIndex].title
-        if (_isPlaying.value && isEnabled) {
-            startMusic()
-        }
+        restartRequested = true // цикл заметит и начнёт новую мелодию
+        if (_isPlaying.value && isEnabled) ensureLoop()
     }
 
-    fun stopMusic() {
-        musicJob?.cancel()
-        musicJob = null
-        try {
-            streamingTrack?.stop()
-            streamingTrack?.release()
-        } catch (_: Exception) {}
-        streamingTrack = null
+    /** Окончательная остановка: цикл сам освободит AudioTrack и завершит поток. */
+    fun release() {
+        released = true
     }
 
-    private fun getOrCreateStreamingTrack(sampleRate: Int): AudioTrack? {
-        streamingTrack?.let { return it }
+    private fun createTrack(sampleRate: Int): AudioTrack? {
         return try {
             val minBuf = AudioTrack.getMinBufferSize(
                 sampleRate,
                 AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_16BIT
             )
+            if (minBuf <= 0) return null
             val track = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
@@ -240,117 +239,150 @@ class BackgroundMusicManager {
                 .setBufferSizeInBytes(maxOf(minBuf * 2, 8192))
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
-            track.play()
-            streamingTrack = track
-            track
-        } catch (_: Exception) {
+            if (track.state != AudioTrack.STATE_INITIALIZED) {
+                Log.w(TAG, "AudioTrack not initialized")
+                try { track.release() } catch (_: Exception) {}
+                null
+            } else {
+                track
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot create AudioTrack: ${e.message}")
             null
         }
     }
 
-    private fun startMusic() {
-        musicJob?.cancel()
-        if (!isEnabled || !_isPlaying.value) return
-
-        musicJob = scope.launch(Dispatchers.Default) {
-            try {
-                val sampleRate = 22050
-                val track = getOrCreateStreamingTrack(sampleRate) ?: return@launch
-                if (track.state != AudioTrack.STATE_INITIALIZED) {
-                    Log.w("BackgroundMusicManager", "AudioTrack not initialized, skipping music loop")
-                    return@launch
-                }
-                try {
-                    track.play()
-                } catch (_: Exception) {}
-
-                while (isActive && isEnabled && _isPlaying.value) {
-                    val currentMelody = playlist[_currentTrackIndex.value]
-                    _currentTrackTitle.value = currentMelody.title
-                    val beatDurationMs = (60000 / currentMelody.bpm)
-
-                    for (note in currentMelody.notes) {
-                        if (!isActive || !isEnabled || !_isPlaying.value) break
-
-                        val freq = note.first
-                        val durationBeats = note.second
-                        val noteDurationMs = (durationBeats * beatDurationMs).toInt()
-
-                        if (freq > 0f) {
-                            writeGentleMusicBoxNote(track, freq, noteDurationMs, sampleRate)
-                        } else {
-                            val restSamples = (noteDurationMs * sampleRate) / 1000
-                            if (restSamples > 0) {
-                                val written = try {
-                                    track.write(ShortArray(restSamples), 0, restSamples)
-                                } catch (_: Exception) { -1 }
-                                if (written <= 0) {
-                                    delay(noteDurationMs.toLong().coerceAtLeast(20L))
-                                }
-                            } else {
-                                delay(20L)
-                            }
-                        }
-                    }
-                    // Tiny breather between loops (write 400ms silence)
-                    val pauseSamples = (400 * sampleRate) / 1000
-                    val written = try {
-                        track.write(ShortArray(pauseSamples), 0, pauseSamples)
-                    } catch (_: Exception) { -1 }
-                    if (written <= 0) {
-                        delay(400L)
-                    }
-                }
-            } catch (_: CancellationException) {
-                // Normal job cancellation
-            } catch (e: Exception) {
-                Log.w("BackgroundMusicManager", "Music loop error: ${e.message}")
-            }
-        }
+    private fun releaseTrack(track: AudioTrack?) {
+        if (track == null) return
+        try { track.stop() } catch (_: Exception) {}
+        try { track.release() } catch (_: Exception) {}
     }
 
     /**
-     * Synthesizes and writes a soft, warm music box / celesta tone directly to the stream.
+     * Пишет сэмплы небольшими кусками (≈46 мс), чтобы быстро реагировать на паузу/смену мелодии.
+     * @return false, если трек сломался (нужно пересоздать), true — иначе (в т.ч. при штатной остановке).
      */
-    private suspend fun writeGentleMusicBoxNote(track: AudioTrack, freq: Float, durationMs: Int, sampleRate: Int) {
-        try {
-            val numSamples = (durationMs * sampleRate) / 1000
-            if (numSamples <= 0) return
-            val buffer = ShortArray(numSamples)
-            val baseVol = (musicVolume * 16000f).coerceIn(0f, 28000f)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-
-                // Bell ADSR Envelope: Fast sweet attack (15ms), long exponential decay
-                val attackSamples = (0.015f * sampleRate).toInt().coerceAtLeast(1)
-                val envelope = if (i < attackSamples) {
-                    i.toFloat() / attackSamples
-                } else {
-                    // Soft exponential decay
-                    Math.exp(-3.5 * progress).toFloat()
-                }
-
-                // Soft warm harmonics
-                val fundamental = sin(2.0 * PI * freq * t).toFloat() * 0.70f
-                val secondHarmonic = sin(2.0 * PI * (freq * 2f) * t).toFloat() * 0.20f
-                val thirdHarmonic = sin(2.0 * PI * (freq * 3f) * t).toFloat() * 0.10f
-                val sampleVal = (fundamental + secondHarmonic + thirdHarmonic) * envelope * baseVol
-
-                buffer[i] = sampleVal.toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-
+    private fun writeChunks(track: AudioTrack, samples: ShortArray): Boolean {
+        var offset = 0
+        while (offset < samples.size) {
+            if (!keepPlaying()) return true
+            val n = min(1024, samples.size - offset)
             val written = try {
-                track.write(buffer, 0, buffer.size)
-            } catch (_: Exception) { -1 }
-            if (written <= 0) {
-                delay(durationMs.toLong().coerceAtLeast(20L))
+                track.write(samples, offset, n)
+            } catch (e: Exception) {
+                -1
             }
-        } catch (_: Exception) {}
+            if (written <= 0) return false
+            offset += written
+        }
+        return true
     }
 
-    fun release() {
-        stopMusic()
+    private suspend fun CoroutineScope.runLoop() {
+        val sampleRate = 22050
+        var track: AudioTrack? = null
+        try {
+            delay(500L) // не нагружаем старт приложения
+            while (isActive && !released) {
+                if (!(isEnabled && _isPlaying.value)) {
+                    // Пауза выполняется здесь, на потоке плеера
+                    val t = track
+                    if (t != null) {
+                        try {
+                            if (t.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                                t.pause()
+                                t.flush()
+                            }
+                        } catch (_: Exception) {}
+                    }
+                    delay(120L)
+                    continue
+                }
+
+                var current = track
+                if (current == null) {
+                    current = createTrack(sampleRate)
+                    if (current == null) {
+                        delay(2000L)
+                        continue
+                    }
+                    track = current
+                }
+                try {
+                    if (current.playState != AudioTrack.PLAYSTATE_PLAYING) current.play()
+                } catch (e: Exception) {
+                    releaseTrack(current)
+                    track = null
+                    delay(1000L)
+                    continue
+                }
+
+                restartRequested = false
+                val melody = playlist[_currentTrackIndex.value]
+                _currentTrackTitle.value = melody.title
+                val beatDurationMs = 60000 / melody.bpm
+                var broken = false
+
+                for (note in melody.notes) {
+                    if (!keepPlaying()) break
+                    val durationMs = (note.second * beatDurationMs).toInt()
+                    val samples = if (note.first > 0f) {
+                        synthNote(note.first, durationMs, sampleRate)
+                    } else {
+                        ShortArray(((durationMs.toLong() * sampleRate) / 1000).toInt())
+                    }
+                    if (samples.isNotEmpty() && !writeChunks(current, samples)) {
+                        broken = true
+                        break
+                    }
+                }
+
+                if (broken) {
+                    releaseTrack(current)
+                    track = null
+                    delay(1000L)
+                    continue
+                }
+                // Короткая пауза между повторами (400 мс тишины)
+                if (keepPlaying()) {
+                    if (!writeChunks(current, ShortArray((400 * sampleRate) / 1000))) {
+                        releaseTrack(current)
+                        track = null
+                    }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Music loop error: ${e.message}")
+        } finally {
+            releaseTrack(track)
+            if (released) audioExecutor.shutdown()
+        }
+    }
+
+    /** Мягкий «музыкальная шкатулка / челеста» тон: быстрая атака, плавное затухание. */
+    private fun synthNote(freq: Float, durationMs: Int, sampleRate: Int): ShortArray {
+        val numSamples = (durationMs * sampleRate) / 1000
+        if (numSamples <= 0) return ShortArray(0)
+        val buffer = ShortArray(numSamples)
+        val baseVol = (musicVolume * 16000f).coerceIn(0f, 28000f)
+        val attackSamples = (0.015f * sampleRate).toInt().coerceAtLeast(1)
+
+        for (i in 0 until numSamples) {
+            val t = i.toFloat() / sampleRate
+            val progress = i.toFloat() / numSamples
+            val envelope = if (i < attackSamples) {
+                i.toFloat() / attackSamples
+            } else {
+                exp(-3.5f * progress)
+            }
+            val fundamental = sin(2.0 * PI * freq * t).toFloat() * 0.70f
+            val secondHarmonic = sin(2.0 * PI * (freq * 2f) * t).toFloat() * 0.20f
+            val thirdHarmonic = sin(2.0 * PI * (freq * 3f) * t).toFloat() * 0.10f
+            val sampleVal = (fundamental + secondHarmonic + thirdHarmonic) * envelope * baseVol
+            buffer[i] = sampleVal.toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+        }
+        return buffer
     }
 }

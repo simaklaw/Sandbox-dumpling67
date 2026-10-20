@@ -12,7 +12,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example"
+        applicationId = "com.aistudio.kidsplayground.play" // id из установленной версии (AI Studio); namespace кода остаётся com.example
         minSdk = 24
         targetSdk = 36
         versionCode = 1

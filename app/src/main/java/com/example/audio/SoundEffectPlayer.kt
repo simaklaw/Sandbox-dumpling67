@@ -2590,50 +2590,78 @@ class SoundEffectPlayer(private val context: Context) {
     // ⚙️ PCM RAW AUDIO SINK (STREAMING AUDIOTRACK)
     // ==========================================
 
+    // ВАЖНО: весь доступ к pcmTrack (создание, write, stop, release) — на ОДНОМ потоке.
+    // Параллельные write() из разных корутин и release() с главного потока при живом write()
+    // дают нативный SIGSEGV в libaudioclient (AudioTrack::releaseBuffer).
+    private val pcmExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "pcm-sink").apply { isDaemon = true }
+    }
     private var pcmTrack: AudioTrack? = null
 
     private fun playPcm(buffer: ShortArray, sampleRate: Int) {
         if (!soundEnabled) return
-        scope.launch {
-            try {
-                val track = pcmTrack ?: run {
-                    val minBuf = AudioTrack.getMinBufferSize(
-                        sampleRate,
-                        AudioFormat.CHANNEL_OUT_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT
-                    )
-                    val t = AudioTrack.Builder()
-                        .setAudioAttributes(
-                            AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_GAME)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build()
-                        )
-                        .setAudioFormat(
-                            AudioFormat.Builder()
-                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                                .setSampleRate(sampleRate)
-                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                                .build()
-                        )
-                        .setBufferSizeInBytes(maxOf(minBuf * 2, 8192))
-                        .setTransferMode(AudioTrack.MODE_STREAM)
-                        .build()
-                    t.play()
-                    pcmTrack = t
-                    t
-                }
-                track.write(buffer, 0, buffer.size)
-            } catch (_: Exception) {}
+        try {
+            pcmExecutor.execute { writePcmOnSinkThread(buffer, sampleRate) }
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            // плеер уже освобождён
         }
+    }
+
+    private fun writePcmOnSinkThread(buffer: ShortArray, sampleRate: Int) {
+        try {
+            var track = pcmTrack
+            if (track == null) {
+                val minBuf = AudioTrack.getMinBufferSize(
+                    sampleRate,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+                )
+                if (minBuf <= 0) return
+                val t = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_GAME)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(maxOf(minBuf * 2, 8192))
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
+                if (t.state != AudioTrack.STATE_INITIALIZED) {
+                    try { t.release() } catch (_: Exception) {}
+                    return
+                }
+                t.play()
+                pcmTrack = t
+                track = t
+            }
+            val written = track.write(buffer, 0, buffer.size)
+            if (written < 0) {
+                // трек «умер» (например, смена аудиоустройства) — пересоздадим при следующем звуке
+                try { track.stop() } catch (_: Exception) {}
+                try { track.release() } catch (_: Exception) {}
+                pcmTrack = null
+            }
+        } catch (_: Exception) {}
     }
 
     fun release() {
         soundManager.release("all")
         try {
-            pcmTrack?.stop()
-            pcmTrack?.release()
-        } catch (_: Exception) {}
-        pcmTrack = null
+            // stop/release — на том же потоке, что и write; уже поставленные звуки доиграют
+            pcmExecutor.execute {
+                try { pcmTrack?.stop() } catch (_: Exception) {}
+                try { pcmTrack?.release() } catch (_: Exception) {}
+                pcmTrack = null
+            }
+            pcmExecutor.shutdown()
+        } catch (_: java.util.concurrent.RejectedExecutionException) {}
     }
 }

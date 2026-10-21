@@ -65,14 +65,14 @@ import kotlin.random.Random
 
 private val FEAST_FOODS = listOf("🍎", "🍌", "🥕", "🍕", "🍰", "🥟", "🐟", "🍪", "🍇", "🍓", "🍉", "🧀")
 
-private class FeastGuest(val emoji: String, val name: String)
+private class FeastGuest(val emoji: String, val name: String, val sound: String? = null)
 
 private val FEAST_GUESTS = listOf(
     FeastGuest("🥟", "Пельмень"),
-    FeastGuest("🐱", "Котик"),
-    FeastGuest("🐰", "Зайка"),
+    FeastGuest("🐱", "Котик", "animal_cat_happy"),
+    FeastGuest("🐰", "Зайка", "animal_bunny_happy"),
     FeastGuest("🐻", "Мишка"),
-    FeastGuest("🐶", "Собачка")
+    FeastGuest("🐶", "Собачка", "animal_dog_happy")
 )
 
 @Composable
@@ -155,6 +155,7 @@ fun PelmenFeastScreen(
                 }
                 guestScale.animateTo(1f, spring(Spring.DampingRatioMediumBouncy))
                 fed += 1
+                FEAST_GUESTS[guestIdx].sound?.let { soundManager.play(it) }
                 bubbleText = "❤️ Вкусно!"
                 if (fed >= goal) {
                     soundPlayer.playFanfare()

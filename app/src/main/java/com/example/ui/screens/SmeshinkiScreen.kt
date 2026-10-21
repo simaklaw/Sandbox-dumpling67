@@ -82,6 +82,8 @@ fun SmeshinkiScreen(
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    val smeshContext = androidx.compose.ui.platform.LocalContext.current
+    val smeshSounds = remember(soundPlayer) { com.example.shared.SoundManager.getInstance(smeshContext, soundPlayer) }
 
     var skin by remember { mutableStateOf(SmeshinkiSkin.PELMEN) }
     var reaction by remember { mutableStateOf(SmeshinkiReaction.IDLE) }
@@ -173,6 +175,10 @@ fun SmeshinkiScreen(
         showIdleHint = false
         tapCount++
         consecutiveTaps++
+        // Котик отвечает настоящим «мяу» (через раз, чтобы не надоедало).
+        if (skin == SmeshinkiSkin.KITTEN && tapCount % 2 == 1) {
+            smeshSounds.play(if (type == SmeshinkiReaction.BELLY_PUFF) "animal_cat_happy" else "animal_cat")
+        }
 
         // Check for bonus celebration after 10-12 taps
         val actualReaction = if (consecutiveTaps >= 11) {

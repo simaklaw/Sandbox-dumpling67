@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.sp
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.rememberHaptics
+import com.example.shared.SoundManager
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -78,6 +80,19 @@ fun BabyPhoneScreen(
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    val phoneContext = LocalContext.current
+    val soundManager = remember(soundPlayer) { SoundManager.getInstance(phoneContext, soundPlayer) }
+    // Настоящие голоса животных (медведь, лев и лиса без записи — для них остаётся прежний звук).
+    fun animalSoundFor(key: String): String? = when (key) {
+        "dog", "🐶" -> "animal_dog"
+        "cat", "🐱" -> "animal_cat"
+        "duck", "🦆" -> "animal_duck"
+        "cow", "🐮" -> "animal_cow"
+        "frog", "🐸" -> "animal_frog"
+        "🐷" -> "animal_pig"
+        "🐰" -> "animal_bunny"
+        else -> null
+    }
 
     var callState by remember { mutableStateOf(PhoneCallState.IDLE) }
     var dialedNumber by remember { mutableStateOf("") }
@@ -160,7 +175,8 @@ fun BabyPhoneScreen(
                 haptics.vibratePop()
 
                 // Animated talking mouth and hop
-                repeat(4) {
+                repeat(4) { iteration ->
+                    if (iteration == 1) animalSoundFor(chosenFriend.soundKey)?.let { soundManager.play(it) }
                     launch { mouthWiggle.animateTo(1f, tween(140)) }
                     launch { friendHop.animateTo(-18f, tween(140)) }
                     delay(160)
@@ -339,7 +355,9 @@ fun BabyPhoneScreen(
                                         .pointerInput(Unit) {
                                             detectTapGestures {
                                                 // Tapping the animal friend triggers cute giggle & bounce
-                                                soundPlayer.playBabyGiggle()
+                                                if (animalSoundFor(activeFriend.soundKey)?.let { soundManager.play(it) } != true) {
+                                                    soundPlayer.playBabyGiggle()
+                                                }
                                                 haptics.vibratePop()
                                                 scope.launch {
                                                     friendHop.animateTo(-24f, tween(120))
@@ -449,6 +467,7 @@ fun BabyPhoneScreen(
                                         // Distinct mechanical click haptic feedback
                                         haptics.vibrateDialerKey()
                                         soundPlayer.playPhoneDialTone(key.digit)
+                                        animalSoundFor(key.subText)?.let { soundManager.play(it, volume = 0.9f) }
 
                                         if (callState == PhoneCallState.IDLE) {
                                             if (dialedNumber.length < 10) {

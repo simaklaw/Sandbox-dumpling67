@@ -46,7 +46,7 @@ fun FaceAntistressScreen(
     soundPlayer: SoundEffectPlayer
 ) {
     val context = LocalContext.current
-    val soundManager = remember(soundPlayer) { SoundManager(context, soundPlayer) }
+    val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
     val haptics = rememberHaptics()
     val ageProfile = LocalAgeProfile.current
     val density = LocalDensity.current

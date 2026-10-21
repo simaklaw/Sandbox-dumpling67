@@ -12,6 +12,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -54,7 +56,7 @@ fun BusyboardScreen(
     soundPlayer: SoundEffectPlayer
 ) {
     val context = LocalContext.current
-    val soundManager = remember(soundPlayer) { SoundManager(context, soundPlayer) }
+    val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
     val soundHelper = remember(context, soundPlayer, soundManager) {
         BusyboardSoundHelper(context, soundPlayer, soundManager)
     }
@@ -328,11 +330,17 @@ fun BusyboardScreen(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(activeBalloonY) {
-                    detectTapGestures { tapPos ->
+                // ВАЖНО: этот слой лежит поверх всей доски. detectTapGestures «съедал» каждое касание
+                // (down.consume()), поэтому кнопки и рычаги под ним не получали события — Бизиборд был «мёртвым».
+                // Теперь слой только подсматривает касания и поглощает их лишь при попадании в шарик.
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val tapPos = down.position
                         if (activeBalloonY >= 0f && !isBalloonPopped) {
                             val bCenter = Offset(size.width / 2f, activeBalloonY)
                             if ((tapPos - bCenter).getDistance() <= 60.dp.toPx()) {
+                                down.consume()
                                 isBalloonPopped = true
                                 soundHelper.playPop()
                                 haptics.vibrate(25)

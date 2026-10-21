@@ -45,7 +45,7 @@ fun ScarecrowArcheryScreen(
     soundPlayer: SoundEffectPlayer
 ) {
     val context = LocalContext.current
-    val soundManager = remember(soundPlayer) { SoundManager(context, soundPlayer) }
+    val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
     val soundHelper = remember(context, soundPlayer, soundManager) {
         ArcherySoundHelper(context, soundPlayer, soundManager)
     }

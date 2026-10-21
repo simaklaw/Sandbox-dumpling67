@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,7 +46,8 @@ import kotlin.random.Random
 enum class SmeshinkiSkin(val title: String, val bodyColor: Color, val secondaryColor: Color, val blushColor: Color) {
     PELMEN("Пельмешек", Color(0xFFFFFDF5), Color(0xFFF3EED9), Color(0xFFFF8595)),
     KOLOBOK("Колобок", Color(0xFFFFD54F), Color(0xFFFFA000), Color(0xFFFF6E40)),
-    ZEFIRKA("Зефирка", Color(0xFFFFE4EC), Color(0xFFFFB2C9), Color(0xFFFF4081))
+    ZEFIRKA("Зефирка", Color(0xFFFFE4EC), Color(0xFFFFB2C9), Color(0xFFFF4081)),
+    KITTEN("Котик", Color(0xFFFFC98B), Color(0xFFE08A3C), Color(0xFFFF7F9A))
 }
 
 enum class SmeshinkiReaction {
@@ -430,11 +432,55 @@ fun SmeshinkiScreen(
                         radius = rX * 1.3f
                     )
 
+                    // Kitten ears (behind the head)
+                    if (skin == SmeshinkiSkin.KITTEN) {
+                        for (side in listOf(-1f, 1f)) {
+                            val ear = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(cx + side * rX * 0.25f, cy - rY * 0.88f)
+                                lineTo(cx + side * rX * 0.78f, cy - rY * 1.28f)
+                                lineTo(cx + side * rX * 0.92f, cy - rY * 0.45f)
+                                close()
+                            }
+                            drawPath(ear, color = skin.secondaryColor)
+                            val inner = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(cx + side * rX * 0.38f, cy - rY * 0.88f)
+                                lineTo(cx + side * rX * 0.74f, cy - rY * 1.1f)
+                                lineTo(cx + side * rX * 0.82f, cy - rY * 0.58f)
+                                close()
+                            }
+                            drawPath(inner, color = skin.blushColor.copy(alpha = 0.7f))
+                        }
+                    }
+
                     drawOval(
                         brush = bodyBrush,
                         topLeft = Offset(cx - rX, cy - rY),
                         size = Size(rX * 2f, rY * 2f)
                     )
+
+                    // Kitten stripes and whiskers
+                    if (skin == SmeshinkiSkin.KITTEN) {
+                        for (i in -1..1) {
+                            drawLine(
+                                color = skin.secondaryColor.copy(alpha = 0.8f),
+                                start = Offset(cx + i * rX * 0.18f, cy - rY * 0.98f),
+                                end = Offset(cx + i * rX * 0.14f, cy - rY * 0.7f),
+                                strokeWidth = 5.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
+                        for (side in listOf(-1f, 1f)) {
+                            for (k in -1..1) {
+                                drawLine(
+                                    color = Color(0xFF5D4037).copy(alpha = 0.6f),
+                                    start = Offset(cx + side * rX * 0.42f, cy + 18.dp.toPx() + k * 8.dp.toPx()),
+                                    end = Offset(cx + side * rX * 0.9f, cy + 8.dp.toPx() + k * 18.dp.toPx()),
+                                    strokeWidth = 2.dp.toPx(),
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                        }
+                    }
 
                     // Dough folds for Pelmen skin
                     if (skin == SmeshinkiSkin.PELMEN) {

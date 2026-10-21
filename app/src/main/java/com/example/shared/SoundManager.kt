@@ -25,7 +25,7 @@ import kotlin.random.Random
 /**
  * Handle to an actively running audio loop.
  */
-data class LoopHandle(
+class LoopHandle(
     val name: String,
     val soundId: Int,
     var streamId: Int,
@@ -112,7 +112,10 @@ class SoundManager(
     private val activeStreams = ConcurrentHashMap<Int, StreamInfo>() // streamId -> info
 
     // Active Loops
-    private val activeLoops = ConcurrentHashMap<LoopHandle, Job?>()
+    // ВАЖНО: ConcurrentHashMap не принимает null-значения — activeLoops[handle] = null вызывал NPE
+    // при любом startLoop() (вылет игр с зацикленными звуками). Используем синхронизированную HashMap;
+    // LoopHandle — обычный класс (сравнение по ссылке), т.к. его поля меняются и хеш не должен «плыть».
+    private val activeLoops: MutableMap<LoopHandle, Job?> = java.util.Collections.synchronizedMap(HashMap())
 
     // Ducking state
     private var activeVoiceCount = 0
@@ -583,7 +586,8 @@ class SoundManager(
      */
     fun stopAll() {
         try {
-            for ((handle, job) in activeLoops) {
+            val snapshot = synchronized(activeLoops) { activeLoops.entries.map { it.key to it.value } }
+            for ((handle, job) in snapshot) {
                 job?.cancel()
                 if (handle.streamId > 0) {
                     soundPool?.stop(handle.streamId)
@@ -623,7 +627,7 @@ class SoundManager(
     private fun applyDucking(factor: Float) {
         managerScope.launch {
             // Smoothly adjust SFX streams and loops over 80ms
-            for ((handle, _) in activeLoops) {
+            for (handle in synchronized(activeLoops) { activeLoops.keys.toList() }) {
                 if (handle.streamId > 0 && !handle.isFadingOut) {
                     val v = handle.currentVolume * factor
                     soundPool?.setVolume(handle.streamId, v, v)
@@ -670,7 +674,7 @@ class SoundManager(
         masterVolume = v.coerceIn(0f, 1f)
         prefs.edit().putFloat(KEY_MASTER_VOLUME, masterVolume).apply()
         // Update active loops
-        for ((handle, _) in activeLoops) {
+        for (handle in synchronized(activeLoops) { activeLoops.keys.toList() }) {
             setLoopVolume(handle, handle.targetVolume)
         }
     }
@@ -696,7 +700,7 @@ class SoundManager(
     }
 
     private fun stopAllSfx() {
-        for ((handle, job) in activeLoops) {
+        for ((handle, job) in synchronized(activeLoops) { activeLoops.entries.map { it.key to it.value } }) {
             job?.cancel()
             if (handle.streamId > 0) {
                 soundPool?.stop(handle.streamId)

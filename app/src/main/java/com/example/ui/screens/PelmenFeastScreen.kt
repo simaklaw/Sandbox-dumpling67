@@ -1,60 +1,78 @@
 package com.example.ui.screens
 
-import android.content.Context
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
-import com.example.shared.*
+import com.example.shared.LocalAgeProfile
+import com.example.shared.SoundManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 import kotlin.random.Random
 
-data class FeastFoodItem(
-    val id: Int,
-    val emoji: String,
-    val name: String,
-    val color: Color
-)
+/**
+ * «Пир у Пельменя» — накорми друга по заказу.
+ *
+ * Над головой персонажа «облачко» с тем, что он хочет. На столе несколько угощений —
+ * перетащи нужное ему в рот. Правильно — ням-ням, сердечко и радость; не то — друг
+ * мотает головой («не хочу»), угощение возвращается на стол (без штрафов).
+ * Накормил всех по заказу — праздник и новый гость за столом.
+ */
 
-val FEAST_FOODS = listOf(
-    FeastFoodItem(1, "🥟", "Пельмешек", Color(0xFFFFE082)),
-    FeastFoodItem(2, "🍓", "Ягодка", Color(0xFFFF8A80)),
-    FeastFoodItem(3, "🍌", "Бананчик", Color(0xFFFFEE58)),
-    FeastFoodItem(4, "🍪", "Печенька", Color(0xFFD7CCC8)),
-    FeastFoodItem(5, "⭐", "Звёздочка", Color(0xFFFFD54F))
-)
+private val FEAST_FOODS = listOf("🍎", "🍌", "🥕", "🍕", "🍰", "🥟", "🐟", "🍪", "🍇", "🍓", "🍉", "🧀")
 
-data class FeastParticle(
-    val id: Long,
-    val emoji: String,
-    val x: Float,
-    val y: Float,
-    val vx: Float,
-    val vy: Float,
-    val scale: Float
+private class FeastGuest(val emoji: String, val name: String)
+
+private val FEAST_GUESTS = listOf(
+    FeastGuest("🥟", "Пельмень"),
+    FeastGuest("🐱", "Котик"),
+    FeastGuest("🐰", "Зайка"),
+    FeastGuest("🐻", "Мишка"),
+    FeastGuest("🐶", "Собачка")
 )
 
 @Composable
@@ -64,286 +82,232 @@ fun PelmenFeastScreen(
 ) {
     val context = LocalContext.current
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
-    val haptics = rememberHaptics()
+    val ageProfile = LocalAgeProfile.current
+    val density = LocalDensity.current.density
     val scope = rememberCoroutineScope()
 
-    // Characters available to feed
-    val characters = listOf(
-        Triple("pelmen", "🥟", "Пельмень-Сикс"),
-        Triple("cat", "🐱", "Котик Барсик"),
-        Triple("bunny", "🐰", "Зайка Пушистик"),
-        Triple("bear", "🐻", "Мишка Топтыжка")
-    )
+    val optionCount = if (ageProfile.isToddler2) 3 else 5
+    val goal = if (ageProfile.isToddler2) 3 else 5
 
-    var activeCharIndex by remember { mutableIntStateOf(0) }
-    val currentChar = characters[activeCharIndex]
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    var guestIdx by remember { mutableIntStateOf(0) }
+    var fed by remember { mutableIntStateOf(0) }
+    var wanted by remember { mutableStateOf(FEAST_FOODS.first()) }
+    val options = remember { mutableStateListOf<String>() }
+    var busy by remember { mutableStateOf(false) } // идёт анимация — ввод блокируем
+    var bubbleText by remember { mutableStateOf("") }
 
-    // Satiety / happy hearts count
-    var happyCount by remember { mutableIntStateOf(0) }
-    var isChewing by remember { mutableStateOf(false) }
-    var isJumping by remember { mutableStateOf(false) }
+    var dragIdx by remember { mutableIntStateOf(-1) }
+    var dragX by remember { mutableFloatStateOf(0f) }
+    var dragY by remember { mutableFloatStateOf(0f) }
 
-    // Jumping animation for happy dance
-    val jumpAnim = remember { Animatable(0f) }
+    val guestScale = remember { Animatable(1f) }
+    val guestShake = remember { Animatable(0f) }
+    val guestJump = remember { Animatable(0f) }
 
-    // Particles for celebration
-    val particles = remember { mutableStateListOf<FeastParticle>() }
-
-    // Particle emission helper
-    fun emitParticles(emoji: String) {
-        repeat(12) {
-            val angle = Random.nextFloat() * 2 * Math.PI.toFloat()
-            val speed = Random.nextFloat() * 15f + 5f
-            particles.add(
-                FeastParticle(
-                    id = System.nanoTime() + Random.nextLong(),
-                    emoji = emoji,
-                    x = 0f,
-                    y = -50f,
-                    vx = kotlin.math.cos(angle) * speed,
-                    vy = kotlin.math.sin(angle) * speed - 5f,
-                    scale = Random.nextFloat() * 0.6f + 0.8f
-                )
-            )
+    fun newRound() {
+        val w = FEAST_FOODS.random()
+        wanted = w
+        options.clear()
+        options.add(w)
+        while (options.size < optionCount) {
+            val f = FEAST_FOODS.random()
+            if (f !in options) options.add(f)
         }
+        options.shuffle()
+        bubbleText = "Хочу!"
     }
 
-    // Particle tick loop
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(16L)
-            for (i in particles.size - 1 downTo 0) {
-                val p = particles[i]
-                particles[i] = p.copy(
-                    x = p.x + p.vx,
-                    y = p.y + p.vy,
-                    vy = p.vy + 0.5f // gravity
-                )
-                if (p.y > 600f) {
-                    particles.removeAt(i)
+    LaunchedEffect(Unit) { newRound() }
+
+    // Геометрия
+    val w = size.width.toFloat()
+    val h = size.height.toFloat()
+    val guestX = w / 2f
+    val guestY = h * 0.36f
+    val mouthRadius = 120f * density
+    fun slotPos(i: Int): Pair<Float, Float> {
+        val n = options.size.coerceAtLeast(1)
+        val gap = w / (n + 1)
+        return Pair(gap * (i + 1), h * 0.8f)
+    }
+
+    fun inMouth(x: Float, y: Float): Boolean {
+        val dx = x - guestX
+        val dy = y - guestY
+        return sqrt(dx * dx + dy * dy) < mouthRadius
+    }
+
+    fun drop(idx: Int, x: Float, y: Float) {
+        if (idx !in options.indices) return
+        val food = options[idx]
+        if (!inMouth(x, y)) return
+        if (food == wanted) {
+            busy = true
+            soundManager.play("giggle")
+            soundPlayer.playChime(1.2f)
+            soundPlayer.vibrateSquishDeform()
+            scope.launch {
+                // Ням-ням: жуёт (3 раза сжимается).
+                repeat(3) {
+                    guestScale.animateTo(0.88f, tween(110))
+                    guestScale.animateTo(1.08f, tween(110))
                 }
+                guestScale.animateTo(1f, spring(Spring.DampingRatioMediumBouncy))
+                fed += 1
+                bubbleText = "❤️ Вкусно!"
+                if (fed >= goal) {
+                    soundPlayer.playFanfare()
+                    repeat(2) {
+                        guestJump.animateTo(-70f * density, tween(220))
+                        guestJump.animateTo(0f, tween(220))
+                    }
+                    bubbleText = "🎉 Ура!"
+                    delay(700)
+                    fed = 0
+                    guestIdx = (guestIdx + 1) % FEAST_GUESTS.size
+                } else {
+                    delay(450)
+                }
+                newRound()
+                busy = false
             }
-        }
-    }
-
-    // Feed action handler
-    fun feedCurrentCharacter(food: FeastFoodItem) {
-        soundManager.play("chime")
-        haptics.vibrateShort()
-        happyCount++
-        isChewing = true
-        isJumping = true
-
-        emitParticles(food.emoji)
-
-        scope.launch {
-            jumpAnim.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
-            jumpAnim.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
-            isJumping = false
-        }
-
-        scope.launch {
-            delay(800L)
-            isChewing = false
+        } else {
+            busy = true
+            soundPlayer.playPop(0.6f)
+            soundPlayer.vibrateDragTick()
+            bubbleText = "Не хочу!"
+            scope.launch {
+                repeat(2) {
+                    guestShake.animateTo(-18f * density, tween(70))
+                    guestShake.animateTo(18f * density, tween(70))
+                }
+                guestShake.animateTo(0f, tween(70))
+                bubbleText = "Хочу!"
+                busy = false
+            }
         }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFE0F7FA))
-            .testTag("pelmen_feast_screen"),
-        contentAlignment = Alignment.Center
-    ) {
-        // Background decorations (clouds & stars)
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-
-            // Draw joyful background bubbles
-            drawCircle(Color.White.copy(alpha = 0.5f), radius = 120f, center = Offset(w * 0.2f, h * 0.15f))
-            drawCircle(Color.White.copy(alpha = 0.4f), radius = 160f, center = Offset(w * 0.85f, h * 0.25f))
-            drawCircle(Color.White.copy(alpha = 0.6f), radius = 100f, center = Offset(w * 0.5f, h * 0.08f))
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Top Bar: Title & Happy Score
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = Color.White,
-                    shadowElevation = 6.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(text = "🥟", fontSize = 28.sp)
-                        Text(
-                            text = "Пир у Пельменя",
-                            style = PlayTypography.titleLarge,
-                            fontSize = 22.sp,
-                            color = ColorInk,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                // Happy Hearts Counter
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = Color(0xFFFFEBEE),
-                    shadowElevation = 4.dp,
-                    modifier = Modifier.clickable {
-                        // Switch character on tapping score card
-                        activeCharIndex = (activeCharIndex + 1) % characters.size
-                        soundManager.play("tap")
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(text = "💖", fontSize = 24.sp)
-                        Text(
-                            text = "$happyCount",
-                            style = PlayTypography.titleMedium,
-                            fontSize = 20.sp,
-                            color = Color(0xFFD32F2F),
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
-
-            // Center Character Area with Jumping & Chewing Animation
-            val charScale by animateFloatAsState(
-                targetValue = if (isChewing) 1.2f else if (isJumping) 1.1f else 1.0f,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-                label = "char_scale"
-            )
-
-            Box(
-                modifier = Modifier
-                    .size(240.dp)
-                    .scale(charScale)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(6.dp, Color(0xFF80DEEA), CircleShape)
-                    .clickable {
-                        // Tap character for happy sound & reaction
-                        soundManager.play("chime")
-                        haptics.vibrateShort()
-                        isJumping = true
-                        emitParticles("✨")
-                        scope.launch {
-                            delay(600L)
-                            isJumping = false
+            .background(Brush.verticalGradient(listOf(Color(0xFFFFF3E0), Color(0xFFFFE0B2))))
+            .onSizeChanged { size = it }
+            .testTag("pelmen_feast_root")
+            .pointerInput(size, options.size) {
+                detectDragGestures(
+                    onDragStart = { pos ->
+                        if (busy) return@detectDragGestures
+                        var best = -1
+                        var bestD = 70f * density
+                        for (i in options.indices) {
+                            val (sx, sy) = slotPos(i)
+                            val d = sqrt((pos.x - sx) * (pos.x - sx) + (pos.y - sy) * (pos.y - sy))
+                            if (d < bestD) { bestD = d; best = i }
+                        }
+                        dragIdx = best
+                        dragX = pos.x
+                        dragY = pos.y
+                    },
+                    onDrag = { change, _ ->
+                        if (dragIdx >= 0) {
+                            dragX = change.position.x
+                            dragY = change.position.y
+                            change.consume()
                         }
                     },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = if (isChewing) "😋" else currentChar.second,
-                        fontSize = 90.sp,
-                        modifier = Modifier.graphicsLayer {
-                            translationY = -jumpAnim.value * 40f
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = currentChar.third,
-                        style = PlayTypography.titleMedium,
-                        fontSize = 20.sp,
-                        color = ColorInk,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (isChewing) "Ням-ням!" else "Хочу вкусняшку!",
-                        style = PlayTypography.bodyMedium,
-                        fontSize = 14.sp,
-                        color = Color(0xFF00838F),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                    onDragEnd = {
+                        val i = dragIdx
+                        dragIdx = -1
+                        if (i >= 0) drop(i, dragX, dragY)
+                    },
+                    onDragCancel = { dragIdx = -1 }
+                )
+            }
+    ) {
+        if (size != IntSize.Zero) {
+            // Стол.
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(0, (h * 0.7f).roundToInt()) }
+                    .fillMaxSize()
+                    .background(Color(0xFFA1887F))
+            )
 
-                // Floating Particles over Character
-                Box(modifier = Modifier.fillMaxSize()) {
-                    particles.forEach { p ->
-                        Text(
-                            text = p.emoji,
-                            fontSize = 28.sp,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .offset(x = p.x.dp, y = p.y.dp)
-                                .scale(p.scale)
+            // Персонаж.
+            val guest = FEAST_GUESTS[guestIdx]
+            Text(
+                guest.emoji,
+                fontSize = 150.sp,
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            (guestX + guestShake.value - 90f * density).roundToInt(),
+                            (guestY + guestJump.value - 100f * density).roundToInt()
                         )
                     }
+                    .graphicsLayer(scaleX = guestScale.value, scaleY = 2f - guestScale.value)
+            )
+
+            // Облачко заказа.
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = Color.White,
+                shadowElevation = 6.dp,
+                modifier = Modifier.offset {
+                    IntOffset(
+                        (guestX + 70f * density).roundToInt(),
+                        (guestY - 170f * density + guestJump.value).roundToInt()
+                    )
+                }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(wanted, fontSize = 40.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(bubbleText, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5D4037))
                 }
             }
 
-            // Bottom Tray: Giant Toddler-Friendly Food Buttons
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
+            // Угощения на столе.
+            for (i in options.indices) {
+                val (sx, sy) = slotPos(i)
+                val dragging = dragIdx == i
+                val x = if (dragging) dragX else sx
+                val y = if (dragging) dragY else sy
+                Text(
+                    options[i],
+                    fontSize = if (dragging) 76.sp else 60.sp,
+                    modifier = Modifier.offset {
+                        IntOffset((x - 40f * density).roundToInt(), (y - 48f * density).roundToInt())
+                    }
+                )
+            }
+        }
+
+        // Шапка с прогрессом.
+        Row(
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(top = 8.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(Modifier.width(88.dp))
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White.copy(alpha = 0.85f),
+                shadowElevation = 4.dp
             ) {
                 Text(
-                    text = "Нажми на угощение, чтобы покормить!",
-                    style = PlayTypography.bodyMedium,
-                    fontSize = 16.sp,
-                    color = Color(0xFF006064),
+                    "Накорми: ${FEAST_GUESTS[guestIdx].name}  " + "❤️".repeat(fed) + "🤍".repeat((goal - fed).coerceAtLeast(0)),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    color = Color(0xFF5D4037)
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FEAST_FOODS.forEach { food ->
-                        Surface(
-                            shape = CircleShape,
-                            color = food.color,
-                            shadowElevation = 8.dp,
-                            border = BorderStroke(3.dp, Color.White),
-                            modifier = Modifier
-                                .size(72.dp)
-                                .testTag("food_${food.id}")
-                                .clickable {
-                                    feedCurrentCharacter(food)
-                                }
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                Text(
-                                    text = food.emoji,
-                                    fontSize = 36.sp
-                                )
-                            }
-                        }
-                    }
-                }
             }
         }
     }

@@ -47,7 +47,7 @@ fun DecorLayer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val soundManager = remember { SoundManager(context) }
+    val soundManager = remember { SoundManager.getInstance(context) }
     val haptics = rememberHaptics()
     val ageProfile = LocalAgeProfile.current
     val density = LocalDensity.current

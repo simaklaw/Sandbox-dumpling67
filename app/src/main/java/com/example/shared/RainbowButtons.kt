@@ -61,7 +61,7 @@ fun RainbowButtons(
     haptics: Haptics = rememberHaptics()
 ) {
     val context = LocalContext.current
-    val sound = soundManager ?: remember { SoundManager(context) }
+    val sound = soundManager ?: remember { SoundManager.getInstance(context) }
     val ageProfile = LocalAgeProfile.current
     val items = if (ageProfile.isToddler2) RAINBOW_COLOR_ITEMS_4 else RAINBOW_COLOR_ITEMS_6
 

@@ -19,6 +19,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -121,6 +123,7 @@ fun MultitouchRainbowCanvas(
     val activePointers = remember { mutableStateMapOf<Long, MutableList<RainbowPathPoint>>() }
     val activePointersHue = remember { mutableStateMapOf<Long, Float>() }
     val trailingSparkles = remember { mutableStateListOf<TrailSparkle>() }
+    var liveTick by remember { mutableIntStateOf(0) }
 
     // Ambient shimmering phase for rainbow wave effect
     val infiniteTransition = rememberInfiniteTransition(label = "rainbow_wave")
@@ -236,6 +239,7 @@ fun MultitouchRainbowCanvas(
                                     } else {
                                         pointList.add(newPoint)
                                     }
+                                    liveTick++
 
                                     // Spawn trailing fairy sparkle particles behind finger
                                     if (activeBrushMode == CanvasBrushMode.RAINBOW_TRAIL || activeBrushMode == CanvasBrushMode.NEON_GLOW) {
@@ -303,6 +307,7 @@ fun MultitouchRainbowCanvas(
             .testTag("multitouch_rainbow_canvas")
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
+            @Suppress("UNUSED_VARIABLE") val redrawTrigger = liveTick
             // 1. Draw committed strokes
             strokes.forEach { stroke ->
                 drawRenderedStroke(stroke)

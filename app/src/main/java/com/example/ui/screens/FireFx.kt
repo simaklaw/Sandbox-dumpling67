@@ -45,3 +45,15 @@ fun DrawScope.drawFire(sheet: FireSheet, frame: Int, x: Float, y: Float, length:
         )
     }
 }
+
+@Composable
+fun rememberWingsFx(): FireSheet {
+    val img = ImageBitmap.imageResource(R.drawable.fx_wings)
+    return remember(img) { FireSheet(img, 5, 5, 150, 60) }
+}
+
+@Composable
+fun rememberWaterFx(): FireSheet {
+    val img = ImageBitmap.imageResource(R.drawable.fx_water)
+    return remember(img) { FireSheet(img, 5, 25, 120, 120) }
+}

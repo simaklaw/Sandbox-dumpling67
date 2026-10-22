@@ -311,6 +311,10 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     var deadTimer = 0
     var crouching = false
     var mortarCooldown = 0
+    var airJumps = 1
+    var jumpPrev = false
+    var wingT = -1
+    var healT = -1
     var ammo = HOMING_MAX_AMMO
 
     var camX = 0f
@@ -548,11 +552,19 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             val speedMul = if (crouching) 0.5f else 1f
             pvx = moveX * MOVE_SPEED * speedMul
 
+            if (onGround) airJumps = 1
             if (input.jump && onGround && !crouching) {
                 pvy = JUMP_POWER
                 onGround = false
                 onEvent("jump")
+            } else if (input.jump && !jumpPrev && !onGround && airJumps > 0 && !crouching) {
+                // второй прыжок — на крыльях
+                airJumps--
+                pvy = JUMP_POWER * 0.92f
+                wingT = 0
+                onEvent("wings")
             }
+            jumpPrev = input.jump
 
             if (input.attack) {
                 if (crouching) {
@@ -623,6 +635,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             if (hypot(cx - m.x, cy - m.y) < 12f + 26f && hp < PLAYER_MAX_HP) {
                 m.taken = true
                 hp = min(PLAYER_MAX_HP, hp + 4)
+                healT = 0
                 onEvent("heal")
             }
         }
@@ -1031,6 +1044,8 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
     private fun updateFX() {
         for (c in cured) c.age++
+        if (wingT >= 0) { wingT++; if (wingT > 26) wingT = -1 }
+        if (healT >= 0) { healT++; if (healT > 48) healT = -1 }
         val pi = parts.iterator()
         while (pi.hasNext()) {
             val p = pi.next()
@@ -1230,7 +1245,7 @@ private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     if (b.hitFlash > 0) drawOval(Color.White.copy(alpha = 0.55f), Offset(cx - rw / 2f, cy - rh), Size(rw, rh * 2f))
 }
 
-private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireSheet, fb: FireSheet) {
+private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireSheet, fb: FireSheet, wings: FireSheet, water: FireSheet) {
     val camX = w.camX
     val camY = w.camY
     val sw = size.width
@@ -1332,6 +1347,10 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
             drawImage(img, dstOffset = IntOffset((c.x - ww / 2f).toInt(), (c.bottom - hh).toInt()),
                 dstSize = IntSize(ww.toInt().coerceAtLeast(1), hh.toInt().coerceAtLeast(1)), alpha = alpha.coerceIn(0f, 1f))
         }
+        // вода расколдовывает подсолнухи
+        for (c in w.cured) {
+            if (c.age < 50) drawFire(water, c.age / 2, c.x, c.bottom - c.h * 0.5f, c.h * 1.2f, 0f, 0.9f)
+        }
         // мобы
         val tx = w.px + w.pw / 2f
         val ty = w.py + w.ph / 2f
@@ -1372,7 +1391,15 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
             drawFire(fb, r.trail / 2, r.x - cos(r.angle) * 22f, r.y - sin(r.angle) * 22f, 64f, r.angle * 57.2958f)
         }
 
+        // крылья за спиной при втором прыжке
+        if (w.wingT >= 0) {
+            val fr = min(4, w.wingT / 3)
+            val a = if (w.wingT > 18) (26 - w.wingT) / 8f else 1f
+            drawFire(wings, fr, w.px + w.pw / 2f, w.py + w.ph * 0.38f, 150f, 0f, a.coerceIn(0f, 1f))
+        }
         drawZelik(w, f)
+        // водное исцеление
+        if (w.healT >= 0) drawFire(water, w.healT / 2, w.px + w.pw / 2f, w.py + w.ph * 0.5f, 120f, 0f, 0.9f)
 
         // волны и частицы
         for (wv in w.waves) {
@@ -1526,6 +1553,8 @@ fun ZelikAdventureScreen(
     val frames = rememberZFrames()
     val fireA = rememberFireA()
     val fireB = rememberFireB()
+    val wingsFx = rememberWingsFx()
+    val waterFx = rememberWaterFx()
     val input = remember { ZInput() }
 
     var screen by remember { mutableStateOf(ZScreen.MENU) }
@@ -1552,6 +1581,7 @@ fun ZelikAdventureScreen(
             "bossShoot" -> soundPlayer.playBowShot()
             "bossDead" -> soundPlayer.playLegendaryFanfare()
             "pickup" -> soundPlayer.playChime(1.4f)
+            "wings" -> soundPlayer.playMagicSparkle()
             "switch" -> soundPlayer.playArcadeButton()
             "levelDone" -> {
                 soundPlayer.playFanfare()
@@ -1586,7 +1616,7 @@ fun ZelikAdventureScreen(
                 @Suppress("UNUSED_VARIABLE") val redraw = tick
                 w.vw = size.width / density
                 w.vh = size.height / density
-                drawWorld(w, frames, density, fireA, fireB)
+                drawWorld(w, frames, density, fireA, fireB, wingsFx, waterFx)
             }
         }
 
@@ -1724,7 +1754,7 @@ fun ZelikAdventureScreen(
                 Text("Зелик: Приключение", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Беги вправо, прыгай, собирай монеты и победи босса!\nПистолет · граната · звёздные ракеты (присядь и жми 💥)",
+                    "Беги вправо, прыгай, собирай монеты и победи босса!\nПистолет · граната · звёздные ракеты (присядь и жми 💥)\nВторой прыжок в воздухе — на крыльях!",
                     fontSize = 13.sp, color = Color(0xFFD1C4E9), textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(18.dp))

@@ -21,7 +21,7 @@ object BoxSurpriseCatalog {
         BoxSurprise("dog", "Щенок", "🐶", "animal_dog"),
         BoxSurprise("cat", "Котёнок", "🐱", "animal_cat"),
         BoxSurprise("bear", "Мишка", "🧸", "decor_guest"),
-        BoxSurprise("bunny", "Зайка", "🐰", "animal_bunny"),
+        BoxSurprise("piglet", "Поросёнок", "🐖", "animal_piglet"),
         BoxSurprise("frog", "Лягушонок", "🐸", "animal_frog"),
         BoxSurprise("chick", "Цыплёнок", "🐥", "chick_peep"),
         BoxSurprise("elephant", "Слонёнок", "🐘", "elephant_toot"),

@@ -70,7 +70,7 @@ private class FeastGuest(val emoji: String, val name: String, val sound: String?
 private val FEAST_GUESTS = listOf(
     FeastGuest("🥟", "Пельмень"),
     FeastGuest("🐱", "Котик", "animal_cat_happy"),
-    FeastGuest("🐰", "Зайка", "animal_bunny_happy"),
+    FeastGuest("🐴", "Лошадка", "animal_horse"),
     FeastGuest("🐻", "Мишка"),
     FeastGuest("🐶", "Собачка", "animal_dog_happy")
 )

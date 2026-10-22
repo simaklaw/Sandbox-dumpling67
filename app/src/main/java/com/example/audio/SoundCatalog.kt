@@ -177,6 +177,50 @@ object SoundCatalog {
             description = "Зайчик: фырканье / писк"
         ),
         SoundEntry(
+            name = "animal_chick",
+            category = SoundCategory.ANIMAL,
+            files = listOf("chick_peep"),
+            volume = 0.9f,
+            minIntervalMs = 300L,
+            maxConcurrent = 2,
+            group = "animals",
+            priority = SoundPriority.P1_CRITICAL,
+            description = "Цыплёнок: пи-пи"
+        ),
+        SoundEntry(
+            name = "animal_piglet",
+            category = SoundCategory.ANIMAL,
+            files = listOf("animal_pig_2"),
+            volume = 0.9f,
+            minIntervalMs = 300L,
+            maxConcurrent = 2,
+            group = "animals",
+            priority = SoundPriority.P1_CRITICAL,
+            description = "Поросёнок: визг"
+        ),
+        SoundEntry(
+            name = "animal_lamb",
+            category = SoundCategory.ANIMAL,
+            files = listOf("animal_sheep_2"),
+            volume = 0.95f,
+            minIntervalMs = 300L,
+            maxConcurrent = 2,
+            group = "animals",
+            priority = SoundPriority.P1_CRITICAL,
+            description = "Ягнёнок: бэ-э"
+        ),
+        SoundEntry(
+            name = "animal_calf",
+            category = SoundCategory.ANIMAL,
+            files = listOf("animal_cow_2"),
+            volume = 0.95f,
+            minIntervalMs = 300L,
+            maxConcurrent = 2,
+            group = "animals",
+            priority = SoundPriority.P1_CRITICAL,
+            description = "Телёнок: му-у"
+        ),
+        SoundEntry(
             name = "animal_dog_happy",
             category = SoundCategory.ANIMAL,
             files = listOf("animal_dog_happy"),

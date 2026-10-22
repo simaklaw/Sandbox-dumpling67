@@ -23,7 +23,7 @@ object BusyboardCatalog {
         PeekabooAnimal("duck", "Уточка", "🦆", "duck"),
         PeekabooAnimal("cow", "Коровка", "🐮", "cow"),
         PeekabooAnimal("frog", "Лягушонок", "🐸", "frog"),
-        PeekabooAnimal("bunny", "Зайка", "🐰", "bunny")
+        PeekabooAnimal("horse", "Лошадка", "🐴", "horse")
     )
 }
 

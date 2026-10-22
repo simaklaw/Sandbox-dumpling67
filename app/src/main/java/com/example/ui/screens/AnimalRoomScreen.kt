@@ -52,12 +52,12 @@ val FULL_ANIMAL_SOUND_LIST = listOf(
     AnimalSoundCardItem("animal_cat", "Кошечка", "voice_name_cat", "🐱", Color(0xFFFBE9E7), Color(0xFFFF8A65)),
     AnimalSoundCardItem("animal_pig", "Свинка", "voice_name_pig", "🐷", Color(0xFFFCE4EC), Color(0xFFF48FB1)),
     AnimalSoundCardItem("animal_sheep", "Барашек", "voice_name_sheep", "🐑", Color(0xFFE0F2F1), Color(0xFF80CBC4)),
-    AnimalSoundCardItem("animal_goose", "Гусь", "voice_name_goose", "🪿", Color(0xFFE1F5FE), Color(0xFF4FC3F7)),
-    AnimalSoundCardItem("animal_rooster", "Петушок", "voice_name_rooster", "🐓", Color(0xFFFFF3E0), Color(0xFFFF7043)),
+    AnimalSoundCardItem("animal_chick", "Цыплёнок", "voice_name_duck", "🐥", Color(0xFFFFFDE7), Color(0xFFFFCA28)),
+    AnimalSoundCardItem("animal_piglet", "Поросёнок", "voice_name_pig", "🐖", Color(0xFFFFF3E0), Color(0xFFFF8A65)),
     AnimalSoundCardItem("animal_frog", "Лягушонок", "voice_name_frog", "🐸", Color(0xFFE8F8F5), Color(0xFF66BB6A)),
-    AnimalSoundCardItem("animal_crow", "Ворона", "voice_name_crow", "🐦‍⬛", Color(0xFFECEFF1), Color(0xFF90A4AE)),
+    AnimalSoundCardItem("animal_lamb", "Ягнёнок", "voice_name_sheep", "🐑", Color(0xFFECEFF1), Color(0xFF90A4AE)),
     AnimalSoundCardItem("animal_duck", "Уточка", "voice_name_duck", "🦆", Color(0xFFFFFDE7), Color(0xFFFFD54F)),
-    AnimalSoundCardItem("animal_bunny", "Зайка", "voice_name_bunny", "🐰", Color(0xFFF3E5F5), Color(0xFFCE93D8))
+    AnimalSoundCardItem("animal_calf", "Телёнок", "voice_name_cow", "🐄", Color(0xFFF3E5F5), Color(0xFFCE93D8))
 )
 
 val TODDLER_ANIMAL_SOUND_LIST = listOf(

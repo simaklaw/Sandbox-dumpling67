@@ -90,7 +90,10 @@ fun BabyPhoneScreen(
         "cow", "🐮" -> "animal_cow"
         "frog", "🐸" -> "animal_frog"
         "🐷" -> "animal_pig"
-        "🐰" -> "animal_bunny"
+        "🐴" -> "animal_horse"
+        "🐑" -> "animal_sheep"
+        "🐥" -> "animal_chick"
+        "🐄" -> "animal_calf"
         else -> null
     }
 
@@ -134,11 +137,11 @@ fun BabyPhoneScreen(
             PhoneKey("4", "🐮", 4, Color(0xFFAED581)),
             PhoneKey("5", "🐸", 5, Color(0xFFCE93D8)),
             PhoneKey("6", "🐷", 6, Color(0xFFFFB74D)),
-            PhoneKey("7", "🐰", 7, Color(0xFF80CBC4)),
-            PhoneKey("8", "🐻", 8, Color(0xFFFFF59D)),
-            PhoneKey("9", "🦁", 9, Color(0xFFFFAB91)),
+            PhoneKey("7", "🐴", 7, Color(0xFF80CBC4)),
+            PhoneKey("8", "🐑", 8, Color(0xFFFFF59D)),
+            PhoneKey("9", "🐥", 9, Color(0xFFFFAB91)),
             PhoneKey("*", "✨", 10, Color(0xFFB39DDB)),
-            PhoneKey("0", "🦊", 0, Color(0xFFFFCC80)),
+            PhoneKey("0", "🐄", 0, Color(0xFFFFCC80)),
             PhoneKey("#", "🎉", 11, Color(0xFF80DEEA))
         )
     }

@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -106,6 +107,7 @@ fun PetMeadowScreen(
         "hamster1" to ImageBitmap.imageResource(R.drawable.pet_hamster1),
         "hamster2" to ImageBitmap.imageResource(R.drawable.pet_hamster2)
     )
+    val sunImg = ImageBitmap.imageResource(R.drawable.sun_cured)
     val coinImg = ImageBitmap.imageResource(R.drawable.pet_coin)
     val bgMeadow = ImageBitmap.imageResource(R.drawable.pet_bg_meadow)
     val bgIsland = ImageBitmap.imageResource(R.drawable.pet_bg_island)
@@ -116,6 +118,9 @@ fun PetMeadowScreen(
             MeadowPet(a.first, a.second, a.third, b.first, b.second)
         }
     }
+    val sunSway = remember { FloatArray(4) }
+    val sunX = floatArrayOf(0.07f, 0.93f, 0.5f, 0.28f)
+    val sunY = floatArrayOf(0.74f, 0.76f, 0.4f, 0.42f)
     val coinsFly = remember { mutableListOf<FlyingCoin>() }
 
     var size by remember { mutableStateOf(IntSize.Zero) }
@@ -233,7 +238,14 @@ fun PetMeadowScreen(
                         dragX = pos.x; dragY = pos.y
                         if (best < 0) {
                             val pi = petAt(pos.x, pos.y)
-                            if (pi >= 0) tapPet(pi)
+                            if (pi >= 0) tapPet(pi) else if (scene == 0) {
+                                for (k in 0 until 4) {
+                                    if (abs(pos.x - w * sunX[k]) < h * 0.08f && pos.y > h * sunY[k] - h * 0.3f && pos.y < h * sunY[k]) {
+                                        sunSway[k] = 1f
+                                        soundPlayer.playChime(1.0f + k * 0.15f)
+                                    }
+                                }
+                            }
                         }
                     },
                     onDrag = { change, _ ->
@@ -254,6 +266,20 @@ fun PetMeadowScreen(
         Canvas(Modifier.fillMaxSize()) {
             @Suppress("UNUSED_VARIABLE") val redraw = tick
             drawCover(if (scene == 0) bgMeadow else bgIsland, if (scene == 0) 0.45f else 0.5f)
+            // Добрые подсолнухи на лугу.
+            if (scene == 0) {
+                for (k in 0 until 4) {
+                    val sh = h * (if (k < 2) 0.30f else 0.20f)
+                    val sw = sh * sunImg.width / sunImg.height
+                    val bx = w * sunX[k]
+                    val by = h * sunY[k]
+                    val ang = sin(clock * 1.6f + k) * 2f + sunSway[k] * sin(clock * 14f) * 8f
+                    withTransform({ rotate(ang, androidx.compose.ui.geometry.Offset(bx, by)) }) {
+                        drawImage(sunImg, dstOffset = IntOffset((bx - sw / 2f).roundToInt(), (by - sh).roundToInt()),
+                            dstSize = IntSize(sw.roundToInt(), sh.roundToInt()))
+                    }
+                }
+            }
             // Зверьки: задние ряды рисуем первыми.
             for (i in pets.indices) {
                 val p = pets[i]
@@ -360,6 +386,7 @@ fun PetMeadowScreen(
                 val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
                 last = now
                 clock += dt
+                for (k in sunSway.indices) sunSway[k] = max(0f, sunSway[k] - dt * 1.2f)
                 for (p in pets) {
                     p.squash = max(0f, p.squash - dt * 3.5f)
                     p.shake = max(0f, p.shake - dt * 2.5f)

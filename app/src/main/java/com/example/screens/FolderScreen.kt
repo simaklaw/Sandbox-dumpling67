@@ -39,6 +39,7 @@ val FOLDER_ITEMS: Map<FolderType, List<FolderItem>> = mapOf(
     FolderType.GAMES to listOf(
         FolderItem("Комната Зелика", "👽", 27, ColorGreen),
         FolderItem("Зелик: Приключение", "🔫", 28, ColorGreen),
+        FolderItem("Луг питомцев", "🐹", 29, ColorGreen),
         FolderItem("Дождик", "🌧️", 24, ColorBlue),
         FolderItem("Кто в коробке?", "🎁", 25, ColorPink),
         FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),

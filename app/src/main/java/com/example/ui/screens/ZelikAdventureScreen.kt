@@ -121,6 +121,8 @@ private class ZEnemy(
     val anim = Random.nextFloat() * 6.28f
 }
 
+private class ZCured(val x: Float, val bottom: Float, val h: Float) { var age = 0 }
+
 private class ZCoin(val x: Float, val y: Float, val phase: Float) { var taken = false }
 private class ZMed(val x: Float, val y: Float) { var taken = false }
 
@@ -204,7 +206,10 @@ private class ZFrames(
     val hurt: List<ImageBitmap>,
     val dead: List<ImageBitmap>,
     val fire: List<ImageBitmap>,   // 0 — пистолет в руке, 1 — выстрел со вспышкой
-    val attack: List<ImageBitmap>  // 0 — «заряд в глазах», 1 — бросок рукой
+    val attack: List<ImageBitmap>, // 0 — «заряд в глазах», 1 — бросок рукой
+    val sunWalk: List<ImageBitmap>,
+    val sunFade: List<ImageBitmap>,
+    val sunCured: ImageBitmap
 )
 
 @Composable
@@ -242,7 +247,16 @@ private fun rememberZFrames(): ZFrames {
     val attack = listOf(
         ImageBitmap.imageResource(R.drawable.alien_attack_1), ImageBitmap.imageResource(R.drawable.alien_attack_2)
     )
-    return remember { ZFrames(idle, walk, run, jump, hurt, dead, fire, attack) }
+    val sunWalk = listOf(
+        ImageBitmap.imageResource(R.drawable.sun_walk_1), ImageBitmap.imageResource(R.drawable.sun_walk_2),
+        ImageBitmap.imageResource(R.drawable.sun_walk_3)
+    )
+    val sunFade = listOf(
+        ImageBitmap.imageResource(R.drawable.sun_fade_1), ImageBitmap.imageResource(R.drawable.sun_fade_2),
+        ImageBitmap.imageResource(R.drawable.sun_fade_3)
+    )
+    val sunCured = ImageBitmap.imageResource(R.drawable.sun_cured)
+    return remember { ZFrames(idle, walk, run, jump, hurt, dead, fire, attack, sunWalk, sunFade, sunCured) }
 }
 
 // ---------- Игровой мир ----------
@@ -264,6 +278,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     val platforms = ArrayList<ZPlat>()
     val enemies = ArrayList<ZEnemy>()
     val coins = ArrayList<ZCoin>()
+    val cured = ArrayList<ZCured>()
     val meds = ArrayList<ZMed>()
     var boss = ZBoss(0f, 0f, 70f, 110f, 1, 1, 200)
 
@@ -380,6 +395,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         }
 
         coins.clear()
+        cured.clear()
         val coinTarget = 40 + n * 5
         for (i in 0 until coinTarget) {
             val cx = 250f + rng.nextFloat() * (levelLength - 500f)
@@ -667,8 +683,18 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     }
 
     private fun killEnemy(e: ZEnemy) {
-        spawnDeathFX(e.x, e.y)
-        onEvent("boom_small")
+        if (e.tier >= 1) {
+            // Подсолнух «расколдован»: гаснет и остаётся добрым цветком.
+            cured.add(ZCured(e.x, e.y + e.r + 2f, e.r * 3.6f))
+            repeat(8) {
+                val a = Random.nextFloat() * 6.28f
+                parts.add(ZPart(e.x, e.y, cos(a) * 2.5f, sin(a) * 2.5f - 1.5f, 1f, 0.04f, 3f, Color(0xFFFFD54F)))
+            }
+            onEvent("heal")
+        } else {
+            spawnDeathFX(e.x, e.y)
+            onEvent("boom_small")
+        }
         maybeDrop(e)
         enemies.remove(e)
     }
@@ -1004,6 +1030,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     }
 
     private fun updateFX() {
+        for (c in cured) c.age++
         val pi = parts.iterator()
         while (pi.hasNext()) {
             val p = pi.next()
@@ -1134,6 +1161,27 @@ private fun DrawScope.drawMob(e: ZEnemy, t: Int, tx: Float, ty: Float) {
         val bw = r * 1.6f
         drawRoundRect(Color.Black.copy(alpha = 0.5f), Offset(cx - bw / 2f, cy - r * 1.6f), Size(bw, 6f), CornerRadius(3f))
         drawRoundRect(Color(0xFF66BB6A), Offset(cx - bw / 2f, cy - r * 1.6f), Size(bw * e.hp / e.maxHp, 6f), CornerRadius(3f))
+    }
+}
+
+private fun DrawScope.drawSunflower(e: ZEnemy, t: Int, f: ZFrames) {
+    val seq = intArrayOf(0, 1, 2, 1)
+    val img = f.sunWalk[seq[(t / 8) % 4]]
+    val hh = e.r * 3.6f * (if (e.tier == 2) 1.15f else 1f)
+    val ww = hh * img.width / img.height
+    val bottom = e.y + e.r + 2f
+    withTransform({ if (e.dir < 0f) scale(-1f, 1f, Offset(e.x, 0f)) }) {
+        drawImage(img, dstOffset = IntOffset((e.x - ww / 2f).toInt(), (bottom - hh).toInt()),
+            dstSize = IntSize(ww.toInt().coerceAtLeast(1), hh.toInt().coerceAtLeast(1)))
+        if (e.hitFlash > 0) drawImage(img, dstOffset = IntOffset((e.x - ww / 2f).toInt(), (bottom - hh).toInt()),
+            dstSize = IntSize(ww.toInt().coerceAtLeast(1), hh.toInt().coerceAtLeast(1)), alpha = 0.5f,
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White, androidx.compose.ui.graphics.BlendMode.SrcAtop))
+    }
+    if (e.hp < e.maxHp) {
+        val bw = e.r * 1.6f
+        val by = bottom - hh - 8f
+        drawRoundRect(Color.Black.copy(alpha = 0.5f), Offset(e.x - bw / 2f, by), Size(bw, 6f), CornerRadius(3f))
+        drawRoundRect(Color(0xFF66BB6A), Offset(e.x - bw / 2f, by), Size(bw * e.hp / e.maxHp, 6f), CornerRadius(3f))
     }
 }
 
@@ -1272,12 +1320,24 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float) {
             drawCircle(Color(0xFF29B6F6).copy(alpha = 0.35f), 22f, Offset(p.x, p.y + bobY))
             drawStar(Offset(p.x, p.y + bobY), 13f, Color(0xFFFFEB3B))
         }
+        // расколдованные подсолнухи
+        for (c in w.cured) {
+            if (c.x < left - 80f || c.x > right + 80f) continue
+            val img: ImageBitmap
+            var alpha = 1f
+            var hh = c.h
+            if (c.age < 45) { img = f.sunFade[min(2, c.age / 15)]; alpha = 1f - (c.age % 15) / 40f }
+            else { img = f.sunCured; val k = min(1f, (c.age - 45) / 25f); alpha = k; hh *= 0.9f + 0.1f * k }
+            val ww = hh * img.width / img.height
+            drawImage(img, dstOffset = IntOffset((c.x - ww / 2f).toInt(), (c.bottom - hh).toInt()),
+                dstSize = IntSize(ww.toInt().coerceAtLeast(1), hh.toInt().coerceAtLeast(1)), alpha = alpha.coerceIn(0f, 1f))
+        }
         // мобы
         val tx = w.px + w.pw / 2f
         val ty = w.py + w.ph / 2f
         for (e in w.enemies) {
             if (e.x < left - 60f || e.x > right + 60f) continue
-            drawMob(e, t, tx, ty)
+            if (e.tier >= 1) drawSunflower(e, t, f) else drawMob(e, t, tx, ty)
         }
         drawBoss(w.boss, t, tx)
 

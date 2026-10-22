@@ -329,6 +329,7 @@ fun AlienRoomScreen(
     val ageProfile = LocalAgeProfile.current
     val dp = LocalDensity.current.density
     val frames = rememberAlienFrames()
+    val fireB = rememberFireB()
 
     val world = remember(ageProfile.isToddler2) {
         AlienWorld(dp = dp, goal = if (ageProfile.isToddler2) 3 else 5, crystalsAtOnce = if (ageProfile.isToddler2) 2 else 3)
@@ -475,20 +476,8 @@ fun AlienRoomScreen(
             val shipColor = CRYSTAL_COLORS[world.round % CRYSTAL_COLORS.size]
             withTransform({ translate(shake, 0f) }) {
                 if (world.shipPhase == 1 && world.shipT > 0.15f) {
-                    val flame = Path().apply {
-                        moveTo(sx - 14f * dp, shipBase)
-                        lineTo(sx, shipBase + (46f + 16f * sin(t * 40f)) * dp)
-                        lineTo(sx + 14f * dp, shipBase)
-                        close()
-                    }
-                    drawPath(flame, Color(0xFFFFB300))
-                    val flame2 = Path().apply {
-                        moveTo(sx - 7f * dp, shipBase)
-                        lineTo(sx, shipBase + (28f + 10f * sin(t * 47f)) * dp)
-                        lineTo(sx + 7f * dp, shipBase)
-                        close()
-                    }
-                    drawPath(flame2, Color(0xFFFFF59D))
+                    val fl = (54f + 14f * sin(t * 40f)) * dp
+                    drawFire(fireB, (t * 24f).toInt(), sx, shipBase + fl * 0.35f, fl * 1.9f, -90f)
                 }
                 // Плавники.
                 val finL = Path().apply {

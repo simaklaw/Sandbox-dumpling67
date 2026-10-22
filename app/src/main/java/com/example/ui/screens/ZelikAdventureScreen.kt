@@ -1230,7 +1230,7 @@ private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     if (b.hitFlash > 0) drawOval(Color.White.copy(alpha = 0.55f), Offset(cx - rw / 2f, cy - rh), Size(rw, rh * 2f))
 }
 
-private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float) {
+private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireSheet, fb: FireSheet) {
     val camX = w.camX
     val camY = w.camY
     val sw = size.width
@@ -1345,12 +1345,11 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float) {
         for (s in w.smokes) {
             drawCircle(Color.White.copy(alpha = (s.life * 0.5f).coerceIn(0f, 1f)), s.r, Offset(s.x, s.y))
         }
-        // выстрелы
+        // выстрелы — огненные шары
         for (b in w.bolts) {
-            val dir = if (b.vx >= 0f) 1f else -1f
-            drawLine(Color(0xFFE040FB).copy(alpha = 0.4f), Offset(b.x - dir * 34f, b.y), Offset(b.x, b.y), 10f, StrokeCap.Round)
-            drawOval(Color(0xFFE040FB), Offset(b.x - 13f, b.y - 6f), Size(26f, 12f))
-            drawOval(Color.White, Offset(b.x - 7f, b.y - 3f), Size(14f, 6f))
+            val left = b.vx < 0f
+            drawCircle(Color(0xFFFFB300).copy(alpha = 0.25f), 20f, Offset(b.x, b.y))
+            drawFire(fa, b.trail / 2, b.x - (if (left) -22f else 22f) + (if (left) 0f else 0f), b.y, 72f, if (left) 180f else 0f)
         }
         // гранаты
         for (g in w.grenades) {
@@ -1368,11 +1367,9 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float) {
             drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.3f), 18f, Offset(h.x, h.y))
             rotate(t * 6f, Offset(h.x, h.y)) { drawStar(Offset(h.x, h.y), 12f, Color(0xFFFFEB3B)) }
         }
-        // ракеты босса
+        // ракеты босса — огненные шары
         for (r in w.bossRockets) {
-            drawCircle(Color(0xFFFF7043).copy(alpha = 0.35f), 17f, Offset(r.x, r.y))
-            drawCircle(Color(0xFFFF5722), 9f, Offset(r.x, r.y))
-            drawCircle(Color(0xFFFFEB3B), 4.5f, Offset(r.x, r.y))
+            drawFire(fb, r.trail / 2, r.x - cos(r.angle) * 22f, r.y - sin(r.angle) * 22f, 64f, r.angle * 57.2958f)
         }
 
         drawZelik(w, f)
@@ -1527,6 +1524,8 @@ fun ZelikAdventureScreen(
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
     val density = LocalDensity.current.density
     val frames = rememberZFrames()
+    val fireA = rememberFireA()
+    val fireB = rememberFireB()
     val input = remember { ZInput() }
 
     var screen by remember { mutableStateOf(ZScreen.MENU) }
@@ -1587,7 +1586,7 @@ fun ZelikAdventureScreen(
                 @Suppress("UNUSED_VARIABLE") val redraw = tick
                 w.vw = size.width / density
                 w.vh = size.height / density
-                drawWorld(w, frames, density)
+                drawWorld(w, frames, density, fireA, fireB)
             }
         }
 

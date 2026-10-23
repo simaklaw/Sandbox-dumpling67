@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,6 +104,13 @@ fun ScarecrowArcheryScreen(
     val particles = remember { mutableStateListOf<ArcheryParticle>() }
     val confettiList = remember { mutableStateListOf<ArcheryConfetti>() }
 
+    // Режим мишени: стоит на месте или проезжает справа налево
+    var movingMode by remember { mutableStateOf(false) }
+    var scarecrowXFrac by remember { mutableFloatStateOf(0.5f) }
+    var scarecrowVxPx by remember { mutableFloatStateOf(0f) }
+    var canvasWidthPx by remember { mutableFloatStateOf(0f) }
+    val dens = LocalDensity.current.density
+
     // Scarecrow Visual Center and Bounds
     var scarecrowCenterPx by remember { mutableStateOf(Offset.Zero) }
     var scarecrowScale by remember { mutableFloatStateOf(1f) }
@@ -126,15 +134,32 @@ fun ScarecrowArcheryScreen(
                 val dt = ((nowNanos - lastTimeNanos) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
                 lastTimeNanos = nowNanos
 
+                // 0. Движение чучела (режим «мишень едет»)
+                if (movingMode) {
+                    scarecrowXFrac -= dt * 0.13f
+                    scarecrowVxPx = -0.13f * canvasWidthPx
+                    if (scarecrowXFrac < -0.3f) {
+                        // уехало — справа появляется следующее чучело
+                        scarecrowXFrac = 1.3f
+                        stuckArrows.clear()
+                        soundHelper.playScarecrowGiggle()
+                    }
+                } else {
+                    scarecrowVxPx = 0f
+                    if (abs(scarecrowXFrac - 0.5f) > 0.003f) {
+                        scarecrowXFrac += (0.5f - scarecrowXFrac) * min(1f, dt * 4f)
+                    } else scarecrowXFrac = 0.5f
+                }
+
                 // 1. Update flying arrow
                 activeFlyingArrow?.let { arrow ->
                     arrow.ageSec += dt
 
                     // Soft Guidance towards scarecrow center if trajectory passes near
                     if (scarecrowCenterPx != Offset.Zero) {
-                        val toTarget = scarecrowCenterPx - arrow.position
+                        val toTarget = (scarecrowCenterPx + Offset(scarecrowVxPx * 0.35f, 0f)) - arrow.position
                         val distToCenter = toTarget.getDistance()
-                        if (distToCenter < 180f && !arrow.isAssisted) {
+                        if (distToCenter < 240f && !arrow.isAssisted) {
                             arrow.isAssisted = true
                             val correction = toTarget * 0.35f * dt * 4f
                             arrow.velocity = Offset(arrow.velocity.x + correction.x, arrow.velocity.y + correction.y)
@@ -403,6 +428,27 @@ fun ScarecrowArcheryScreen(
             .navigationBarsPadding()
             .pointerInput(Unit) {
                 detectTapGestures(
+                    onTap = {
+                        // Лёгкий режим: тап по экрану — стрела сама летит в чучело
+                        if (activeFlyingArrow == null && bowCenterPx != Offset.Zero && scarecrowCenterPx != Offset.Zero) {
+                            val tf = 0.55f
+                            val g = 1400f * 2.2f
+                            val tx = scarecrowCenterPx.x + scarecrowVxPx * tf + (Random.nextFloat() - 0.5f) * 50f
+                            val ty = scarecrowCenterPx.y + (Random.nextFloat() - 0.5f) * 40f
+                            val p0 = bowCenterPx
+                            val vx = (tx - p0.x) / tf
+                            val vy = (ty - p0.y) / tf - 0.5f * g * tf
+                            activeFlyingArrow = FlyingArrow(
+                                id = System.currentTimeMillis(),
+                                type = selectedArrowType,
+                                position = p0,
+                                velocity = Offset(vx, vy),
+                                angleDeg = (atan2(vy, vx) * 180f / PI.toFloat())
+                            )
+                            soundHelper.playShoot()
+                            haptics.vibrate(20)
+                        }
+                    },
                     onPress = {
                         lastInteractionTime = System.currentTimeMillis()
                         showIdleHint = false
@@ -439,7 +485,7 @@ fun ScarecrowArcheryScreen(
 
                             // Check if drag starts near the bow center
                             val distToBow = (startOffset - bowCenterPx).getDistance()
-                            if (distToBow <= touchRadiusPx) {
+                            if (distToBow >= 0f) { // тянуть тетиву можно из любой точки экрана
                                 isDraggingBow = true
                                 bowDragOffsetPx = Offset.Zero
                                 soundHelper.playBowPull()
@@ -500,13 +546,14 @@ fun ScarecrowArcheryScreen(
             val height = size.height
 
             // Calculate dynamic key positions
-            val sCenter = Offset(width / 2f, height * 0.32f)
+            canvasWidthPx = width
+            val sCenter = Offset(width * scarecrowXFrac, height * 0.30f)
             scarecrowCenterPx = sCenter
             scarecrowScale = (width / 420f).coerceIn(0.85f, 1.25f)
 
             val bWidth = width * 0.36f
             bowWidthPx = bWidth
-            val bCenter = Offset(bWidth * 0.5f + 8.dp.toPx(), height * 0.65f)
+            val bCenter = Offset(width / 2f, height * 0.68f)
             bowCenterPx = bCenter
 
             // 1. Draw Decorative Garden Background in Plasticine Style
@@ -665,6 +712,35 @@ fun ScarecrowArcheryScreen(
             }
         }
 
+        // Переключатель режима: чучело стоит / проезжает справа налево
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 92.dp, end = 16.dp)
+                .size(72.dp)
+                .border(BorderStroke(3.dp, ColorInk), ShapeButton)
+                .background(if (movingMode) ColorOrange else ColorWhite, ShapeButton)
+                .clip(ShapeButton)
+                .plasticineClickable(haptics = haptics) {
+                    movingMode = !movingMode
+                    stuckArrows.clear()
+                    groundArrows.clear()
+                    hitDotsCount = 0
+                    soundHelper.playWhoosh()
+                    haptics.vibrateShort()
+                    coroutineScope.launch {
+                        scarecrowWobbleAngle.animateTo(8f, tween(120))
+                        scarecrowWobbleAngle.animateTo(-8f, tween(150))
+                        scarecrowWobbleAngle.animateTo(0f, tween(150))
+                    }
+                    if (movingMode) scarecrowXFrac = 1.1f
+                }
+                .testTag("archery_mode_btn")
+        ) {
+            Text(text = if (movingMode) "🏃" else "🧍", fontSize = 34.sp)
+        }
+
         // Arrow Selector Row (3 round buttons, 88 dp each, at the bottom)
         Row(
             modifier = Modifier
@@ -752,8 +828,8 @@ fun ScarecrowArcheryScreen(
         // Hint Hand Gesture: Pull down bowstring & release
         if (isFirstLaunch || showIdleHint) {
             HintHand(
-                from = Offset(160f, 480f),
-                to = Offset(160f, 560f),
+                from = Offset(bowCenterPx.x / dens, bowCenterPx.y / dens),
+                to = Offset(bowCenterPx.x / dens, bowCenterPx.y / dens + 90f),
                 mode = "drag",
                 delayMs = if (isFirstLaunch) 1200L else 200L
             )

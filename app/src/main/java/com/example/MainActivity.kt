@@ -347,6 +347,7 @@ fun MainAppScreen(
                                     28 -> ZelikAdventureScreen(repository = repository, soundPlayer = soundPlayer)
                                     29 -> PetMeadowScreen(repository = repository, soundPlayer = soundPlayer)
                                     30 -> AquariumScreen(repository = repository, soundPlayer = soundPlayer)
+                                    31 -> ShootingGalleryScreen(repository = repository, soundPlayer = soundPlayer)
                                     23 -> BabyPhoneScreen(
                                         repository = repository,
                                         soundPlayer = soundPlayer,

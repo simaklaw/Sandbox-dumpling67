@@ -29,3 +29,6 @@
 
 ## Аквариум (игра 30)
 Спрайты рыбок, водорослей, камней и песка (aq_*.webp) — Kenney «Fish Pack 2.0», CC0 (kenney.nl), кредит по желанию.
+
+## Тир (игра 31)
+Спрайты (sg_*.webp) — Kenney «Shooting Gallery», CC0 (kenney.nl), кредит по желанию.

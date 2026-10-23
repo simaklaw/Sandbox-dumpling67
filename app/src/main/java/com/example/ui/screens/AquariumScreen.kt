@@ -50,6 +50,7 @@ import kotlin.random.Random
  *
  * • Короткий тап по рыбке — она пугается и стремглав уплывает (пузырьки!), потом возвращается.
  * • Тап по пузырьку — он лопается. Тап по пустой воде — взлетает стайка пузырьков.
+* • Тап по песку — сверху сыплется корм: рыбки его ловят и пускают сердечко.
  * • Если держать палец на воде, рыбки любопытно подплывают и водят хоровод вокруг пальца.
  * • Иглобрюх при тапе надувается шариком.
  * • Каждые несколько испугов в аквариуме появляется новая рыбка.
@@ -74,6 +75,8 @@ private class AqFish(val kind: Int, var x: Float, var y: Float) {
 }
 
 private class AqBubble(var x: Float, var y: Float, val r: Float, val vy: Float, val wob: Float) { var t = 0f }
+private class AqFood(var x: Float, var y: Float, val vy: Float, val wob: Float) { var t = 0f; var rest = 0f }
+private class AqHeart(val x: Float, val y: Float) { var t = 0f }
 private class AqPop(val x: Float, val y: Float, val r: Float) { var t = 0f }
 
 private class AquariumWorld(val density: Float) {
@@ -83,6 +86,8 @@ private class AquariumWorld(val density: Float) {
     val fish = ArrayList<AqFish>()
     val bubbles = ArrayList<AqBubble>()
     val pops = ArrayList<AqPop>()
+    val foods = ArrayList<AqFood>()
+    val hearts = ArrayList<AqHeart>()
     var calling = false
     var touchX = 0f
     var touchY = 0f
@@ -101,6 +106,7 @@ private class AquariumWorld(val density: Float) {
         AqKind(0, 190f, 45f)             // угорь
     )
 
+    val sandY get() = h - 112f * density
     private val waterTop get() = h * 0.10f
     private val waterBottom get() = h - 150f * density
 
@@ -135,8 +141,25 @@ private class AquariumWorld(val density: Float) {
         }
     }
 
+    private fun progress() {
+        scares++
+        if (scares % 8 == 0 && fish.size < 12) {
+            addFish(Random.nextInt(kinds.size), spawnInside = false)
+            onEvent("newfish")
+        }
+    }
+
     /** Короткий тап. */
     fun tap(x: Float, y: Float) {
+        // 0) тап по песку — сыплется корм
+        if (y > sandY) {
+            repeat(7) {
+                foods.add(AqFood(x + (Random.nextFloat() - 0.5f) * 120f * density, -10f * density - Random.nextFloat() * 90f * density,
+                    (45f + Random.nextFloat() * 30f) * density, Random.nextFloat() * 6.28f))
+            }
+            onEvent("feed")
+            return
+        }
         // 1) рыбка
         var hit: AqFish? = null
         var best = Float.MAX_VALUE
@@ -160,11 +183,7 @@ private class AquariumWorld(val density: Float) {
                 onEvent("scare")
             }
             burst(hit.x, hit.y, 6)
-            scares++
-            if (scares % 8 == 0 && fish.size < 12) {
-                addFish(Random.nextInt(kinds.size), spawnInside = false)
-                onEvent("newfish")
-            }
+            progress()
             return
         }
         // 2) пузырёк
@@ -196,7 +215,25 @@ private class AquariumWorld(val density: Float) {
                 f.vx *= damp; f.vy *= damp
             } else {
                 var mult = 1f
-                if (calling && hypot(touchX - f.x, touchY - f.y) < max(w, h) * 0.9f) {
+                var food: AqFood? = null
+                if (!calling && foods.isNotEmpty()) {
+                    var bd = Float.MAX_VALUE
+                    for (fd in foods) {
+                        val d = hypot(fd.x - f.x, fd.y - f.y)
+                        if (d < bd) { bd = d; food = fd }
+                    }
+                }
+                if (food != null) {
+                    f.tx = food.x; f.ty = food.y
+                    mult = 2.2f
+                    if (hypot(food.x - f.x, food.y - f.y) < halfSize(f) * 0.6f + 10f * density) {
+                        foods.remove(food)
+                        hearts.add(AqHeart(f.x, f.y - halfSize(f)))
+                        burst(f.x + f.face * halfSize(f), f.y, 2)
+                        onEvent("eat")
+                        progress()
+                    }
+                } else if (calling && hypot(touchX - f.x, touchY - f.y) < max(w, h) * 0.9f) {
                     val r = (70f + 40f * f.ringR) * density
                     val a = f.slot + time * 1.2f * (if (f.slot > 3.14f) 1f else -1f)
                     f.tx = touchX + cos(a) * r
@@ -257,6 +294,24 @@ private class AquariumWorld(val density: Float) {
             b.x += sin(b.t * 2.2f + b.wob) * 18f * density * dt
             if (b.y < -20f * density) bi.remove()
         }
+        val fi = foods.iterator()
+        while (fi.hasNext()) {
+            val fd = fi.next()
+            fd.t += dt
+            if (fd.y < sandY - 6f * density) {
+                fd.y += fd.vy * dt
+                fd.x += sin(fd.t * 2f + fd.wob) * 14f * density * dt
+            } else {
+                fd.rest += dt
+                if (fd.rest > 6f) fi.remove()
+            }
+        }
+        val hi = hearts.iterator()
+        while (hi.hasNext()) {
+            val hh = hi.next()
+            hh.t += dt
+            if (hh.t > 1.1f) hi.remove()
+        }
         val pi = pops.iterator()
         while (pi.hasNext()) {
             val p = pi.next()
@@ -316,6 +371,8 @@ fun AquariumScreen(
             }
             "pop" -> soundPlayer.playPop(1.5f + Random.nextFloat() * 0.5f)
             "bubbles" -> soundPlayer.playPop(1.1f)
+            "feed" -> soundPlayer.playPop(1.2f)
+            "eat" -> { soundPlayer.playPop(0.7f); soundPlayer.playChime(1.8f) }
             "newfish" -> soundPlayer.playSparkleChime()
         }
     }
@@ -454,6 +511,25 @@ private fun DrawScope.drawAquarium(
         drawCircle(Color.White.copy(alpha = 0.8f * (1f - k)), p.r * (1.4f + 1.8f * k), Offset(p.x, p.y), style = Stroke(width = 2.5f * density))
     }
 
+    // корм
+    for (fd in w.foods) {
+        drawCircle(Color(0xFFFFB74D), 5f * density, Offset(fd.x, fd.y))
+        drawCircle(Color(0xFFFFE0B2), 2.2f * density, Offset(fd.x - 1.5f * density, fd.y - 1.5f * density))
+    }
+    // сердечки
+    for (hh in w.hearts) {
+        val k = hh.t / 1.1f
+        val cx = hh.x
+        val cy = hh.y - k * 50f * density
+        val r = 9f * density
+        val path = Path().apply {
+            moveTo(cx, cy + r * 0.9f)
+            cubicTo(cx - r * 1.6f, cy - r * 0.2f, cx - r * 0.8f, cy - r * 1.3f, cx, cy - r * 0.4f)
+            cubicTo(cx + r * 0.8f, cy - r * 1.3f, cx + r * 1.6f, cy - r * 0.2f, cx, cy + r * 0.9f)
+            close()
+        }
+        drawPath(path, Color(0xFFFF4081).copy(alpha = (1f - k).coerceIn(0f, 1f)))
+    }
     // песок
     val cols = (sw / tile).toInt() + 2
     for (c in 0 until cols) {

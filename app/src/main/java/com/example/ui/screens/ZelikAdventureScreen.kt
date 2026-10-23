@@ -32,6 +32,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -196,7 +197,7 @@ private data class ZHud(
     val level: Int = 1
 )
 
-private enum class ZScreen { MENU, PLAY, LEVEL_DONE, GAME_OVER }
+private enum class ZScreen { MENU, PLAY, PAUSED, LEVEL_DONE, GAME_OVER }
 
 private class ZFrames(
     val idle: List<ImageBitmap>,
@@ -1528,16 +1529,20 @@ private fun ZStick(input: ZInput, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ZRoundButton(label: String, size: Int, color: Color, onChange: (Boolean) -> Unit) {
+private fun ZRoundButton(res: Int, label: String, size: Int, onChange: (Boolean) -> Unit) {
+    var pressed by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .size(size.dp)
-            .clip(CircleShape)
-            .background(color.copy(alpha = 0.75f))
-            .holdInput(onChange),
+            .scale(if (pressed) 0.92f else 1f)
+            .holdInput { pressed = it; onChange(it) },
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = (size * 0.42f).sp)
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(res), null, Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        )
+        if (label.isNotEmpty()) Text(label, fontSize = (size * 0.42f).sp)
     }
 }
 
@@ -1716,142 +1721,94 @@ fun ZelikAdventureScreen(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                ZRoundButton("⬆️", 78, Color(0xFF81C784)) { input.jump = it }
+                ZRoundButton(R.drawable.ui_btn_up_green, "", 82) { input.jump = it }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(
-                        Modifier
-                            .size(58.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFFFD54F).copy(alpha = 0.85f))
-                            .pointerInput(Unit) {
-                                awaitEachGesture {
-                                    awaitFirstDown(requireUnconsumed = false)
-                                    world?.toggleWeapon()
-                                    do {
-                                        val e = awaitPointerEvent()
-                                    } while (e.changes.any { it.pressed })
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(if (hud.weapon == 0) "🔫" else "💣", fontSize = 26.sp)
+                    ZRoundButton(R.drawable.ui_btn_sq_blue, if (hud.weapon == 0) "🔫" else "💣", 58) { down ->
+                        if (down) world?.toggleWeapon()
                     }
-                    ZRoundButton("💥", 92, Color(0xFFE57373)) { input.attack = it }
+                    ZRoundButton(R.drawable.ui_btn_sq_red, "💥", 94) { input.attack = it }
+                }
+            }
+            // Пауза.
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 6.dp, end = 8.dp)
+            ) {
+                ZRoundButton(R.drawable.ui_btn_pause, "", 46) { down ->
+                    if (down) { input.stickX = 0f; input.stickY = 0f; input.jump = false; input.attack = false; screen = ZScreen.PAUSED }
                 }
             }
         }
 
         if (screen == ZScreen.MENU) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF1A1446).copy(alpha = 0.92f))
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text("👽", fontSize = 64.sp)
-                Text("Зелик: Приключение", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Беги вправо, прыгай, собирай монеты и победи босса!\nПистолет · граната · звёздные ракеты (присядь и жми 💥)\nВторой прыжок в воздухе — на крыльях!",
-                    fontSize = 13.sp, color = Color(0xFFD1C4E9), textAlign = TextAlign.Center
+            Box(Modifier.fillMaxSize()) {
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(R.drawable.ui_bg_pink), null, Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
-                Spacer(Modifier.height(18.dp))
-                val opts = listOf(
-                    Triple("Легко", "меньше монстров, мягкие удары", Color(0xFF66BB6A)),
-                    Triple("Средне", "часть монстров покрепче", Color(0xFFFFB300)),
-                    Triple("Сложно", "много крепких монстров", Color(0xFFE53935))
-                )
-                for ((i, o) in opts.withIndex()) {
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (diff == i) o.third else Color.White.copy(alpha = 0.15f),
-                        modifier = Modifier
-                            .padding(vertical = 5.dp)
-                            .fillMaxWidth(0.8f)
-                            .pointerInput(i) {
-                                awaitEachGesture {
-                                    awaitFirstDown(requireUnconsumed = false)
-                                    diff = i
-                                    do { val e = awaitPointerEvent() } while (e.changes.any { it.pressed })
-                                }
-                            }
-                    ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(o.first, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text(o.second, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
-                        }
-                    }
-                }
-                Spacer(Modifier.height(14.dp))
-                Surface(
-                    shape = RoundedCornerShape(26.dp),
-                    color = Color(0xFF7C4DFF),
-                    modifier = Modifier.pointerInput(Unit) {
-                        awaitEachGesture {
-                            awaitFirstDown(requireUnconsumed = false)
-                            do { val e = awaitPointerEvent() } while (e.changes.any { it.pressed })
-                            beginGame(diff)
-                        }
-                    }
+                Column(
+                    modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Text("СТАРТ", modifier = Modifier.padding(horizontal = 44.dp, vertical = 14.dp), fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    KitWindow(width = 330.dp, title = "Зелик") {
+                        val opts = listOf(
+                            Triple("Легко", R.drawable.ui_btn_long_green, 0),
+                            Triple("Средне", R.drawable.ui_btn_long_blue, 1),
+                            Triple("Сложно", R.drawable.ui_btn_long_red, 2)
+                        )
+                        for ((name, res, i) in opts) {
+                            KitLongButton(res, (if (diff == i) "★ " else "") + name, 170.dp, 15.sp, selected = diff == i) { diff = i }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Беги вправо, прыгай (два раза — на крыльях), собирай монеты и победи босса!\nПрисядь и жми 💥 — звёздная ракета.",
+                        fontSize = 12.sp, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    KitLongButton(R.drawable.ui_btn_long_green, "СТАРТ ▶", 210.dp, 22.sp) { beginGame(diff) }
+                }
+            }
+        }
+
+        if (screen == ZScreen.PAUSED) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
+                KitWindow(width = 330.dp, title = "Пауза") {
+                    KitLongButton(R.drawable.ui_btn_long_green, "Играть", 170.dp, 15.sp) { screen = ZScreen.PLAY }
+                    KitLongButton(R.drawable.ui_btn_long_blue, "Заново", 170.dp, 15.sp) {
+                        world?.restartLevel(); screen = ZScreen.PLAY
+                    }
+                    KitLongButton(R.drawable.ui_btn_long_red, "В меню", 170.dp, 15.sp) { screen = ZScreen.MENU }
                 }
             }
         }
 
         if (screen == ZScreen.LEVEL_DONE || screen == ZScreen.GAME_OVER) {
             val won = screen == ZScreen.LEVEL_DONE
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(if (won) "🎉 Уровень пройден!" else "Зелик устал 😴", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Монет: ${hud.coins}   ·   Жизней: ${hud.lives}" + if (won) "\nМонстров побеждено: ${(world?.mobsTotal ?: 0) - hud.mobsLeft} из ${world?.mobsTotal ?: 0}" else "",
-                    fontSize = 15.sp, color = Color(0xFFE1BEE7), textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(18.dp))
-                Surface(
-                    shape = RoundedCornerShape(26.dp),
-                    color = if (won) Color(0xFF66BB6A) else Color(0xFF7C4DFF),
-                    modifier = Modifier.pointerInput(won) {
-                        awaitEachGesture {
-                            awaitFirstDown(requireUnconsumed = false)
-                            do { val e = awaitPointerEvent() } while (e.changes.any { it.pressed })
-                            val cur = world
-                            if (cur != null) {
-                                if (won) cur.startLevel(cur.level + 1) else cur.restartLevel()
-                                screen = ZScreen.PLAY
-                            }
-                        }
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                KitWindow(width = 350.dp, title = if (won) "Победа!" else "Ой!") {
+                    if (won) {
+                        val st = hud.lives.coerceIn(1, 3)
+                        Text("⭐".repeat(st) + "☆".repeat(3 - st), fontSize = 26.sp, color = Color(0xFFFF8F00))
+                    } else {
+                        Text("Зелик устал 😴", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6D4C41))
                     }
-                ) {
                     Text(
-                        if (won) "Следующий уровень ▶" else "Ещё раз ↻",
-                        modifier = Modifier.padding(horizontal = 36.dp, vertical = 13.dp),
-                        fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White
+                        "🪙 ${hud.coins}" + if (won) "   ·   монстров: ${(world?.mobsTotal ?: 0) - hud.mobsLeft}/${world?.mobsTotal ?: 0}" else "",
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6D4C41)
                     )
-                }
-                Spacer(Modifier.height(10.dp))
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = Color.White.copy(alpha = 0.2f),
-                    modifier = Modifier.pointerInput(Unit) {
-                        awaitEachGesture {
-                            awaitFirstDown(requireUnconsumed = false)
-                            do { val e = awaitPointerEvent() } while (e.changes.any { it.pressed })
-                            screen = ZScreen.MENU
+                    Spacer(Modifier.height(4.dp))
+                    KitLongButton(R.drawable.ui_btn_long_green, if (won) "Дальше ▶" else "Ещё раз ↻", 160.dp, 14.sp) {
+                        val cur = world
+                        if (cur != null) {
+                            if (won) cur.startLevel(cur.level + 1) else cur.restartLevel()
+                            screen = ZScreen.PLAY
                         }
                     }
-                ) {
-                    Text("В меню", modifier = Modifier.padding(horizontal = 28.dp, vertical = 9.dp), fontSize = 15.sp, color = Color.White)
+                    KitLongButton(R.drawable.ui_btn_long_blue, "В меню", 160.dp, 14.sp) { screen = ZScreen.MENU }
                 }
             }
         }

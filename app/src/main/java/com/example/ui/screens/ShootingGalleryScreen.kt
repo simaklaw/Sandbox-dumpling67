@@ -56,6 +56,8 @@ private class GalObj(var kind: Int, var x: Float) {
     val phase = Random.nextFloat() * 6.28f
 }
 
+private class GalGolden(var x: Float, val lane: Int, val dir: Float) { var hitT = -1f; val phase = Random.nextFloat() * 6.28f }
+private class GalBurst(var delay: Float, val x: Float, val y: Float)
 private class GalShot(val x: Float, val y: Float, val hit: Boolean) { var t = 0f }
 private class GalPlus(val x: Float, val y: Float) { var t = 0f }
 private class GalSpark(var x: Float, var y: Float, var vx: Float, var vy: Float, val color: Color, val r: Float) { var life = 1f }
@@ -73,6 +75,10 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     val holes = ArrayList<GalShot>()
     val pluses = ArrayList<GalPlus>()
     val sparks = ArrayList<GalSpark>()
+    var golden: GalGolden? = null
+    var goldenTimer = 9f
+    val bursts = ArrayList<GalBurst>()
+    var big5 = 0f
     var onEvent: (String, Int) -> Unit = { _, _ -> }
     val kinds = listOf(
         GalKind(0, 0, true), GalKind(1, 0, true), GalKind(2, 0, true), GalKind(3, 0, true), GalKind(4, 0, true),
@@ -110,6 +116,13 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
         o.x = if (laneDir[lane] > 0f) -objW - Random.nextFloat() * objW else w + objW + Random.nextFloat() * objW
     }
 
+    fun goldenCenter(g: GalGolden): Offset {
+        val bob = sin(time * 4f + g.phase) * 4f * density
+        var y = laneTop(g.lane) - objW * 0.7f - 16f * density + bob
+        if (g.hitT > 0.9f) y += (g.hitT - 0.9f) * 520f * density
+        return Offset(g.x, y)
+    }
+
     fun bodyCenter(o: GalObj, lane: Int): Offset {
         val bob = sin(time * 3f + o.phase) * 3f * density
         var y = laneTop(lane) - objW * 0.62f - 14f * density + bob
@@ -128,6 +141,22 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
 
     fun tap(x: Float, y: Float) {
         val rad = objW * 0.66f * (if (toddler) 1.2f else 1f)
+        val gd = golden
+        if (gd != null && gd.hitT < 0f) {
+            val c = goldenCenter(gd)
+            if (hypot(c.x - x, c.y - y) < rad * 1.35f) {
+                gd.hitT = 0f
+                val before = score / 10
+                score += 5
+                shots.add(GalShot(x, y, true))
+                big5 = 1.3f
+                repeat(6) { bursts.add(GalBurst(it * 0.22f, w * (0.12f + Random.nextFloat() * 0.76f), h * (0.12f + Random.nextFloat() * 0.38f))) }
+                confetti(c.x, c.y, 26)
+                onEvent("golden", score)
+                if (score / 10 > before) { level++; banner = 1.3f; onEvent("level", score) }
+                return
+            }
+        }
         var best: GalObj? = null
         var bestLane = 0
         var bestD = Float.MAX_VALUE
@@ -171,6 +200,43 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
             if (bannerReady <= 0f) banner = 1.0f
         }
         if (banner > 0f && bannerReady <= 0f) banner -= dt
+        // золотой утёнок
+        val gd = golden
+        if (gd == null) {
+            goldenTimer -= dt
+            if (goldenTimer <= 0f) {
+                val ln = Random.nextInt(3)
+                val dir = if (Random.nextBoolean()) 1f else -1f
+                golden = GalGolden(if (dir > 0f) -objW * 1.3f else w + objW * 1.3f, ln, dir)
+                onEvent("goldenSpawn", score)
+            }
+        } else {
+            if (gd.hitT >= 0f) {
+                gd.hitT += dt
+                gd.x += gd.dir * 40f * density * dt
+                if (gd.hitT > 1.4f) { golden = null; goldenTimer = 10f + Random.nextFloat() * 8f }
+            } else {
+                gd.x += gd.dir * (if (toddler) 130f else 190f) * density * dt
+                if (gd.x < -objW * 1.6f || gd.x > w + objW * 1.6f) { golden = null; goldenTimer = 8f + Random.nextFloat() * 8f }
+            }
+        }
+        if (big5 > 0f) big5 -= dt
+        val bi = bursts.iterator()
+        while (bi.hasNext()) {
+            val b = bi.next()
+            b.delay -= dt
+            if (b.delay <= 0f) {
+                val cols = listOf(Color(0xFFFFD54F), Color(0xFFFF5252), Color(0xFF40C4FF), Color(0xFF69F0AE), Color(0xFFE040FB), Color.White)
+                val c1 = cols.random(); val c2 = cols.random()
+                repeat(34) { k ->
+                    val a = k / 34f * 6.2832f
+                    val sp = (120f + Random.nextFloat() * 160f) * density
+                    sparks.add(GalSpark(b.x, b.y, cos(a) * sp, sin(a) * sp, if (k % 2 == 0) c1 else c2, (2.5f + Random.nextFloat() * 3f) * density))
+                }
+                onEvent("firework", score)
+                bi.remove()
+            }
+        }
         for (li in 0 until 3) {
             for (o in lanes[li]) {
                 if (o.hitT >= 0f) {
@@ -227,6 +293,7 @@ fun ShootingGalleryScreen(
         ImageBitmap.imageResource(R.drawable.sg_target_back)
     )
     val stick = ImageBitmap.imageResource(R.drawable.sg_stick)
+    val goldImg = ImageBitmap.imageResource(R.drawable.sg_duck_gold)
     val crossWhite = ImageBitmap.imageResource(R.drawable.sg_cross_white)
     val crossRed = ImageBitmap.imageResource(R.drawable.sg_cross_red)
     val hole = ImageBitmap.imageResource(R.drawable.sg_hole)
@@ -269,6 +336,13 @@ fun ShootingGalleryScreen(
             }
             "miss" -> soundPlayer.playPop(0.55f)
             "level" -> soundPlayer.playFanfare()
+            "goldenSpawn" -> soundPlayer.playSparkleChime()
+            "golden" -> {
+                soundPlayer.playLegendaryFanfare()
+                soundManager.play("animal_duck_1")
+                soundPlayer.vibrateSquishDeform()
+            }
+            "firework" -> soundPlayer.playMagicSparkle()
         }
     }
 
@@ -292,7 +366,7 @@ fun ShootingGalleryScreen(
         Canvas(Modifier.fillMaxSize()) {
             @Suppress("UNUSED_VARIABLE") val redraw = tick
             world.init(size.width, size.height)
-            drawGallery(world, front, backs, stick, straps, crossWhite, crossRed, hole, ready, go, iconDuck, plus, digits, density)
+            drawGallery(world, front, backs, stick, straps, crossWhite, crossRed, hole, ready, go, iconDuck, plus, digits, goldImg, density)
         }
     }
 
@@ -350,6 +424,7 @@ private fun DrawScope.drawGallery(
     iconDuck: ImageBitmap,
     plus: ImageBitmap,
     digits: List<ImageBitmap>,
+    goldImg: ImageBitmap,
     d: Float
 ) {
     val sw = size.width
@@ -398,6 +473,30 @@ private fun DrawScope.drawGallery(
             }
             scale(scaleX = if (abs(sx) < 0.05f) 0.05f else sx, scaleY = 1f, pivot = c) {
                 imgC(im, c.x, c.y, ow)
+            }
+        }
+        // золотой утёнок
+        val gdk = w.golden
+        if (gdk != null && gdk.lane == li) {
+            val c = w.goldenCenter(gdk)
+            val ow = w.objW * 1.15f
+            if (gdk.hitT < 0f) {
+                val pulse = 1f + 0.12f * sin(t * 9f)
+                drawCircle(Color(0xFFFFE082).copy(alpha = 0.35f), ow * 0.85f * pulse, c)
+                drawCircle(Color(0xFFFFF8E1).copy(alpha = 0.35f), ow * 0.55f * pulse, c)
+            }
+            imgC(stick, c.x, c.y + ow * 0.55f, ow * 0.26f)
+            var sx = 1f
+            var im = goldImg
+            if (gdk.hitT >= 0f) {
+                val f = (gdk.hitT / 0.3f).coerceIn(0f, 1f)
+                sx = cos(f * PI.toFloat())
+                if (sx < 0f) im = backs[0]
+            }
+            val face = if (gdk.dir > 0f) 1f else -1f
+            scale(scaleX = (if (abs(sx) < 0.05f) 0.05f else sx) * face, scaleY = 1f, pivot = c) { imgC(im, c.x, c.y, ow) }
+            if (gdk.hitT < 0f && (t * 6f).toInt() % 2 == 0) {
+                drawCircle(Color.White, 3f * d, Offset(c.x + sin(t * 5f) * ow * 0.4f, c.y - ow * 0.3f))
             }
         }
         // волна / трава ряда
@@ -454,6 +553,13 @@ private fun DrawScope.drawGallery(
     for (dg in digs) {
         img(digits[dg], cx, 70f * d - dh / 2f, dw, dh)
         cx += dw * 0.9f
+    }
+
+    if (w.big5 > 0f) {
+        val k = 1f - w.big5 / 1.3f
+        val a = (w.big5 / 0.6f).coerceIn(0f, 1f)
+        imgC(plus, sw / 2f - 60f * d, sh * 0.28f - k * 30f * d, 70f * d * (1f + 0.1f * sin(t * 12f)), a)
+        imgC(digits[5], sw / 2f + 30f * d, sh * 0.28f - k * 30f * d, 80f * d * (1f + 0.1f * sin(t * 12f)), a)
     }
 
     // «READY?» → «GO!»

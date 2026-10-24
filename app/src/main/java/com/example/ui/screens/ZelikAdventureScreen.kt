@@ -1636,6 +1636,7 @@ fun ZelikAdventureScreen(
 
     var screen by remember { mutableStateOf(ZScreen.MENU) }
     var diff by remember { mutableIntStateOf(0) }
+    var startBiome by remember { mutableIntStateOf(0) }
     var world by remember { mutableStateOf<ZelikWorld?>(null) }
     var hud by remember { mutableStateOf(ZHud()) }
     var tick by remember { mutableIntStateOf(0) }
@@ -1691,7 +1692,7 @@ fun ZelikAdventureScreen(
         val w = ZelikWorld(d, input)
         w.onEvent = { ev -> playEvent(ev, w) }
         w.helperOn = helperIdx >= 0
-        w.startLevel(1)
+        w.startLevel(1 + startBiome)
         world = w
         screen = ZScreen.PLAY
     }
@@ -1856,6 +1857,15 @@ fun ZelikAdventureScreen(
                         fontSize = 12.sp, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (i in 0 until BIOME_COUNT) {
+                            KitLongButton(
+                                if (i == 0) R.drawable.ui_btn_long_green else if (i == 1) R.drawable.ui_btn_long_blue else R.drawable.ui_btn_long_red,
+                                BIOME_NAMES[i], 100.dp, 11.sp, selected = startBiome == i
+                            ) { startBiome = i; soundPlayer.playPop(1.2f) }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Canvas(Modifier.size(56.dp)) {
                             if (helperIdx >= 0) {

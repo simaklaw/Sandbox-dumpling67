@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.Text
@@ -837,22 +838,24 @@ private fun MonsterPartyView(
             // дискотечные лучи
             val beamPalette = listOf(Color(0xFFFFEB3B), Color(0xFF4FC3F7), Color(0xFFF06292), Color(0xFF81C784), Color(0xFFFFB74D))
             val a0 = 0.07f + 0.03f * min(level, 6)
+            val cw = this.size.width
+            val ch = this.size.height
             for (k in 0 until 5) {
-                val x0 = size.width * (k + 0.5f) / 5f
-                val sway = sin(clock * 0.8f + k * 1.3f) * size.width * 0.25f
+                val x0 = cw * (k + 0.5f) / 5f
+                val sway = sin(clock * 0.8f + k * 1.3f) * cw * 0.25f
                 val path = androidx.compose.ui.graphics.Path().apply {
                     moveTo(x0, 0f)
-                    lineTo(x0 + sway - size.width * 0.12f, size.height * 0.75f)
-                    lineTo(x0 + sway + size.width * 0.12f, size.height * 0.75f)
+                    lineTo(x0 + sway - cw * 0.12f, ch * 0.75f)
+                    lineTo(x0 + sway + cw * 0.12f, ch * 0.75f)
                     close()
                 }
                 drawPath(path, beamPalette[k].copy(alpha = a0))
             }
             // пол
-            drawRect(Color(0xFF4A148C), Offset(0f, h * 0.70f), Size(size.width, size.height * 0.30f))
+            drawRect(Color(0xFF4A148C), Offset(0f, h * 0.70f), Size(cw, ch * 0.30f))
             for (k in 0 until 8) {
                 val on = ((clock * 2f).toInt() + k) % 2 == 0
-                drawRect(beamPalette[k % 5].copy(alpha = if (on) 0.35f else 0.12f), Offset(size.width / 8f * k, h * 0.70f), Size(size.width / 8f, 10f * density))
+                drawRect(beamPalette[k % 5].copy(alpha = if (on) 0.35f else 0.12f), Offset(cw / 8f * k, h * 0.70f), Size(cw / 8f, 10f * density))
             }
             for (i in 0 until guests.size) {
                 val c = cell(i)

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -239,6 +240,7 @@ fun MonsterRunnerScreen(
     var sizeW by remember { mutableFloatStateOf(0f) }
     var sizeH by remember { mutableFloatStateOf(0f) }
     val sparks = remember { mutableListOf<FloatArray>() }
+    var lottieTick by remember { mutableIntStateOf(0) }
 
     fun confetti(x: Float, y: Float, n: Int) {
         repeat(n) {
@@ -259,6 +261,7 @@ fun MonsterRunnerScreen(
                 soundPlayer.playFanfare()
                 banner = BIOME_NAMES[world.loc] + "!"
                 confetti(sizeW / 2f, sizeH * 0.35f, 40)
+                lottieTick++
             }
             "over" -> {
                 resultDist = (world.dist / 10f).toInt()
@@ -268,6 +271,7 @@ fun MonsterRunnerScreen(
                     best = resultDist
                     try { runPrefs(context).edit().putInt("mr_best", best).apply() } catch (e: Exception) { }
                     soundPlayer.playLegendaryFanfare()
+                    lottieTick++
                 } else soundPlayer.playComicalFallWobble()
                 screen = RunScreen.OVER
             }
@@ -408,6 +412,11 @@ fun MonsterRunnerScreen(
                 }
             }
         }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        LottieConfetti(lottieTick, Modifier.fillMaxSize())
+        if (screen == RunScreen.MENU) LottieLoop(R.raw.lottie_mascot, Modifier.align(Alignment.TopEnd).statusBarsPadding().size(96.dp))
     }
 
     LaunchedEffect(Unit) {

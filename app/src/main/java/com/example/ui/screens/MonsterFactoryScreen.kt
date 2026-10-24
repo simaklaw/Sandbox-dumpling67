@@ -634,6 +634,7 @@ fun MonsterFactoryScreen(
                 }
             }
             if (house.isEmpty()) {
+                LottieLoop(R.raw.lottie_dog, Modifier.align(Alignment.Center).padding(bottom = 190.dp).size(170.dp))
                 Text(
                     "Пока пусто\nНажми ⭐ у монстрика",
                     modifier = Modifier.align(Alignment.Center), fontSize = 20.sp, fontWeight = FontWeight.Bold,
@@ -736,6 +737,7 @@ private fun MonsterPartyView(
     var fed by remember { mutableIntStateOf(0) }
     var level by remember { mutableIntStateOf(1) }
     var banner by remember { mutableStateOf("") }
+    var lottieTick by remember { mutableIntStateOf(0) }
     var dragFood by remember { mutableIntStateOf(-1) }
     var dragX by remember { mutableFloatStateOf(0f) }
     var dragY by remember { mutableFloatStateOf(0f) }
@@ -776,6 +778,7 @@ private fun MonsterPartyView(
         soundPlayer.playLegendaryFanfare()
         confetti(w / 2f, h * 0.3f, 60)
         banner = "🎉 Уровень $level!"
+        lottieTick++
     }
 
     fun feedGuest(i: Int, food: Int) {
@@ -910,6 +913,7 @@ private fun MonsterPartyView(
                 )
             }
         }
+        LottieConfetti(lottieTick, Modifier.fillMaxSize())
         if (banner.isNotEmpty()) {
             Text(
                 banner, fontSize = 34.sp, fontWeight = FontWeight.Black, color = Color(0xFFFFEB3B),

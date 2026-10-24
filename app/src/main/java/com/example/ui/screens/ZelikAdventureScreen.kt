@@ -1883,6 +1883,8 @@ fun ZelikAdventureScreen(
             }
         }
 
+        LottieConfetti(if (screen == ZScreen.LEVEL_DONE) 1 else 0, Modifier.fillMaxSize())
+
         if (screen == ZScreen.PAUSED) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
                 KitWindow(width = 330.dp, title = "Пауза") {

@@ -39,7 +39,12 @@ jobs:
           gradle-version: 9.3.1
 
       - name: Unit-тесты
-        run: gradle :app:testDebugUnitTest --stacktrace
+        run: |
+          set -o pipefail
+          gradle :app:testDebugUnitTest --stacktrace 2>&1 | tee /tmp/build.log || {
+            grep -E "^e: " /tmp/build.log | head -30 | while IFS= read -r l; do echo "::error::${l}"; done
+            exit 1
+          }
 
       - name: Debug APK
         run: gradle :app:assembleDebug --stacktrace

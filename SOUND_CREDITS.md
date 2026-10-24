@@ -32,3 +32,6 @@
 
 ## Тир (игра 31)
 Спрайты (sg_*.webp) — Kenney «Shooting Gallery», CC0 (kenney.nl), кредит по желанию.
+
+## Монстрики (игра 32)
+Kenney «Monster Builder Pack» — лицензия CC0 (kenney.nl). Файлы mb_*.webp.

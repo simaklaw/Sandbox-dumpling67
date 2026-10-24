@@ -1291,13 +1291,16 @@ private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     if (b.hitFlash > 0) drawOval(Color.White.copy(alpha = 0.55f), Offset(cx - rw / 2f, cy - rh), Size(rw, rh * 2f))
 }
 
-private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireSheet, fb: FireSheet, wings: FireSheet, water: FireSheet, helper: ZHelperGfx? = null) {
+private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireSheet, fb: FireSheet, wings: FireSheet, water: FireSheet, helper: ZHelperGfx? = null, bio: ZBiomeGfx? = null) {
     val camX = w.camX
     val camY = w.camY
     val sw = size.width
     val sh = size.height
     val t = w.animTime
 
+    if (bio != null) {
+        drawBiomeBackdrop(bio, biomeOfLevel(w.level), camX, camY, z, GROUND_Y, t)
+    } else {
     // небо
     drawRect(Brush.verticalGradient(listOf(Color(0xFF4FC3F7), Color(0xFFB3E5FC), Color(0xFFFFF9C4))), size = Size(sw, sh))
     // солнце
@@ -1328,6 +1331,8 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
         drawPath(path, if (layer == 0) Color(0xFF81C784) else Color(0xFF4CAF50))
     }
 
+    }
+
     withTransform({
         translate(-camX * z, -camY * z)
         scale(z, z, Offset.Zero)
@@ -1338,6 +1343,12 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
         // платформы
         for ((idx, p) in w.platforms.withIndex()) {
             if (p.x > right || p.x + p.w < left) continue
+            if (bio != null) {
+                val bi = biomeOfLevel(w.level)
+                if (idx == 0) drawBiomeGround(bio, bi, max(p.x, left), min(p.x + p.w, right), p.y, p.h)
+                else drawBiomePlatform(bi, p.x, p.y, p.w, p.h)
+                continue
+            }
             if (idx == 0) {
                 drawRect(Color(0xFF8D6E63), Offset(max(p.x, left), p.y), Size(min(p.x + p.w, right) - max(p.x, left), p.h))
                 drawRect(Color(0xFF66BB6A), Offset(max(p.x, left), p.y), Size(min(p.x + p.w, right) - max(p.x, left), 22f))
@@ -1620,6 +1631,7 @@ fun ZelikAdventureScreen(
     val helperSpec = houseList.getOrNull(helperIdx) ?: MonSpec()
     val helperImgs = rememberMonImgs(helperSpec)
     val helperAnim = remember { MonAnim() }
+    val biomeGfx = rememberZBiomeGfx()
     val helperGfx = remember(helperImgs, helperSpec) { ZHelperGfx(helperImgs, helperSpec, helperAnim) }
 
     var screen by remember { mutableStateOf(ZScreen.MENU) }
@@ -1696,7 +1708,7 @@ fun ZelikAdventureScreen(
                 @Suppress("UNUSED_VARIABLE") val redraw = tick
                 w.vw = size.width / density
                 w.vh = size.height / density
-                drawWorld(w, frames, density, fireA, fireB, wingsFx, waterFx, helperGfx)
+                drawWorld(w, frames, density, fireA, fireB, wingsFx, waterFx, helperGfx, biomeGfx)
             }
         }
 
@@ -1744,7 +1756,7 @@ fun ZelikAdventureScreen(
                     Spacer(Modifier.width(88.dp))
                     Surface(shape = RoundedCornerShape(14.dp), color = Color.White.copy(alpha = 0.75f)) {
                         Text(
-                            "Уровень ${hud.level} · монстров: ${hud.mobsLeft}",
+                            "Уровень ${hud.level} ${BIOME_NAMES[biomeOfLevel(hud.level)]} · монстров: ${hud.mobsLeft}",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,

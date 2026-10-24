@@ -49,7 +49,8 @@ private val TODDLER_HOME_GAMES = listOf(
     FolderItem("Аквариум", "🐠", 30, ColorBlue),
     FolderItem("Лук", "🏹", 4, ColorPink),
     FolderItem("Тир", "🦆", 31, ColorOrange),
-    FolderItem("Монстрики", "👾", 32, ColorOrange)
+    FolderItem("Монстрики", "👾", 32, ColorOrange),
+    FolderItem("Забег монстрика", "🏃", 33, ColorGreen)
 )
 
 @Composable

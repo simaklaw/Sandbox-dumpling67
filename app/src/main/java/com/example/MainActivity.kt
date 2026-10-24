@@ -349,6 +349,7 @@ fun MainAppScreen(
                                     30 -> AquariumScreen(repository = repository, soundPlayer = soundPlayer)
                                     31 -> ShootingGalleryScreen(repository = repository, soundPlayer = soundPlayer)
                                     32 -> MonsterFactoryScreen(repository = repository, soundPlayer = soundPlayer)
+                                    33 -> MonsterRunnerScreen(repository = repository, soundPlayer = soundPlayer)
                                     23 -> BabyPhoneScreen(
                                         repository = repository,
                                         soundPlayer = soundPlayer,

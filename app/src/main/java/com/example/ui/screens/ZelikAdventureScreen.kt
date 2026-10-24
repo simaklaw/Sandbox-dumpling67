@@ -197,6 +197,8 @@ private data class ZHud(
     val level: Int = 1
 )
 
+private class ZHelperGfx(val imgs: MonImgs, val spec: MonSpec, val anim: MonAnim)
+
 private enum class ZScreen { MENU, PLAY, PAUSED, LEVEL_DONE, GAME_OVER }
 
 private class ZFrames(
@@ -320,6 +322,14 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
     var camX = 0f
     var camY = 0f
+
+    // монстрик-помощник (из «Фабрики монстриков»)
+    var helperOn = false
+    var hx = 60f
+    var hy = GROUND_Y - 100f
+    var helperCd = 90
+    var helperHeal = 0
+    var helperDir = 1f
 
     /** События для звука/интерфейса. */
     var onEvent: (String) -> Unit = {}
@@ -1080,9 +1090,44 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         camY += (ty - camY) * 0.12f
     }
 
+    private fun updateHelper() {
+        if (!helperOn || dead) return
+        val tx = px + pw / 2f - facing * 52f
+        val ty = py + ph - 52f + sin(animTime * 0.09f) * 6f
+        if (hypot(tx - hx, ty - hy) > 700f) { hx = tx; hy = ty }
+        hx += (tx - hx) * 0.07f
+        hy += (ty - hy) * 0.10f
+        helperCd--
+        if (helperCd <= 0) {
+            var best: Float? = null
+            var bx = 0f
+            var by = 0f
+            for (e in enemies) {
+                val dx = e.x - hx
+                if (abs(dx) < 560f && abs(e.y - hy) < 320f && (best == null || abs(dx) < best!!)) { best = abs(dx); bx = e.x; by = e.y }
+            }
+            if (boss.active && !boss.dead) {
+                val dx = boss.x + boss.w / 2f - hx
+                if (abs(dx) < 700f && (best == null || abs(dx) < best!!)) { best = abs(dx); bx = boss.x + boss.w / 2f; by = boss.y + boss.h / 2f }
+            }
+            if (best != null) {
+                helperDir = if (bx >= hx) 1f else -1f
+                bolts.add(ZBolt(hx + helperDir * 30f, hy, helperDir * BOLT_SPEED))
+                helperCd = 70
+                onEvent("helperShoot")
+            } else helperCd = 15
+        }
+        helperHeal++
+        if (helperHeal >= 1000) {
+            helperHeal = 0
+            if (hp < PLAYER_MAX_HP) { hp++; onEvent("heal") }
+        }
+    }
+
     fun stepFrame() {
         animTime++
         updatePlayer()
+        updateHelper()
         updateBolts()
         updateHoming()
         updateGrenades()
@@ -1246,7 +1291,7 @@ private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     if (b.hitFlash > 0) drawOval(Color.White.copy(alpha = 0.55f), Offset(cx - rw / 2f, cy - rh), Size(rw, rh * 2f))
 }
 
-private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireSheet, fb: FireSheet, wings: FireSheet, water: FireSheet) {
+private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireSheet, fb: FireSheet, wings: FireSheet, water: FireSheet, helper: ZHelperGfx? = null) {
     val camX = w.camX
     val camY = w.camY
     val sw = size.width
@@ -1360,6 +1405,10 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
             if (e.tier >= 1) drawSunflower(e, t, f) else drawMob(e, t, tx, ty)
         }
         drawBoss(w.boss, t, tx)
+        if (helper != null && w.helperOn && !w.dead) {
+            val lay = monLayout(helper.imgs, w.hx, w.hy + 44f, 70f, 84f)
+            drawMonster(helper.imgs, helper.spec, lay, helper.anim, t / 60f, 1f, w.helperDir * 0.6f)
+        }
 
         // дым
         for (s in w.smokes) {
@@ -1561,6 +1610,17 @@ fun ZelikAdventureScreen(
     val wingsFx = rememberWingsFx()
     val waterFx = rememberWaterFx()
     val input = remember { ZInput() }
+    val houseList = remember { loadHouse(context) }
+    var helperIdx by remember {
+        mutableIntStateOf(
+            try { context.getSharedPreferences("playground_prefs", android.content.Context.MODE_PRIVATE).getInt("mb_helper", -1) } catch (e: Exception) { -1 }
+        )
+    }
+    if (helperIdx >= houseList.size) helperIdx = -1
+    val helperSpec = houseList.getOrNull(helperIdx) ?: MonSpec()
+    val helperImgs = rememberMonImgs(helperSpec)
+    val helperAnim = remember { MonAnim() }
+    val helperGfx = remember(helperImgs, helperSpec) { ZHelperGfx(helperImgs, helperSpec, helperAnim) }
 
     var screen by remember { mutableStateOf(ZScreen.MENU) }
     var diff by remember { mutableIntStateOf(0) }
@@ -1586,6 +1646,7 @@ fun ZelikAdventureScreen(
             "bossShoot" -> soundPlayer.playBowShot()
             "bossDead" -> soundPlayer.playLegendaryFanfare()
             "pickup" -> soundPlayer.playChime(1.4f)
+            "helperShoot" -> { soundPlayer.playPop(1.7f); helperAnim.jump(220f); helperAnim.squash = 0.4f }
             "wings" -> soundPlayer.playMagicSparkle()
             "switch" -> soundPlayer.playArcadeButton()
             "levelDone" -> {
@@ -1600,10 +1661,24 @@ fun ZelikAdventureScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        var last = 0L
+        var clk = 0f
+        while (true) {
+            withFrameNanos { now ->
+                val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
+                last = now
+                clk += dt
+                helperAnim.step(dt, clk)
+            }
+        }
+    }
+
     fun beginGame(d: Int) {
         diff = d
         val w = ZelikWorld(d, input)
         w.onEvent = { ev -> playEvent(ev, w) }
+        w.helperOn = helperIdx >= 0
         w.startLevel(1)
         world = w
         screen = ZScreen.PLAY
@@ -1621,7 +1696,7 @@ fun ZelikAdventureScreen(
                 @Suppress("UNUSED_VARIABLE") val redraw = tick
                 w.vw = size.width / density
                 w.vh = size.height / density
-                drawWorld(w, frames, density, fireA, fireB, wingsFx, waterFx)
+                drawWorld(w, frames, density, fireA, fireB, wingsFx, waterFx, helperGfx)
             }
         }
 
@@ -1768,7 +1843,29 @@ fun ZelikAdventureScreen(
                         "Беги вправо, прыгай (два раза — на крыльях), собирай монеты и победи босса!\nПрисядь и жми 💥 — звёздная ракета.",
                         fontSize = 12.sp, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Canvas(Modifier.size(56.dp)) {
+                            if (helperIdx >= 0) {
+                                val lay = monLayout(helperImgs, size.width / 2f, size.height - 2f, size.width, size.height - 2f)
+                                drawMonster(helperImgs, helperSpec, lay, helperAnim, 0f, density, 0f)
+                            }
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        KitLongButton(
+                            R.drawable.ui_btn_long_blue,
+                            if (houseList.isEmpty()) "Помощник: сначала собери в Фабрике" else if (helperIdx < 0) "Помощник: нет" else "Помощник №${helperIdx + 1}",
+                            190.dp, 12.sp, selected = helperIdx >= 0
+                        ) {
+                            if (houseList.isNotEmpty()) {
+                                helperIdx = if (helperIdx + 1 >= houseList.size) -1 else helperIdx + 1
+                                helperAnim.jump(300f); helperAnim.squash = 0.5f
+                                soundPlayer.playPop(1.3f)
+                                try { context.getSharedPreferences("playground_prefs", android.content.Context.MODE_PRIVATE).edit().putInt("mb_helper", helperIdx).apply() } catch (e: Exception) { }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
                     KitLongButton(R.drawable.ui_btn_long_green, "СТАРТ ▶", 210.dp, 22.sp) { beginGame(diff) }
                 }
             }

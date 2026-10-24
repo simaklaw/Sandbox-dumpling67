@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.Text
@@ -83,7 +84,7 @@ private const val MON_DETAIL = 8   // 0 — нет, 1..7 — виды
 private const val MON_NOSES = 5    // 0 — нет, 1..4 — виды
 private const val MON_MAX_HOUSE = 8
 
-private data class MonSpec(
+internal data class MonSpec(
     val body: Int = 0, val color: Int = 2, val arm: Int = 1, val leg: Int = 1,
     val eyes: Int = 1, val eyeCount: Int = 1, val mouth: Int = 0, val nose: Int = 0, val detail: Int = 0
 ) {
@@ -107,25 +108,25 @@ private data class MonSpec(
     }
 }
 
-private fun loadHouse(ctx: Context): List<MonSpec> {
+internal fun loadHouse(ctx: Context): List<MonSpec> {
     val s = try { ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE).getString("mb_house", "") ?: "" } catch (e: Exception) { "" }
     return s.split(";").mapNotNull { if (it.isBlank()) null else MonSpec.decode(it) }.take(MON_MAX_HOUSE)
 }
 
-private fun saveHouse(ctx: Context, list: List<MonSpec>) {
+internal fun saveHouse(ctx: Context, list: List<MonSpec>) {
     try {
         ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE).edit()
             .putString("mb_house", list.joinToString(";") { it.encode() }).apply()
     } catch (e: Exception) { /* не критично */ }
 }
 
-private class MonImgs(
+internal class MonImgs(
     val body: ImageBitmap, val arm: ImageBitmap, val leg: ImageBitmap, val eyes: ImageBitmap,
     val mouth: ImageBitmap, val nose: ImageBitmap?, val detail: ImageBitmap?
 )
 
 @Composable
-private fun rememberMonImgs(s: MonSpec): MonImgs {
+internal fun rememberMonImgs(s: MonSpec): MonImgs {
     val body = ImageBitmap.imageResource(MonsterArt.BODY[s.color][s.body])
     val arm = ImageBitmap.imageResource(MonsterArt.ARM[s.color][s.arm])
     val leg = ImageBitmap.imageResource(MonsterArt.LEG[s.color][s.leg])
@@ -138,7 +139,7 @@ private fun rememberMonImgs(s: MonSpec): MonImgs {
 
 private enum class MonZone { EYES, MOUTH, NOSE, TOP, ARMS, LEGS, BODY }
 
-private class MonAnim {
+internal class MonAnim {
     val pop = FloatArray(7)
     var hop = 0f          // dp
     var hopV = 0f         // dp/s
@@ -166,7 +167,7 @@ private class MonAnim {
     }
 }
 
-private class MonLayout(
+internal class MonLayout(
     val k: Float, val cx: Float, val ground: Float,
     val bw: Float, val bh: Float, val bodyTop: Float, val bodyBottom: Float,
     val legTop: Float, val lw: Float, val lh: Float, val aw: Float, val ah: Float,
@@ -183,7 +184,7 @@ private class MonLayout(
 }
 
 /** Подбирает масштаб, чтобы монстрик целиком влез в (availW × availH), и считает раскладку. */
-private fun monLayout(im: MonImgs, cx: Float, ground: Float, availW: Float, availH: Float): MonLayout {
+internal fun monLayout(im: MonImgs, cx: Float, ground: Float, availW: Float, availH: Float): MonLayout {
     val bw0 = im.body.width.toFloat(); val bh0 = im.body.height.toFloat()
     val lh0 = im.leg.height.toFloat()
     val dh0 = im.detail?.height?.toFloat() ?: 0f
@@ -208,7 +209,7 @@ private fun DrawScope.putImg(im: ImageBitmap, left: Float, top: Float, w: Float,
     }
 }
 
-private fun DrawScope.drawMonster(im: MonImgs, spec: MonSpec, lay: MonLayout, a: MonAnim, time: Float, d: Float, lookX: Float) {
+internal fun DrawScope.drawMonster(im: MonImgs, spec: MonSpec, lay: MonLayout, a: MonAnim, time: Float, d: Float, lookX: Float) {
     val k = lay.k
     val cx = lay.cx
     val dancing = time < a.danceUntil
@@ -352,6 +353,7 @@ fun MonsterFactoryScreen(
     var tick by remember { mutableIntStateOf(0) }
     var clock by remember { mutableFloatStateOf(0f) }
     var showHouse by remember { mutableStateOf(false) }
+    var showParty by remember { mutableStateOf(false) }
     var party by remember { mutableStateOf(false) }
     var house by remember { mutableStateOf(loadHouse(context)) }
     var feedCount by remember { mutableIntStateOf(0) }
@@ -579,6 +581,10 @@ fun MonsterFactoryScreen(
                         soundPlayer.playPop(0.9f)
                     }
                 }
+                MonBtn(R.drawable.ui_btn_sq_green, "🎪") {
+                    showParty = true
+                    soundPlayer.playFanfare()
+                }
                 MonBtn(R.drawable.ui_btn_sq_red, "🏠") {
                     showHouse = true
                     party = false
@@ -656,6 +662,13 @@ fun MonsterFactoryScreen(
         }
     }
 
+    if (showParty) {
+        MonsterPartyView(
+            start = (listOf(spec) + house.filter { it != spec }).take(2).let { if (it.size < 2) it + MonSpec.random() else it },
+            soundPlayer = soundPlayer, soundManager = soundManager, onExit = { showParty = false }
+        )
+    }
+
     LaunchedEffect(Unit) {
         var last = 0L
         var beat = 0f
@@ -691,5 +704,254 @@ fun MonsterFactoryScreen(
             kotlinx.coroutines.delay(1400)
             toast = ""
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Вечеринка у монстриков: гости голодные — корми их тем, что они просят. Чем больше накормил,
+// тем веселее вечеринка: приходят новые гости, включается дискотека.
+// ---------------------------------------------------------------------------------------------
+
+private val PARTY_FOODS = listOf("🍎", "🍌", "🍕", "🍪")
+private const val PARTY_MAX_GUESTS = 6
+
+@Composable
+private fun MonsterPartyView(
+    start: List<MonSpec>,
+    soundPlayer: SoundEffectPlayer,
+    soundManager: SoundManager,
+    onExit: () -> Unit
+) {
+    val density = LocalDensity.current.density
+    val ctx = LocalContext.current
+    val guests = remember { androidx.compose.runtime.mutableStateListOf<MonSpec>().also { it.addAll(start.take(2)) } }
+    val wants = remember { androidx.compose.runtime.mutableStateListOf<Int>().also { l -> repeat(guests.size) { l.add(Random.nextInt(4)) } } }
+    val anims = remember { List(PARTY_MAX_GUESTS) { MonAnim() } }
+    val happyUntil = remember { FloatArray(PARTY_MAX_GUESTS) }
+    val sparks = remember { mutableListOf<FloatArray>() }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    var tick by remember { mutableIntStateOf(0) }
+    var clock by remember { mutableFloatStateOf(0f) }
+    var fed by remember { mutableIntStateOf(0) }
+    var level by remember { mutableIntStateOf(1) }
+    var banner by remember { mutableStateOf("") }
+    var dragFood by remember { mutableIntStateOf(-1) }
+    var dragX by remember { mutableFloatStateOf(0f) }
+    var dragY by remember { mutableFloatStateOf(0f) }
+    val imgs = guests.map { rememberMonImgs(it) }
+
+    val w = size.width.toFloat()
+    val h = size.height.toFloat()
+    fun foodPos(i: Int) = Offset(w / 5f * (i + 1), h * 0.88f)
+    fun need() = 2 + guests.size
+
+    fun cell(i: Int): Rect {
+        val n = guests.size
+        val cols = if (n <= 3) n else if (n == 4) 2 else 3
+        val rows = (n + cols - 1) / cols
+        val cw = w / cols
+        val ch = h * 0.58f / rows
+        return Rect(cw * (i % cols), h * 0.12f + ch * (i / cols), cw * (i % cols + 1), h * 0.12f + ch * (i / cols + 1))
+    }
+
+    fun confetti(x: Float, y: Float, n: Int) {
+        repeat(n) {
+            val a = Random.nextFloat() * 6.28f
+            val s = (120f + Random.nextFloat() * 300f) * density
+            sparks.add(floatArrayOf(x, y, cos(a) * s, sin(a) * s - 160f * density, 1f, Random.nextInt(5).toFloat()))
+        }
+    }
+
+    fun levelUp() {
+        level++
+        fed = 0
+        if (guests.size < PARTY_MAX_GUESTS) {
+            val house = loadHouse(ctx)
+            val newcomer = house.firstOrNull { it !in guests } ?: MonSpec.random()
+            guests.add(newcomer)
+            wants.add(Random.nextInt(4))
+        }
+        for (a in anims) { a.danceUntil = clock + 5f; a.nextBeat = clock; a.jump(400f) }
+        soundPlayer.playLegendaryFanfare()
+        confetti(w / 2f, h * 0.3f, 60)
+        banner = "🎉 Уровень $level!"
+    }
+
+    fun feedGuest(i: Int, food: Int) {
+        if (wants[i] == food) {
+            wants[i] = -1
+            happyUntil[i] = clock + 2.2f
+            anims[i].danceUntil = clock + 3f
+            anims[i].nextBeat = clock
+            anims[i].chomp = 1f
+            anims[i].jump(380f)
+            soundPlayer.playPop(1.0f)
+            soundPlayer.playCartoonYelp(0.7f)
+            val c = cell(i)
+            confetti(c.center.x, c.top + c.height * 0.4f, 18)
+            fed++
+            if (fed >= need()) levelUp()
+        } else {
+            anims[i].squash = 0.7f
+            soundPlayer.playPop(0.5f)
+        }
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFF311B92), Color(0xFF6A1B9A), Color(0xFFAD1457))))
+            .onSizeChanged { size = it }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val p0 = down.position
+                    var fi = -1
+                    for (i in PARTY_FOODS.indices) if (hypot(p0.x - foodPos(i).x, p0.y - foodPos(i).y) < 60f * density) fi = i
+                    if (fi >= 0) {
+                        dragFood = fi; dragX = p0.x; dragY = p0.y
+                        do {
+                            val e = awaitPointerEvent()
+                            val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                            dragX = c.position.x; dragY = c.position.y
+                            c.consume()
+                        } while (c.pressed)
+                        val gi = (0 until guests.size).firstOrNull { cell(it).contains(Offset(dragX, dragY)) }
+                        dragFood = -1
+                        if (gi != null) feedGuest(gi, fi)
+                    } else {
+                        do {
+                            val e = awaitPointerEvent()
+                        } while (e.changes.any { it.pressed })
+                        val gi = (0 until guests.size).firstOrNull { cell(it).contains(p0) }
+                        if (gi != null) {
+                            anims[gi].jump(320f); anims[gi].squash = 0.5f
+                            soundManager.play("giggle", volume = 0.7f)
+                        }
+                    }
+                }
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            @Suppress("UNUSED_VARIABLE") val redraw = tick
+            // дискотечные лучи
+            val beamPalette = listOf(Color(0xFFFFEB3B), Color(0xFF4FC3F7), Color(0xFFF06292), Color(0xFF81C784), Color(0xFFFFB74D))
+            val a0 = 0.07f + 0.03f * min(level, 6)
+            for (k in 0 until 5) {
+                val x0 = size.width * (k + 0.5f) / 5f
+                val sway = sin(clock * 0.8f + k * 1.3f) * size.width * 0.25f
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(x0, 0f)
+                    lineTo(x0 + sway - size.width * 0.12f, size.height * 0.75f)
+                    lineTo(x0 + sway + size.width * 0.12f, size.height * 0.75f)
+                    close()
+                }
+                drawPath(path, beamPalette[k].copy(alpha = a0))
+            }
+            // пол
+            drawRect(Color(0xFF4A148C), Offset(0f, h * 0.70f), Size(size.width, size.height * 0.30f))
+            for (k in 0 until 8) {
+                val on = ((clock * 2f).toInt() + k) % 2 == 0
+                drawRect(beamPalette[k % 5].copy(alpha = if (on) 0.35f else 0.12f), Offset(size.width / 8f * k, h * 0.70f), Size(size.width / 8f, 10f * density))
+            }
+            for (i in 0 until guests.size) {
+                val c = cell(i)
+                val lay = monLayout(imgs[i], c.center.x, c.bottom - 4f * density, c.width * 0.8f, c.height * 0.60f)
+                drawMonster(imgs[i], guests[i], lay, anims[i], clock, density, 0f)
+            }
+            for (s in sparks) {
+                drawCircle(beamPalette[s[5].toInt() % 5].copy(alpha = s[4].coerceIn(0f, 1f)), 4f * density, Offset(s[0], s[1]))
+            }
+        }
+        if (size != IntSize.Zero) {
+            // пожелания гостей
+            for (i in 0 until guests.size) {
+                val c = cell(i)
+                val wf = wants.getOrNull(i) ?: continue
+                Box(
+                    Modifier
+                        .offset { IntOffset((c.center.x - 26f * density).roundToInt(), (c.top + 2f * density).roundToInt()) }
+                        .size(52.dp)
+                        .background(Color.White.copy(alpha = 0.92f), androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center
+                ) { Text(if (wf < 0) "❤️" else PARTY_FOODS[wf], fontSize = 28.sp) }
+            }
+            // угощения
+            for (i in PARTY_FOODS.indices) {
+                val dragging = dragFood == i
+                val pos = if (dragging) Offset(dragX, dragY) else foodPos(i)
+                Text(
+                    PARTY_FOODS[i], fontSize = if (dragging) 66.sp else 52.sp,
+                    modifier = Modifier.offset { IntOffset((pos.x - 36f * density).roundToInt(), (pos.y - 44f * density).roundToInt()) }
+                )
+            }
+        }
+        // шкала веселья
+        Row(
+            Modifier.statusBarsPadding().padding(top = 14.dp, start = 88.dp, end = 70.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🎪${level}", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Box(
+                Modifier
+                    .padding(start = 8.dp)
+                    .fillMaxWidth()
+                    .size(width = 200.dp, height = 14.dp)
+                    .background(Color.White.copy(alpha = 0.3f), androidx.compose.foundation.shape.RoundedCornerShape(7.dp))
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .fillMaxWidth(fed / need().toFloat())
+                        .background(Color(0xFFFFD54F), androidx.compose.foundation.shape.RoundedCornerShape(7.dp))
+                )
+            }
+        }
+        if (banner.isNotEmpty()) {
+            Text(
+                banner, fontSize = 34.sp, fontWeight = FontWeight.Black, color = Color(0xFFFFEB3B),
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+        Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 8.dp)) {
+            MonBtn(R.drawable.ui_btn_sq_red, "✖") { onExit() }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        var last = 0L
+        var beat = 0f
+        while (true) {
+            withFrameNanos { now ->
+                val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
+                last = now
+                clock += dt
+                var dancing = false
+                for (i in anims.indices) {
+                    anims[i].step(dt, clock)
+                    if (i < guests.size) {
+                        if (clock < anims[i].danceUntil) dancing = true
+                        if (wants.getOrNull(i) == -1 && clock > happyUntil[i]) wants[i] = Random.nextInt(4)
+                    }
+                }
+                if (dancing && clock >= beat) {
+                    beat = clock + 0.46f
+                    val notes = floatArrayOf(1.0f, 1.26f, 1.5f, 1.68f, 1.5f, 1.26f)
+                    soundPlayer.playChime(notes[((clock / 0.46f).toInt()) % notes.size])
+                }
+                val it = sparks.iterator()
+                while (it.hasNext()) {
+                    val s = it.next()
+                    s[0] += s[2] * dt; s[1] += s[3] * dt
+                    s[3] += 700f * density * dt
+                    s[4] -= dt * 1.1f
+                    if (s[4] <= 0f) it.remove()
+                }
+                tick++
+            }
+        }
+    }
+    LaunchedEffect(banner) {
+        if (banner.isNotEmpty()) { kotlinx.coroutines.delay(1800); banner = "" }
     }
 }

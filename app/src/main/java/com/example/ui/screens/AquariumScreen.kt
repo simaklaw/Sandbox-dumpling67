@@ -72,12 +72,18 @@ private class AqFish(val kind: Int, var x: Float, var y: Float) {
     var phase = phase0
     val slot = Random.nextFloat() * 6.28f
     val ringR = 0.7f + Random.nextFloat() * 0.9f
+    var dir = 1f          // куда плывёт: +1 вправо, −1 влево (за экран и пропадает)
+    var lane = 0f         // «рабочая» высота
+    val bobSpeed = 0.5f + Random.nextFloat() * 0.6f
+    var speedMul = 0.85f + Random.nextFloat() * 0.4f
 }
 
 private class AqBubble(var x: Float, var y: Float, val r: Float, val vy: Float, val wob: Float) { var t = 0f }
 private class AqFood(var x: Float, var y: Float, val vy: Float, val wob: Float) { var t = 0f; var rest = 0f }
 private class AqHeart(val x: Float, val y: Float) { var t = 0f }
 private class AqPop(val x: Float, val y: Float, val r: Float) { var t = 0f }
+
+private const val TARGET_FISH = 7
 
 private class AquariumWorld(val density: Float) {
     var w = 0f
@@ -93,6 +99,8 @@ private class AquariumWorld(val density: Float) {
     var touchY = 0f
     var scares = 0
     var bubbleTimer = 0f
+    var spawnTimer = 0f
+    var pufferCd = 0f
     var onEvent: (String) -> Unit = {}
 
     val kinds = listOf(
@@ -116,25 +124,55 @@ private class AquariumWorld(val density: Float) {
         w = width; h = height
         if (first) {
             for (k in intArrayOf(0, 1, 2, 4, 3, 6)) addFish(k, spawnInside = true)
+            pufferCd = 20f
         }
     }
 
     fun addFish(kind: Int, spawnInside: Boolean) {
-        val x = if (spawnInside) w * (0.15f + Random.nextFloat() * 0.7f) else -60f * density
-        val y = waterTop + (waterBottom - waterTop) * (0.1f + Random.nextFloat() * 0.8f)
-        val f = AqFish(kind, x, y)
-        f.face = if (Random.nextBoolean()) 1f else -1f
+        val dir = if (Random.nextBoolean()) 1f else -1f
+        val half = kinds[kind].widthDp * density * 0.6f
+        val x = if (spawnInside) w * (0.1f + Random.nextFloat() * 0.8f) else (if (dir > 0f) -half else w + half)
+        // выбираем высоту подальше от других рыбок
+        var bestY = waterTop + (waterBottom - waterTop) * 0.5f
+        var bestScore = -1f
+        repeat(6) {
+            val y = waterTop + (waterBottom - waterTop) * (0.08f + Random.nextFloat() * 0.84f)
+            var score = Float.MAX_VALUE
+            for (o in fish) score = min(score, hypot(o.x - x, (o.y - y) * 1.6f))
+            if (score > bestScore) { bestScore = score; bestY = y }
+        }
+        val f = AqFish(kind, x, bestY)
+        f.dir = dir
+        f.lane = bestY
+        f.face = dir
+        f.vx = dir * kinds[kind].speedDp * density * 0.5f
         fish.add(f)
+    }
+
+    private fun refill(dt: Float) {
+        if (pufferCd > 0f) pufferCd -= dt
+        spawnTimer -= dt
+        if (fish.size >= TARGET_FISH || spawnTimer > 0f) return
+        spawnTimer = 1.5f + Random.nextFloat() * 2.5f
+        val hasPuffer = fish.any { kinds[it.kind].puffer }
+        val kind = if (!hasPuffer && pufferCd <= 0f && Random.nextFloat() < 0.35f) 6
+        else {
+            val opts = kinds.indices.filter { !kinds[it].puffer }
+            opts.random()
+        }
+        if (kind == 6) pufferCd = 25f
+        addFish(kind, spawnInside = false)
     }
 
     private fun halfSize(f: AqFish): Float = kinds[f.kind].widthDp * density * 0.5f * (1f + 0.7f * f.puff)
 
     private fun burst(x: Float, y: Float, n: Int) {
+        if (bubbles.size > 16) return
         repeat(n) {
             bubbles.add(
                 AqBubble(
                     x + (Random.nextFloat() - 0.5f) * 40f * density, y + (Random.nextFloat() - 0.5f) * 30f * density,
-                    (6f + Random.nextFloat() * 12f) * density, (60f + Random.nextFloat() * 90f) * density,
+                    (3.5f + Random.nextFloat() * 5f) * density, (50f + Random.nextFloat() * 60f) * density,
                     Random.nextFloat() * 6.28f
                 )
             )
@@ -143,10 +181,7 @@ private class AquariumWorld(val density: Float) {
 
     private fun progress() {
         scares++
-        if (scares % 8 == 0 && fish.size < 12) {
-            addFish(Random.nextInt(kinds.size), spawnInside = false)
-            onEvent("newfish")
-        }
+        // новые рыбки приплывают сами (см. refill) — здесь ничего не добавляем
     }
 
     /** Короткий тап. */
@@ -182,7 +217,7 @@ private class AquariumWorld(val density: Float) {
                 hit.scared = 1.2f
                 onEvent("scare")
             }
-            burst(hit.x, hit.y, 6)
+            burst(hit.x, hit.y, 2)
             progress()
             return
         }
@@ -196,7 +231,7 @@ private class AquariumWorld(val density: Float) {
             }
         }
         // 3) пустая вода — стайка пузырьков
-        burst(x, y, 5)
+        burst(x, y, 2)
         onEvent("bubbles")
     }
 
@@ -229,7 +264,7 @@ private class AquariumWorld(val density: Float) {
                     if (hypot(food.x - f.x, food.y - f.y) < halfSize(f) * 0.6f + 10f * density) {
                         foods.remove(food)
                         hearts.add(AqHeart(f.x, f.y - halfSize(f)))
-                        burst(f.x + f.face * halfSize(f), f.y, 2)
+                        burst(f.x + f.face * halfSize(f), f.y, 1)
                         onEvent("eat")
                         progress()
                     }
@@ -240,18 +275,17 @@ private class AquariumWorld(val density: Float) {
                     f.ty = touchY + sin(a) * r * 0.7f
                     mult = 2.4f
                 } else {
-                    f.retarget -= dt
-                    if (f.retarget <= 0f || hypot(f.tx - f.x, f.ty - f.y) < 30f * density) {
-                        f.tx = w * (0.08f + Random.nextFloat() * 0.84f)
-                        f.ty = top + (bottom - top) * Random.nextFloat()
-                        f.retarget = 3f + Random.nextFloat() * 4f
-                    }
+                    // плывёт в свою сторону и покачивается по высоте; у края уходит за экран
+                    val far = 1000f * density
+                    f.tx = f.x + f.dir * far
+                    f.ty = (f.lane + sin(time * f.bobSpeed + f.phase0) * 38f * density).coerceIn(top, bottom)
+                    mult = f.speedMul
                 }
                 if (f.puff > 0.2f) mult = 0.15f
                 val dx = f.tx - f.x
                 val dy = f.ty - f.y
                 val len = hypot(dx, dy).coerceAtLeast(1f)
-                val sp = k.speedDp * density * mult * (if (len < 60f * density) len / (60f * density) + 0.2f else 1f)
+                val sp = k.speedDp * density * mult * (if (len < 60f * density) len / (60f * density) + 0.2f else 1f) * (if (food != null || calling) 1f else 1f)
                 val dvx = dx / len * sp
                 val dvy = dy / len * sp
                 val a = min(1f, dt * 2.5f)
@@ -264,8 +298,6 @@ private class AquariumWorld(val density: Float) {
             if (f.scared > 0f) {
                 if (f.x < m) { f.x = m; f.vx = abs(f.vx) }
                 if (f.x > w - m) { f.x = w - m; f.vx = -abs(f.vx) }
-            } else if (f.x < -200f * density || f.x > w + 200f * density) {
-                // новая рыбка плывёт со стороны экрана к цели
             }
             if (f.y < top) { f.y = top; f.vy = abs(f.vy) }
             if (f.y > bottom) { f.y = bottom; f.vy = -abs(f.vy) }
@@ -274,14 +306,22 @@ private class AquariumWorld(val density: Float) {
                 f.face += (s - f.face) * min(1f, dt * 8f)
             }
         }
+        // рыбки, уплывшие за край экрана, исчезают; взамен приплывают новые
+        val fit = fish.iterator()
+        while (fit.hasNext()) {
+            val f = fit.next()
+            val half = halfSize(f) * 1.3f
+            if (f.scared <= 0f && ((f.dir > 0f && f.x > w + half) || (f.dir < 0f && f.x < -half))) fit.remove()
+        }
+        refill(dt)
         // пузырьки
         bubbleTimer -= dt
-        if (bubbleTimer <= 0f) {
-            bubbleTimer = 0.5f + Random.nextFloat() * 0.8f
+        if (bubbleTimer <= 0f && bubbles.size < 14) {
+            bubbleTimer = 1.3f + Random.nextFloat() * 1.6f
             bubbles.add(
                 AqBubble(
                     w * (0.1f + Random.nextFloat() * 0.8f), h - 100f * density,
-                    (5f + Random.nextFloat() * 11f) * density, (40f + Random.nextFloat() * 50f) * density,
+                    (4f + Random.nextFloat() * 6f) * density, (40f + Random.nextFloat() * 40f) * density,
                     Random.nextFloat() * 6.28f
                 )
             )
@@ -482,6 +522,16 @@ private fun DrawScope.drawAquarium(
     drawImg(rocks[0], sw * 0.78f, sandY + 8f * density, 110f * density, false)
     drawImg(rocks[1], sw * 0.17f, sandY + 8f * density, 100f * density, false)
 
+    // пузырьки
+    for (b in w.bubbles) {
+        val img = if (b.r > 9f * density) bubbleC else bubbleA
+        drawImg(img, b.x, b.y, b.r * 2.2f, true, 0.6f)
+    }
+    for (p in w.pops) {
+        val k = p.t / 0.35f
+        drawCircle(Color.White.copy(alpha = 0.8f * (1f - k)), p.r * (1.4f + 1.8f * k), Offset(p.x, p.y), style = Stroke(width = 2.5f * density))
+    }
+
     // рыбки
     for (f in w.fish) {
         val k = w.kinds[f.kind]
@@ -499,16 +549,6 @@ private fun DrawScope.drawAquarium(
             drawCircle(Color.White.copy(alpha = 0.7f), 3f * density, Offset(f.x - f.face * wpx * 0.2f, f.y - wpx * 0.25f))
             drawCircle(Color.White.copy(alpha = 0.7f), 2.2f * density, Offset(f.x - f.face * wpx * 0.3f, f.y - wpx * 0.35f))
         }
-    }
-
-    // пузырьки
-    for (b in w.bubbles) {
-        val img = if (b.r > 9f * density) bubbleC else bubbleA
-        drawImg(img, b.x, b.y, b.r * 2.4f, true, 0.85f)
-    }
-    for (p in w.pops) {
-        val k = p.t / 0.35f
-        drawCircle(Color.White.copy(alpha = 0.8f * (1f - k)), p.r * (1.4f + 1.8f * k), Offset(p.x, p.y), style = Stroke(width = 2.5f * density))
     }
 
     // корм

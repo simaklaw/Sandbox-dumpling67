@@ -82,19 +82,29 @@ fun BabyPhoneScreen(
     val scope = rememberCoroutineScope()
     val phoneContext = LocalContext.current
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(phoneContext, soundPlayer) }
-    // Настоящие голоса животных (медведь, лев и лиса без записи — для них остаётся прежний звук).
+    // Настоящие голоса животных: у каждой кнопки — своё животное, без повторов.
     fun animalSoundFor(key: String): String? = when (key) {
-        "dog", "🐶" -> "animal_dog"
-        "cat", "🐱" -> "animal_cat"
-        "duck", "🦆" -> "animal_duck"
-        "cow", "🐮" -> "animal_cow"
-        "frog", "🐸" -> "animal_frog"
-        "🐷" -> "animal_pig"
-        "🐴" -> "animal_horse"
-        "🐑" -> "animal_sheep"
-        "🐥" -> "animal_chick"
-        "🐄" -> "animal_calf"
+        "dog" -> "animal_dog"
+        "cat" -> "animal_cat"
+        "duck" -> "animal_duck"
+        "cow" -> "animal_cow"
+        "frog" -> "animal_frog"
+        "pig" -> "animal_pig"
+        "horse" -> "animal_horse"
+        "sheep" -> "animal_sheep"
+        "chick" -> "animal_chick"
+        "rooster" -> "animal_rooster"
+        "bunny" -> "animal_bunny"
         else -> null
+    }
+
+    LaunchedEffect(Unit) {
+        soundManager.preloadRaw(
+            listOf("animal_dog_1", "animal_dog_2", "animal_cat_1", "animal_cat_2", "animal_duck_1", "animal_duck_2",
+                "animal_cow_1", "animal_cow_2", "animal_frog_1", "animal_frog_2", "animal_pig_1", "animal_pig_2",
+                "animal_horse_1", "animal_horse_2", "animal_sheep_1", "animal_sheep_2", "chick_peep",
+                "animal_rooster_1", "animal_rooster_2", "animal_bunny_1", "animal_bunny_2", "sm_note1", "sm_note2", "sm_pop", "sm_party")
+        )
     }
 
     var callState by remember { mutableStateOf(PhoneCallState.IDLE) }
@@ -110,16 +120,27 @@ fun BabyPhoneScreen(
     var caseColorIndex by remember { mutableStateOf(0) }
     val activeCaseColor = caseColors[caseColorIndex].second
 
-    // List of friendly talking animal characters
-    val friends = remember {
-        listOf(
-            PhoneFriend("Щенок Дружок", "🐶", "Алё-алё! Гав-гав! Давай играть!", Color(0xFFFFB74D), "dog"),
-            PhoneFriend("Котёнок Мурка", "🐱", "Алё-алё! Мяу-мяу! Привет, малыш!", Color(0xFFFF8A80), "cat"),
-            PhoneFriend("Утёнок Кряк", "🦆", "Алё-алё! Кря-кря! Пойдём на пруд!", Color(0xFFFFF176), "duck"),
-            PhoneFriend("Коровка Бурёнка", "🐮", "Алё-алё! Мууу-мууу! Вкусное молочко!", Color(0xFFCE93D8), "cow"),
-            PhoneFriend("Лягушонок Кваки", "🐸", "Алё-алё! Ква-ква! Прыг-скок!", Color(0xFFAED581), "frog"),
-            PhoneFriend("Мишка Потап", "🐻", "Алё-алё! Медок очень сладкий!", Color(0xFFBCAAA4), "bear")
+    // Друзья-животные: по одному на кнопку цифры
+    val friendByKey = remember {
+        mapOf(
+            "1" to PhoneFriend("Щенок Дружок", "🐶", "Алё-алё! Гав-гав! Давай играть!", Color(0xFFFFB74D), "dog"),
+            "2" to PhoneFriend("Котёнок Мурка", "🐱", "Алё-алё! Мяу-мяу! Привет, малыш!", Color(0xFFFF8A80), "cat"),
+            "3" to PhoneFriend("Утёнок Кряк", "🦆", "Алё-алё! Кря-кря! Пойдём на пруд!", Color(0xFFFFF176), "duck"),
+            "4" to PhoneFriend("Коровка Бурёнка", "🐮", "Алё-алё! Му-у-у! Вкусное молочко!", Color(0xFFCE93D8), "cow"),
+            "5" to PhoneFriend("Лягушонок Кваки", "🐸", "Алё-алё! Ква-ква! Прыг-скок!", Color(0xFFAED581), "frog"),
+            "6" to PhoneFriend("Поросёнок Хрюша", "🐷", "Алё-алё! Хрю-хрю! Я люблю лужи!", Color(0xFFF8BBD0), "pig"),
+            "7" to PhoneFriend("Лошадка Искорка", "🐴", "Алё-алё! Иго-го! Давай скакать!", Color(0xFF80CBC4), "horse"),
+            "8" to PhoneFriend("Барашек Бяша", "🐑", "Алё-алё! Бе-е-е! Я пушистый!", Color(0xFFE0E0E0), "sheep"),
+            "9" to PhoneFriend("Цыплёнок Цыпа", "🐥", "Алё-алё! Пи-пи-пи! Я маленький!", Color(0xFFFFF59D), "chick"),
+            "*" to PhoneFriend("Петушок Гребешок", "🐓", "Алё-алё! Ку-ка-ре-ку! Пора вставать!", Color(0xFFFFAB91), "rooster"),
+            "0" to PhoneFriend("Зайка Прыг-Скок", "🐰", "Алё-алё! Прыг-скок! Хочу морковку!", Color(0xFFFFCCBC), "bunny")
         )
+    }
+    val friends = remember { friendByKey.values.toList() }
+    var peekIcon by remember { mutableStateOf<String?>(null) }
+    var peekCounter by remember { mutableStateOf(0) }
+    LaunchedEffect(peekCounter) {
+        if (peekCounter > 0) { delay(1300); peekIcon = null }
     }
 
     var activeFriend by remember { mutableStateOf(friends[0]) }
@@ -140,15 +161,15 @@ fun BabyPhoneScreen(
             PhoneKey("7", "🐴", 7, Color(0xFF80CBC4)),
             PhoneKey("8", "🐑", 8, Color(0xFFFFF59D)),
             PhoneKey("9", "🐥", 9, Color(0xFFFFAB91)),
-            PhoneKey("*", "✨", 10, Color(0xFFB39DDB)),
-            PhoneKey("0", "🐄", 0, Color(0xFFFFCC80)),
+            PhoneKey("*", "🐓", 10, Color(0xFFB39DDB)),
+            PhoneKey("0", "🐰", 0, Color(0xFFFFCC80)),
             PhoneKey("#", "🎉", 11, Color(0xFF80DEEA))
         )
     }
 
     // Hangup routine
     fun hangUp() {
-        soundPlayer.playPhoneHangup()
+        soundManager.play("sm_pop", volume = 0.8f, rate = 0.8f)
         haptics.vibrateDialerHangup()
         callState = PhoneCallState.IDLE
         dialedNumber = ""
@@ -158,55 +179,32 @@ fun BabyPhoneScreen(
     fun startCall() {
         if (callState == PhoneCallState.CONNECTED || callState == PhoneCallState.DIALING) return
         callState = PhoneCallState.DIALING
-        soundPlayer.playPhoneRingtone()
+        soundManager.play("sm_note1", volume = 0.6f)
         haptics.vibrateDialerCall()
 
         // Pick a random friend or based on last digit
-        val chosenFriend = if (dialedNumber.isNotEmpty() && dialedNumber.last().isDigit()) {
-            val d = dialedNumber.last().digitToInt()
-            friends[d % friends.size]
-        } else {
-            friends.random()
-        }
+        val chosenFriend = (if (dialedNumber.isNotEmpty()) friendByKey[dialedNumber.last().toString()] else null)
+            ?: friends.random()
         activeFriend = chosenFriend
 
         scope.launch {
-            delay(1200)
+            delay(600)
+            if (callState == PhoneCallState.DIALING) soundManager.play("sm_note2", volume = 0.6f)
+            delay(700)
             if (callState == PhoneCallState.DIALING) {
                 callState = PhoneCallState.CONNECTED
-                soundPlayer.playAlloGreeting(chosenFriend.soundKey)
                 haptics.vibratePop()
+                animalSoundFor(chosenFriend.soundKey)?.let { soundManager.play(it) }
 
                 // Animated talking mouth and hop
                 repeat(4) { iteration ->
-                    if (iteration == 1) animalSoundFor(chosenFriend.soundKey)?.let { soundManager.play(it) }
+                    if (iteration == 2) animalSoundFor(chosenFriend.soundKey)?.let { soundManager.play(it) }
                     launch { mouthWiggle.animateTo(1f, tween(140)) }
                     launch { friendHop.animateTo(-18f, tween(140)) }
                     delay(160)
                     launch { mouthWiggle.animateTo(0f, tween(140)) }
                     launch { friendHop.animateTo(0f, tween(140)) }
                     delay(160)
-                }
-            }
-        }
-    }
-
-    // Auto-surprise incoming call if idle for 35 seconds
-    LaunchedEffect(callState) {
-        if (callState == PhoneCallState.IDLE) {
-            delay(35000L)
-            if (callState == PhoneCallState.IDLE) {
-                activeFriend = friends.random()
-                callState = PhoneCallState.INCOMING
-                repeat(4) {
-                    if (callState == PhoneCallState.INCOMING) {
-                        soundPlayer.playPhoneRingtone()
-                        haptics.vibrate(200)
-                        delay(1400)
-                    }
-                }
-                if (callState == PhoneCallState.INCOMING) {
-                    callState = PhoneCallState.IDLE
                 }
             }
         }
@@ -236,7 +234,7 @@ fun BabyPhoneScreen(
                     IconButton(
                         onClick = {
                             caseColorIndex = (caseColorIndex + 1) % caseColors.size
-                            soundPlayer.playBubblePop()
+                            soundManager.play("sm_pop", volume = 0.8f, rate = 1.2f)
                             haptics.vibratePop()
                         },
                         modifier = Modifier.testTag("phone_case_color_btn")
@@ -303,11 +301,14 @@ fun BabyPhoneScreen(
                                     verticalArrangement = Arrangement.Center,
                                     modifier = Modifier
                                         .clickable(enabled = dialedNumber.isNotEmpty()) {
-                                            soundPlayer.playBubblePop()
+                                            soundManager.play("sm_pop", volume = 0.7f)
                                             haptics.vibrateShort()
                                             dialedNumber = dialedNumber.dropLast(1)
                                         }
                                 ) {
+                                    if (peekIcon != null) {
+                                        Text(text = peekIcon!!, fontSize = 54.sp)
+                                    }
                                     Text(
                                         text = if (dialedNumber.isEmpty()) "Набери номер ☎️" else dialedNumber,
                                         color = Color.White,
@@ -317,7 +318,7 @@ fun BabyPhoneScreen(
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = if (dialedNumber.isNotEmpty()) "Нажми сюда, чтобы стереть ⌫" else "Звони щенку, котику или мишке! 🐶🐱🐻",
+                                        text = if (dialedNumber.isNotEmpty()) "Нажми сюда, чтобы стереть ⌫" else "Жми кнопки — звери отвечают! 🐶🐱🐸",
                                         color = Color.White.copy(alpha = 0.7f),
                                         fontSize = 12.sp
                                     )
@@ -358,9 +359,7 @@ fun BabyPhoneScreen(
                                         .pointerInput(Unit) {
                                             detectTapGestures {
                                                 // Tapping the animal friend triggers cute giggle & bounce
-                                                if (animalSoundFor(activeFriend.soundKey)?.let { soundManager.play(it) } != true) {
-                                                    soundPlayer.playBabyGiggle()
-                                                }
+                                                animalSoundFor(activeFriend.soundKey)?.let { soundManager.play(it) }
                                                 haptics.vibratePop()
                                                 scope.launch {
                                                     friendHop.animateTo(-24f, tween(120))
@@ -469,8 +468,16 @@ fun BabyPhoneScreen(
                                     onClick = {
                                         // Distinct mechanical click haptic feedback
                                         haptics.vibrateDialerKey()
-                                        soundPlayer.playPhoneDialTone(key.digit)
-                                        animalSoundFor(key.subText)?.let { soundManager.play(it, volume = 0.9f) }
+                                        val kf = friendByKey[key.label]
+                                        if (kf != null) {
+                                            animalSoundFor(kf.soundKey)?.let { soundManager.play(it, volume = 0.9f) }
+                                            peekIcon = kf.icon
+                                            peekCounter++
+                                        } else {
+                                            soundManager.play("sm_party", volume = 0.8f)
+                                            peekIcon = "🎉"
+                                            peekCounter++
+                                        }
 
                                         if (callState == PhoneCallState.IDLE) {
                                             if (dialedNumber.length < 10) {
@@ -481,8 +488,14 @@ fun BabyPhoneScreen(
                                                 startCall()
                                             }
                                         } else if (callState == PhoneCallState.CONNECTED) {
-                                            // Pressing keys during call sends funny dial tones!
-                                            soundPlayer.playPhoneDialTone(key.digit)
+                                            // Во время разговора кнопка зовёт в трубку другого зверя
+                                            if (kf != null) {
+                                                activeFriend = kf
+                                                scope.launch {
+                                                    friendHop.animateTo(-24f, tween(120))
+                                                    friendHop.animateTo(0f, tween(120))
+                                                }
+                                            }
                                         }
                                     }
                                 )

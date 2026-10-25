@@ -311,6 +311,13 @@ fun MonsterRunnerScreen(
     var sizeH by remember { mutableFloatStateOf(0f) }
     val sparks = remember { mutableListOf<FloatArray>() }
     var lottieTick by remember { mutableIntStateOf(0) }
+    var banked by remember { mutableIntStateOf(0) }
+    fun bank() {
+        val d = world.coins - banked
+        if (d > 0) { addWallet(context, d); banked += d }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { bank() } }
+    val walletNow = remember(screen) { loadWallet(context) }
 
     fun confetti(x: Float, y: Float, n: Int) {
         repeat(n) {
@@ -341,6 +348,7 @@ fun MonsterRunnerScreen(
             }
             "bossLeave" -> { banner = "Босс убежал!" }
             "over" -> {
+                bank()
                 resultDist = (world.dist / 10f).toInt()
                 resultCoins = world.coins
                 newBest = resultDist > best
@@ -356,6 +364,8 @@ fun MonsterRunnerScreen(
     }
 
     fun begin() {
+        bank()
+        banked = 0
         world.start(startLoc, sizeW / density)
         banner = BIOME_NAMES[startLoc]
         screen = RunScreen.PLAY
@@ -507,6 +517,7 @@ fun MonsterRunnerScreen(
                 }
                 Spacer(Modifier.height(6.dp))
                 KitLongButton(R.drawable.ui_btn_long_green, "БЕЖАТЬ ▶", 210.dp, 22.sp) { begin() }
+                RunChip("🪙 в кошельке: $walletNow")
                 if (best > 0 && !toddler) {
                     Spacer(Modifier.height(4.dp))
                     RunChip("🏆 рекорд: $best м")

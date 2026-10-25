@@ -3,6 +3,9 @@ package com.example.ui.screens
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -355,6 +358,9 @@ fun MonsterFactoryScreen(
     var clock by remember { mutableFloatStateOf(0f) }
     var showHouse by remember { mutableStateOf(false) }
     var showParty by remember { mutableStateOf(false) }
+    var showShop by remember { mutableStateOf(false) }
+    var unlocked by remember { mutableStateOf(loadUnlocked(context)) }
+    var wallet by remember { mutableIntStateOf(loadWallet(context)) }
     var party by remember { mutableStateOf(false) }
     var house by remember { mutableStateOf(loadHouse(context)) }
     var feedCount by remember { mutableIntStateOf(0) }
@@ -384,13 +390,13 @@ fun MonsterFactoryScreen(
 
     fun changePart(zone: MonZone) {
         spec = when (zone) {
-            MonZone.EYES -> spec.copy(eyes = (spec.eyes + 1) % MonsterArt.EYES.size)
-            MonZone.MOUTH -> spec.copy(mouth = (spec.mouth + 1) % MonsterArt.MOUTHS.size)
-            MonZone.NOSE -> spec.copy(nose = (spec.nose + 1) % MON_NOSES)
-            MonZone.TOP -> spec.copy(detail = (spec.detail + 1) % MON_DETAIL)
-            MonZone.ARMS -> spec.copy(arm = (spec.arm + 1) % MON_ARMS)
-            MonZone.LEGS -> spec.copy(leg = (spec.leg + 1) % MON_LEGS)
-            MonZone.BODY -> spec.copy(body = (spec.body + 1) % MON_BODIES)
+            MonZone.EYES -> spec.copy(eyes = nextFree("eyes", spec.eyes, MonsterArt.EYES.size, unlocked))
+            MonZone.MOUTH -> spec.copy(mouth = nextFree("mouth", spec.mouth, MonsterArt.MOUTHS.size, unlocked))
+            MonZone.NOSE -> spec.copy(nose = nextFree("nose", spec.nose, MON_NOSES, unlocked))
+            MonZone.TOP -> spec.copy(detail = nextFree("detail", spec.detail, MON_DETAIL, unlocked))
+            MonZone.ARMS -> spec.copy(arm = nextFree("arm", spec.arm, MON_ARMS, unlocked))
+            MonZone.LEGS -> spec.copy(leg = nextFree("leg", spec.leg, MON_LEGS, unlocked))
+            MonZone.BODY -> spec.copy(body = nextFree("body", spec.body, MON_BODIES, unlocked))
         }
         anim.pop[zone.ordinal] = 1f
         anim.squash = 0.6f
@@ -428,9 +434,10 @@ fun MonsterFactoryScreen(
             .background(Brush.verticalGradient(listOf(Color(0xFFB3E5FC), Color(0xFFE1F5FE), Color(0xFFC5E1A5))))
             .onSizeChanged { size = it }
             .testTag("monster_factory_root")
-            .pointerInput(showHouse, imgs, spec) {
+            .pointerInput(showHouse, showShop, imgs, spec) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    if (showShop) return@awaitEachGesture
                     val p0 = down.position
                     if (showHouse) {
                         // тап по ячейке дома
@@ -549,7 +556,7 @@ fun MonsterFactoryScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 MonBtn(R.drawable.ui_btn_sq_blue, "🎨") {
-                    spec = spec.copy(color = (spec.color + 1) % 6)
+                    spec = spec.copy(color = nextFree("color", spec.color, 6, unlocked))
                     anim.squash = 0.5f; anim.jump(300f)
                     soundPlayer.playSparkleChime()
                 }
@@ -559,7 +566,7 @@ fun MonsterFactoryScreen(
                     soundManager.play("giggle", volume = 0.7f)
                 }
                 MonBtn(R.drawable.ui_btn_sq_red, "🎲") {
-                    spec = MonSpec.random()
+                    spec = randomFree(unlocked)
                     anim.squash = 0.8f; anim.jump(560f)
                     soundPlayer.playMagicSparkle()
                 }
@@ -592,6 +599,12 @@ fun MonsterFactoryScreen(
                     soundPlayer.playPop(1.2f)
                 }
             }
+            Box(
+                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 10.dp)
+                    .background(Color.White.copy(alpha = 0.85f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .clickable { showShop = true; soundPlayer.playPop(1.2f) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) { Text("🪙 $wallet  🛒", fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color(0xFFEF6C00)) }
             if (toast.isNotEmpty()) {
                 Text(
                     toast, fontSize = 34.sp, fontWeight = FontWeight.Black, color = Color(0xFF6A1B9A),
@@ -664,6 +677,21 @@ fun MonsterFactoryScreen(
         }
     }
 
+    if (showShop) {
+        MonShop(
+            wallet = wallet, unlocked = unlocked,
+            onBuy = { item ->
+                if (wallet >= item.cost) {
+                    addWallet(context, -item.cost)
+                    wallet = loadWallet(context)
+                    unlocked = unlocked + item.key
+                    saveUnlocked(context, unlocked)
+                    soundPlayer.playSparkleChime()
+                } else soundPlayer.playPop(0.5f)
+            },
+            onClose = { showShop = false }
+        )
+    }
     if (showParty) {
         MonsterPartyView(
             start = (listOf(spec) + house.filter { it != spec }).take(2).let { if (it.size < 2) it + MonSpec.random() else it },
@@ -705,6 +733,123 @@ fun MonsterFactoryScreen(
         if (toast.isNotEmpty()) {
             kotlinx.coroutines.delay(1400)
             toast = ""
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Кошелёк и магазин частей. Монетки зарабатываются в «Забеге монстрика».
+// ---------------------------------------------------------------------------------------------
+
+internal fun loadWallet(ctx: Context): Int =
+    try { ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE).getInt("mb_wallet", 0) } catch (e: Exception) { 0 }
+
+internal fun addWallet(ctx: Context, n: Int) {
+    try {
+        val sp = ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE)
+        sp.edit().putInt("mb_wallet", max(0, sp.getInt("mb_wallet", 0) + n)).apply()
+    } catch (e: Exception) { }
+}
+
+private fun loadUnlocked(ctx: Context): Set<String> =
+    try { (ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE).getString("mb_unlocked", "") ?: "").split(",").filter { it.isNotBlank() }.toSet() } catch (e: Exception) { emptySet() }
+
+private fun saveUnlocked(ctx: Context, set: Set<String>) {
+    try { ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE).edit().putString("mb_unlocked", set.joinToString(",")).apply() } catch (e: Exception) { }
+}
+
+/** Цена части в монетках; 0 — бесплатная с самого начала. */
+private fun partCost(kind: String, idx: Int): Int = when (kind) {
+    "eyes" -> if (idx >= 4) 10 else 0
+    "mouth" -> if (idx >= 5) 10 else 0
+    "nose" -> if (idx >= 3) 15 else 0
+    "detail" -> if (idx >= 4) 15 else 0
+    "body" -> if (idx >= 3) 20 else 0
+    "arm", "leg" -> if (idx >= 3) 10 else 0
+    "color" -> if (idx >= 3) 25 else 0
+    else -> 0
+}
+
+private fun isFree(kind: String, idx: Int, un: Set<String>) = partCost(kind, idx) == 0 || "$kind:$idx" in un
+
+private fun nextFree(kind: String, cur: Int, count: Int, un: Set<String>): Int {
+    for (step in 1..count) {
+        val i = (cur + step) % count
+        if (isFree(kind, i, un)) return i
+    }
+    return cur
+}
+
+private fun randomFree(un: Set<String>): MonSpec {
+    fun pick(kind: String, count: Int) = (0 until count).filter { isFree(kind, it, un) }.random()
+    return MonSpec(
+        pick("body", MON_BODIES), pick("color", 6), pick("arm", MON_ARMS), pick("leg", MON_LEGS),
+        pick("eyes", MonsterArt.EYES.size), 1 + Random.nextInt(3), pick("mouth", MonsterArt.MOUTHS.size),
+        pick("nose", MON_NOSES), pick("detail", MON_DETAIL)
+    )
+}
+
+private class ShopItem(val kind: String, val idx: Int, val cost: Int, val res: Int) {
+    val key get() = "$kind:$idx"
+}
+
+private fun shopItems(): List<ShopItem> {
+    val l = ArrayList<ShopItem>()
+    for (i in 0 until 6) if (partCost("color", i) > 0) l.add(ShopItem("color", i, partCost("color", i), MonsterArt.BODY[i][0]))
+    for (i in 0 until MON_BODIES) if (partCost("body", i) > 0) l.add(ShopItem("body", i, partCost("body", i), MonsterArt.BODY[2][i]))
+    for (i in 0 until MON_DETAIL) if (partCost("detail", i) > 0) l.add(ShopItem("detail", i, partCost("detail", i), MonsterArt.DETAIL[i - 1][2]))
+    for (i in 0 until MonsterArt.EYES.size) if (partCost("eyes", i) > 0) l.add(ShopItem("eyes", i, partCost("eyes", i), MonsterArt.EYES[i]))
+    for (i in 0 until MonsterArt.MOUTHS.size) if (partCost("mouth", i) > 0) l.add(ShopItem("mouth", i, partCost("mouth", i), MonsterArt.MOUTHS[i]))
+    for (i in 0 until MON_NOSES) if (partCost("nose", i) > 0) l.add(ShopItem("nose", i, partCost("nose", i), MonsterArt.NOSES[i - 1]))
+    for (i in 0 until MON_ARMS) if (partCost("arm", i) > 0) l.add(ShopItem("arm", i, partCost("arm", i), MonsterArt.ARM[2][i]))
+    for (i in 0 until MON_LEGS) if (partCost("leg", i) > 0) l.add(ShopItem("leg", i, partCost("leg", i), MonsterArt.LEG[2][i]))
+    return l
+}
+
+@Composable
+private fun MonShop(wallet: Int, unlocked: Set<String>, onBuy: (ShopItem) -> Unit, onClose: () -> Unit) {
+    val shopList = remember { shopItems() }
+    Box(Modifier.fillMaxSize().background(Color(0xFFFCE4EC)).pointerInput(Unit) { detectTapGestures { } }) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 8.dp)) {
+            Row(Modifier.padding(start = 88.dp, end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("🛒 Магазин", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF6A1B4D))
+                Spacer(Modifier.width(12.dp))
+                Text("🪙 $wallet", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFFEF6C00))
+            }
+            Text(
+                "Монетки зарабатываются в «Забеге монстрика». Нажми на часть, чтобы купить.",
+                modifier = Modifier.padding(start = 88.dp, end = 12.dp, top = 2.dp, bottom = 6.dp),
+                fontSize = 12.sp, color = Color(0xFF6A1B4D)
+            )
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(84.dp),
+                modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(shopList.size) { n ->
+                    val item = shopList[n]
+                    val owned = item.key in unlocked
+                    val can = wallet >= item.cost
+                    Column(
+                        Modifier
+                            .background(if (owned) Color(0xFFC8E6C9) else Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                            .clickable(enabled = !owned) { onBuy(item) }
+                            .padding(6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Image(painterResource(item.res), null, Modifier.size(64.dp), contentScale = ContentScale.Fit)
+                        Text(
+                            if (owned) "✓" else "🪙 ${item.cost}", fontSize = 14.sp, fontWeight = FontWeight.Black,
+                            color = if (owned) Color(0xFF2E7D32) else if (can) Color(0xFFEF6C00) else Color(0xFF9E9E9E)
+                        )
+                    }
+                }
+            }
+        }
+        Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 8.dp)) {
+            MonBtn(R.drawable.ui_btn_sq_red, "✖") { onClose() }
         }
     }
 }

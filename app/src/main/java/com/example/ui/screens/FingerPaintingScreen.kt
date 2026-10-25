@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -113,6 +114,8 @@ fun FingerPaintingScreen(
     var strokeWidth by remember { mutableFloatStateOf(if (ageProfile.isToddler2) 32f else 24f) }
     var lastPaintTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showIdleHint by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    val dens = LocalDensity.current.density
 
     LaunchedEffect(lastPaintTime, ageProfile.isToddler2) {
         if (ageProfile.isToddler2 && ageProfile.autoDemoIdleDelaySeconds > 0) {
@@ -220,7 +223,7 @@ fun FingerPaintingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = if (expanded) 2.dp else 12.dp, vertical = if (expanded) 2.dp else 6.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -276,6 +279,23 @@ fun FingerPaintingScreen(
                         }
                     }
 
+                    // Увеличить / уменьшить окно рисования
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .border(BorderStroke(3.dp, ColorInk), ShapeButton)
+                            .background(if (expanded) ColorYellow else ColorWhite, ShapeButton)
+                            .clip(ShapeButton)
+                            .plasticineClickable(haptics = haptics) {
+                                expanded = !expanded
+                                soundManager.play("pop")
+                            }
+                            .testTag("expand_canvas_button")
+                    ) {
+                        Text(if (expanded) "🗗" else "⛶", fontSize = 30.sp)
+                    }
+
                     // Clear Sponge button (72 dp target)
                     Box(
                         contentAlignment = Alignment.Center,
@@ -299,7 +319,7 @@ fun FingerPaintingScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .graphicsLayer { rotationZ = 1f }
+                    .graphicsLayer { rotationZ = if (expanded) 0f else 1f }
                     .scale(clearBounce.value)
                     .clip(RoundedCornerShape(24.dp))
                     .background(currentPaperColor)
@@ -321,15 +341,18 @@ fun FingerPaintingScreen(
 
                 // Render Stamps
                 stamps.forEach { stamp ->
+                    val stampSp = (stamp.size * 1.7f).coerceAtLeast(40f)
+                    val halfDp = stampSp * 0.62f
                     Text(
                         text = stamp.emoji,
-                        fontSize = (stamp.size * 0.9f).sp,
+                        fontSize = stampSp.sp,
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(
-                                start = (stamp.x - stamp.size * 0.5f).dp,
-                                top = (stamp.y - stamp.size * 0.5f).dp
+                                start = (stamp.x / dens - halfDp).coerceAtLeast(0f).dp,
+                                top = (stamp.y / dens - halfDp).coerceAtLeast(0f).dp
                             )
+                            .graphicsLayer { rotationZ = stamp.rotation }
                     )
                 }
 
@@ -357,6 +380,42 @@ fun FingerPaintingScreen(
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (expanded) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        colors.forEach { color ->
+                            val isSel = selectedColor == color && !isRainbowActive
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .border(BorderStroke(if (isSel) 4.dp else 2.dp, if (isSel) ColorInk else Color.White), CircleShape)
+                                    .background(color, CircleShape)
+                                    .clip(CircleShape)
+                                    .plasticineClickable(haptics = haptics) {
+                                        selectedColor = color
+                                        isRainbowActive = false
+                                        if (selectedBrushMode == CanvasBrushMode.ANIMAL_STAMP) selectedBrushMode = CanvasBrushMode.PASTEL_COLOR
+                                        soundManager.play("pop")
+                                    }
+                            )
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .border(BorderStroke(if (isRainbowActive) 4.dp else 2.dp, if (isRainbowActive) ColorPurple else ColorInk), CircleShape)
+                                .background(if (isRainbowActive) ColorWhite else ColorBgSoft, CircleShape)
+                                .clip(CircleShape)
+                                .plasticineClickable(haptics = haptics) {
+                                    isRainbowActive = !isRainbowActive
+                                    soundManager.play("magic")
+                                }
+                        ) { Text("🌈", fontSize = 22.sp) }
+                    }
+                } else {
                 // 1. BRUSH EFFECTS / STAMPS ROW (72 dp buttons, icons only)
                 if (selectedBrushMode == CanvasBrushMode.ANIMAL_STAMP) {
                     // Row of 6 Large Stamp Buttons
@@ -534,6 +593,7 @@ fun FingerPaintingScreen(
                             }
                         }
                     }
+                }
                 }
             }
         }

@@ -103,7 +103,8 @@ private class Confetti(
 private class BalloonWorld(
     private val dp: Float,
     private val count: Int,
-    val freeMode: Boolean
+    val freeMode: Boolean,
+    val toddler: Boolean = false
 ) {
     var w = 0f
     var h = 0f
@@ -112,15 +113,15 @@ private class BalloonWorld(
     val balloons = ArrayList<Balloon>()
     val confetti = ArrayList<Confetti>()
 
-    var onPop: (Boolean) -> Unit = {}
+    var onPop: (Int) -> Unit = {}
     var onBounce: () -> Unit = {}
 
     private fun newBalloon(spawnAtBottom: Boolean): Balloon {
-        val r = (Random.nextFloat() * 34f + (if (freeMode) 52f else 44f)) * dp
+        val r = (Random.nextFloat() * 16f + (if (toddler) 36f else 30f)) * dp
         val x = r + Random.nextFloat() * (w - 2 * r).coerceAtLeast(1f)
         val y = if (spawnAtBottom) h + r * 1.4f else Random.nextFloat() * h
         // Мелкие шарики поднимаются быстрее, крупные — медленнее (сопротивление ~ площади).
-        val terminal = (150f - r / dp * 0.9f).coerceIn(60f, 120f) * dp
+        val terminal = (150f - r / dp * 0.9f).coerceIn(70f, 125f) * dp
         return Balloon(
             x = x, y = y, vx = 0f, vy = -terminal * 0.4f, r = r,
             colorIdx = pickColor(), phase = Random.nextFloat() * 6.28f, terminal = terminal
@@ -186,7 +187,7 @@ private class BalloonWorld(
             hit.alive = false
             hit.respawnIn = 0.6f + Random.nextFloat() * 0.9f
             burst(hit.x, hit.y, BALLOON_COLORS[hit.colorIdx].base, 20)
-            onPop(true)
+            onPop(hit.colorIdx)
         } else {
             // Не тот цвет: мягко отталкиваем от точки касания, шарик качается.
             var dx = hit.x - px
@@ -304,15 +305,19 @@ fun BalloonPopScreen(
 
     val goal = if (ageProfile.isToddler2) 10 else 6
     val world = remember(ageProfile.isToddler2) {
-        BalloonWorld(dp = dp, count = if (ageProfile.isToddler2) 9 else 13, freeMode = ageProfile.isToddler2)
+        BalloonWorld(dp = dp, count = if (ageProfile.isToddler2) 11 else 15, freeMode = true, toddler = ageProfile.isToddler2)
     }
     var score by remember { mutableIntStateOf(0) }
     var targetIdx by remember { mutableIntStateOf(0) }
     var tick by remember { mutableIntStateOf(0) }
     var ready by remember { mutableStateOf(false) }
 
-    world.onPop = { _ ->
-        soundManager.play("balloon_pop")
+    LaunchedEffect(Unit) {
+        for (k in 1..6) { try { soundManager.play("bp_pop$k", volume = 0f) } catch (_: Throwable) {} }
+    }
+    world.onPop = { ci ->
+        // у каждого цвета свой звук лопания, плюс случайная высота
+        soundManager.play("bp_pop${(ci % 6) + 1}", volume = 0.9f, rate = 0.9f + Random.nextFloat() * 0.25f)
         soundPlayer.vibrateSquish()
         score += 1
         if (score >= goal) {

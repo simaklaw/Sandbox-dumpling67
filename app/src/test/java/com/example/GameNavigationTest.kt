@@ -26,8 +26,8 @@ class GameNavigationTest {
 
     @Test
     fun kitchenGamesReturnToKitchen() {
-        listOf(13, 8, 6).forEach { assertEquals(FolderType.KITCHEN, folderTypeForPage(it)) }
-        assertEquals(AppScreenState.Folder("Кухня", FolderType.KITCHEN), parentStateForGame(13, isToddler2 = false))
+        listOf(6).forEach { assertEquals(FolderType.KITCHEN, folderTypeForPage(it)) }
+        assertEquals(AppScreenState.Folder("Кухня", FolderType.KITCHEN), parentStateForGame(6, isToddler2 = false))
     }
 
     @Test
@@ -40,7 +40,7 @@ class GameNavigationTest {
 
     @Test
     fun toddlerModeHasNoFolders() {
-        listOf(0, 13, 24, 26).forEach {
+        listOf(0, 6, 24, 26).forEach {
             assertEquals(AppScreenState.Home, parentStateForGame(it, isToddler2 = true))
         }
     }

@@ -86,9 +86,10 @@ fun KitLongButton(res: Int, text: String, width: Dp, fontSize: TextUnit = 16.sp,
         contentAlignment = Alignment.Center
     ) {
         Image(painterResource(res), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        val fs = minOf(fontSize.value, width.value * 0.70f / (text.length.coerceAtLeast(1) * 0.58f)).sp
         Text(
-            text, fontSize = fontSize, fontWeight = FontWeight.Black, color = Color.White,
-            modifier = Modifier.padding(bottom = width * 0.012f)
+            text, fontSize = fs, fontWeight = FontWeight.Black, color = Color.White, maxLines = 1,
+            modifier = Modifier.padding(horizontal = width * 0.10f).padding(bottom = width * 0.012f)
         )
     }
 }

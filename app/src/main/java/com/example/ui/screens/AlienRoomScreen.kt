@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -154,9 +155,11 @@ private class AlienWorld(
     var onRound: () -> Unit = {}
 
     val groundY get() = h * 0.80f
-    val spriteH get() = (h * 0.34f).coerceIn(150f * dp, 300f * dp)
+    val spriteH get() = (h * 0.20f).coerceIn(96f * dp, 150f * dp)
     val spriteW get() = spriteH * 250f / 340f
-    val shipX get() = w * 0.86f
+    val shipX get() = w * 0.84f
+    var shipWiggle = 0f
+    var onShipTap: () -> Unit = {}
 
     fun init(width: Float, height: Float) {
         w = width
@@ -169,12 +172,13 @@ private class AlienWorld(
 
     private fun refillCrystals() {
         var guard = 0
-        while (crystals.size < crystalsAtOnce && guard++ < 60) {
-            val minX = spriteW * 0.6f
-            val maxX = shipX - 90f * dp
-            val x = minX + Random.nextFloat() * (maxX - minX).coerceAtLeast(1f)
-            if (abs(x - alienX) < spriteW * 0.9f) continue
-            if (crystals.any { abs(it.x - x) < 80f * dp }) continue
+        while (crystals.size < crystalsAtOnce && guard++ < 120) {
+            val minX = 50f * dp
+            val maxX = (shipX - 110f * dp).coerceAtLeast(minX + 20f * dp)
+            val x = minX + Random.nextFloat() * (maxX - minX)
+            val strict = guard < 60
+            if (strict && abs(x - alienX) < spriteW * 0.8f) continue
+            if (crystals.any { abs(it.x - x) < (if (strict) 70f else 36f) * dp }) continue
             crystals.add(Crystal(x, Random.nextFloat() * 6.28f))
         }
     }
@@ -202,6 +206,12 @@ private class AlienWorld(
         if (jumpT < 0f) 0f else sin(PI.toFloat() * jumpT) * spriteH * 0.35f
 
     fun tap(x: Float, y: Float) {
+        lastTapTime = time
+        if (abs(x - shipX) < 50f * dp && y > groundY - 230f * dp && y < groundY + 10f * dp) {
+            shipWiggle = 0.7f
+            onShipTap()
+            return
+        }
         val left = alienX - spriteW / 2f
         val top = groundY - spriteH - jumpOffset()
         val onAlien = x in left..(left + spriteW) && y in top..(top + spriteH)
@@ -250,6 +260,13 @@ private class AlienWorld(
             if (jumpT >= 1f) jumpT = -1f
         }
 
+        shipWiggle = (shipWiggle - dt).coerceAtLeast(0f)
+        if (shipPhase == 0 && crystals.isEmpty()) refillCrystals()
+        // Если ничего не нажимали — Зелик сам идёт к ближайшему кристаллу.
+        if (shipPhase == 0 && !moving && giggleT <= 0f && time - lastTapTime > 6f && crystals.isNotEmpty()) {
+            targetX = crystals.minByOrNull { abs(it.x - alienX) }!!.x
+            lastTapTime = time - 3f
+        }
         // Сбор кристаллов.
         if (shipPhase == 0 && giggleT <= 0f) {
             val it = crystals.iterator()
@@ -343,6 +360,11 @@ fun AlienRoomScreen(
         fuelShown = world.fuel
         soundManager.play("star_collect")
         soundPlayer.vibrateDragTick()
+    }
+    var hintText by remember { mutableStateOf("") }
+    world.onShipTap = {
+        soundManager.play("boing", volume = 0.7f)
+        hintText = "Принеси кристаллы 💎 — корабль заправится!"
     }
     world.onJump = { soundManager.play("boing", volume = 0.7f) }
     world.onGiggle = {
@@ -470,9 +492,9 @@ fun AlienRoomScreen(
             val lift = world.shipLift()
             val sx = world.shipX
             val shipBase = groundY - 2f * dp - lift
-            val shipW = 54f * dp
-            val shipH = 128f * dp
-            val shake = if (world.shipPhase == 0 && world.fuel >= world.goal - 1 && world.goal > 1) sin(t * 30f) * 1.5f * dp else 0f
+            val shipW = 66f * dp
+            val shipH = 170f * dp
+            val shake = (if (world.shipPhase == 0 && world.fuel >= world.goal - 1 && world.goal > 1) sin(t * 30f) * 1.5f * dp else 0f) + sin(t * 42f) * 4f * dp * world.shipWiggle
             val shipColor = CRYSTAL_COLORS[world.round % CRYSTAL_COLORS.size]
             withTransform({ translate(shake, 0f) }) {
                 if (world.shipPhase == 1 && world.shipT > 0.15f) {
@@ -520,10 +542,12 @@ fun AlienRoomScreen(
             for (c in world.crystals) {
                 val col = CRYSTAL_COLORS[world.round % CRYSTAL_COLORS.size]
                 val bob = sin(t * 2.4f + c.phase) * 4f * dp
-                val cy = groundY - 34f * dp + bob
-                drawCircle(col.copy(alpha = 0.22f), 30f * dp, Offset(c.x, cy))
+                val cy = groundY - 46f * dp + bob
+                val pulse = 1f + 0.18f * sin(t * 5f + c.phase)
+                drawCircle(col.copy(alpha = 0.30f), 40f * dp * pulse, Offset(c.x, cy))
+                drawCircle(Color.White.copy(alpha = 0.55f), 40f * dp * pulse, Offset(c.x, cy), style = Stroke(width = 2f * dp))
                 val d = Path().apply {
-                    moveTo(c.x, cy - 24f * dp); lineTo(c.x + 16f * dp, cy); lineTo(c.x, cy + 24f * dp); lineTo(c.x - 16f * dp, cy); close()
+                    moveTo(c.x, cy - 32f * dp); lineTo(c.x + 21f * dp, cy); lineTo(c.x, cy + 32f * dp); lineTo(c.x - 21f * dp, cy); close()
                 }
                 drawPath(d, col)
                 drawPath(d, Color.White.copy(alpha = 0.8f), style = Stroke(width = 2f * dp))
@@ -589,7 +613,7 @@ fun AlienRoomScreen(
                 shadowElevation = 4.dp
             ) {
                 Text(
-                    "Заправь корабль Зелика!  " + "💎".repeat(fuelShown) + "▫️".repeat((world.goal - fuelShown).coerceAtLeast(0)) +
+                    "Собери кристаллы 💎 для корабля  " + "💎".repeat(fuelShown) + "▫️".repeat((world.goal - fuelShown).coerceAtLeast(0)) +
                         if (rounds > 0) "  🚀 $rounds" else "",
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     fontSize = 16.sp,
@@ -599,7 +623,18 @@ fun AlienRoomScreen(
             }
         }
 
-        if (tappedOnce == 0) {
+        LaunchedEffect(hintText) {
+            if (hintText.isNotEmpty()) { kotlinx.coroutines.delay(3000); hintText = "" }
+        }
+        if (hintText.isNotEmpty()) {
+            Surface(
+                shape = RoundedCornerShape(20.dp), color = Color.White.copy(alpha = 0.92f),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp)
+            ) {
+                Text(hintText, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3B2A7A))
+            }
+        }
+        if (tappedOnce == 0 && hintText.isEmpty()) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = Color.White.copy(alpha = 0.85f),
@@ -608,7 +643,7 @@ fun AlienRoomScreen(
                     .padding(bottom = 36.dp)
             ) {
                 Text(
-                    "Нажми, куда идти Зелику 👆",
+                    "Нажми на кристалл 💎 — Зелик пойдёт за ним 👆",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,

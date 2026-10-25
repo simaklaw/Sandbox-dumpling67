@@ -134,7 +134,20 @@ private class ZBoss(
     var active = false
     var dead = false
     var shootTimer = 90
+    var kind = 0          // 0 — пурпурный, 1 — лесной, 2 — огненный
+    var phase = 0         // 0..2 — по потере здоровья
+    var state = 0         // 0 ходьба, 1 разгон (предупреждение), 2 рывок, 3 прыжок вверх, 4 падение
+    var stateT = 0
+    var skillCd = 120
+    var lastSkill = -1
+    var vx = 0f
+    var vy = 0f
+    var dashDir = 1f
+    var deadT = 0
 }
+
+private class ZShock(var x: Float, val dir: Float) { var life = 150 }
+private class ZRainCoin(var x: Float, var y: Float, var vx: Float, var vy: Float) { var life = 1100 }
 
 private class ZBolt(var x: Float, var y: Float, val vx: Float) { var trail = 0 }
 
@@ -154,7 +167,7 @@ private class ZHoming(var x: Float, var y: Float, var vx: Float, var vy: Float) 
     var trail = 0
 }
 
-private class ZBossRocket(var x: Float, var y: Float, var vx: Float, var vy: Float) {
+private class ZBossRocket(var x: Float, var y: Float, var vx: Float, var vy: Float, val straight: Boolean = false) {
     val r = 8f
     var life = 300
     var up = true
@@ -191,6 +204,7 @@ private data class ZHud(
     val ammo: Int = HOMING_MAX_AMMO,
     val weapon: Int = 0,
     val bossHp: Int = 0,
+    val bossPhase: Int = 0,
     val bossMax: Int = 1,
     val bossActive: Boolean = false,
     val mobsLeft: Int = 0,
@@ -289,6 +303,8 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     val grenades = ArrayList<ZGrenade>()
     val homings = ArrayList<ZHoming>()
     val bossRockets = ArrayList<ZBossRocket>()
+    val shocks = ArrayList<ZShock>()
+    val rainCoins = ArrayList<ZRainCoin>()
     val pickups = ArrayList<ZPickup>()
     val parts = ArrayList<ZPart>()
     val waves = ArrayList<ZWave>()
@@ -429,9 +445,11 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         meds.add(ZMed(levelLength * 0.5f, GROUND_Y - 40f))
         meds.add(ZMed(levelLength * 0.75f, GROUND_Y - 40f))
 
-        val bossHp = (when (diff) { 0 -> 40; 1 -> 60; else -> 80 }) + (n - 1) * 10
-        val interval = max(120, 210 - n * 15) + (if (diff == 0) 60 else 0)
-        boss = ZBoss(levelLength - 300f, GROUND_Y - 110f, 70f, 110f, bossHp, bossHp, interval)
+        val bossHp = ((when (diff) { 0 -> 40; 1 -> 60; else -> 80 }) * 1.8f).toInt() + (n - 1) * 16
+        val interval = max(110, 190 - n * 12) + (if (diff == 0) 50 else 0)
+        boss = ZBoss(levelLength - 300f, GROUND_Y - 140f, 92f, 140f, bossHp, bossHp, interval)
+        boss.kind = biomeOfLevel(n)
+        shocks.clear(); rainCoins.clear()
 
         bolts.clear(); grenades.clear(); homings.clear(); bossRockets.clear()
         pickups.clear(); parts.clear(); waves.clear(); smokes.clear()
@@ -653,6 +671,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
         if (!boss.active && !boss.dead && px > arenaLeft - 50f) {
             boss.active = true
+            onEvent("bossRoar")
             boss.shootTimer = 90
             onEvent("roar")
         }
@@ -727,8 +746,20 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         boss.hp -= amount
         boss.hitFlash = 12
         onEvent("bossHit")
+        val frac = boss.hp.toFloat() / boss.maxHp
+        val ph = if (frac < 0.34f) 2 else if (frac < 0.67f) 1 else 0
+        if (ph > boss.phase && boss.hp > 0) {
+            boss.phase = ph
+            boss.state = 0; boss.stateT = 0; boss.skillCd = 50; boss.vx = 0f
+            boss.y = GROUND_Y - boss.h
+            spawnBigExplosion(boss.x + boss.w / 2f, boss.y + boss.h / 2f, 120f)
+            onEvent("bossPhase")
+        }
         if (boss.hp <= 0) {
             boss.dead = true
+            boss.deadT = 0
+            shocks.clear()
+            enemies.clear()
             val bcx = boss.x + boss.w / 2f
             val bcy = boss.y + boss.h / 2f
             repeat(5) { spawnBigExplosion(bcx + (Random.nextFloat() - 0.5f) * 60f, bcy + (Random.nextFloat() - 0.5f) * 60f, 70f) }
@@ -948,40 +979,178 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     }
 
     private fun updateBoss() {
-        if (!boss.active || boss.dead) return
+        if (boss.dead) {
+            boss.deadT++
+            if (boss.deadT < 10) {
+                val cx = boss.x + boss.w / 2f
+                val cy = boss.y + boss.h / 2f
+                repeat(5) {
+                    rainCoins.add(ZRainCoin(cx, cy, (Random.nextFloat() - 0.5f) * 14f, -6f - Random.nextFloat() * 9f))
+                }
+            }
+            if (boss.deadT == 4) onEvent("bossCoinRain")
+            return
+        }
+        if (!boss.active) return
         if (boss.hitFlash > 0) boss.hitFlash--
         val pcx = px + pw / 2f
         val bcx = boss.x + boss.w / 2f
         val dx = pcx - bcx
         val dist = abs(dx)
         val dir = if (dx >= 0f) 1f else -1f
-        val speed = 1.4f
-        if (dist > 260f) boss.x += dir * speed * 1.6f
-        else if (dist > 120f) boss.x += dir * speed
-        else if (dist < 100f) boss.x -= dir * speed * 1.2f
+        val groundTop = GROUND_Y - boss.h
+        val rage = 1f + boss.phase * 0.3f
+        boss.stateT++
+        when (boss.state) {
+            0 -> {
+                val speed = 1.4f * rage
+                if (dist > 260f) boss.x += dir * speed * 1.6f
+                else if (dist > 120f) boss.x += dir * speed
+                else if (dist < 100f) boss.x -= dir * speed * 1.2f
+                boss.y = groundTop
+                boss.skillCd--
+                if (boss.skillCd <= 0) chooseBossSkill(dir)
+            }
+            1 -> { // предупреждение перед рывком
+                boss.x -= dir * 0.4f
+                if (boss.stateT == 1) onEvent("bossCharge")
+                if (boss.stateT >= 45) {
+                    boss.state = 2; boss.stateT = 0
+                    boss.dashDir = if (dx >= 0f) 1f else -1f
+                    boss.vx = boss.dashDir * (8f + boss.phase * 1.5f)
+                    onEvent("bossDash")
+                }
+            }
+            2 -> { // рывок
+                boss.x += boss.vx
+                if (boss.stateT % 3 == 0) spawnSmoke(boss.x + boss.w / 2f - boss.dashDir * 30f, boss.y + boss.h - 10f)
+                if (boss.stateT > 55 || boss.x <= arenaLeft + 12f || boss.x + boss.w >= arenaRight - 12f) {
+                    boss.state = 0; boss.stateT = 0; boss.vx = 0f
+                    boss.skillCd = (boss.shootInterval * 0.6f).toInt()
+                }
+            }
+            3 -> { // прыжок вверх
+                if (boss.stateT == 1) onEvent("bossRoar")
+                boss.y -= 11f
+                boss.x += dir * 2.6f
+                if (boss.y < GROUND_Y - boss.h - 300f || boss.stateT > 32) { boss.state = 4; boss.stateT = 0 }
+            }
+            4 -> { // падение
+                boss.y += 20f
+                if (boss.y >= groundTop) {
+                    boss.y = groundTop
+                    boss.state = 0; boss.stateT = 0
+                    boss.skillCd = (boss.shootInterval * 0.7f).toInt()
+                    val cx = boss.x + boss.w / 2f
+                    shocks.add(ZShock(cx - 20f, -1f)); shocks.add(ZShock(cx + 20f, 1f))
+                    if (boss.phase >= 2) { shocks.add(ZShock(cx - 120f, -1f)); shocks.add(ZShock(cx + 120f, 1f)) }
+                    spawnBigExplosion(cx, GROUND_Y - 10f, 90f)
+                    onEvent("bossSlam")
+                    if (!dead && invuln <= 0 && py + ph > GROUND_Y - 24f && abs(pcx - cx) < 70f) hurtPlayer(5, cx, 7f, -8f)
+                }
+            }
+        }
         if (boss.x < arenaLeft + 10f) boss.x = arenaLeft + 10f
         if (boss.x + boss.w > arenaRight - 10f) boss.x = arenaRight - 10f - boss.w
 
-        if (boss.shootTimer > 0) boss.shootTimer--
-        if (boss.shootTimer <= 0) {
-            fireBossVolley()
-            boss.shootTimer = boss.shootInterval
-        }
-
         if (!dead && invuln <= 0) {
             if (px < boss.x + boss.w && px + pw > boss.x && py < boss.y + boss.h && py + ph > boss.y) {
-                hurtPlayer(5, boss.x + boss.w / 2f, 6f, -7f)
+                hurtPlayer(if (boss.state == 2) 6 else 5, boss.x + boss.w / 2f, 7f, -7f)
             }
         }
     }
 
-    private fun fireBossVolley() {
+    private fun chooseBossSkill(dirToPlayer: Float) {
+        val options = ArrayList<Int>()
+        options.add(0)                           // залп ракет
+        options.add(2)                           // рывок
+        options.add(3)                           // прыжок с ударной волной
+        if (boss.phase >= 1) { options.add(1); options.add(4) }   // веер огня, призыв
+        if (boss.phase >= 2) { options.add(1); options.add(2); options.add(3) }
+        var pick = options.random()
+        if (pick == boss.lastSkill && options.size > 1) pick = options.random()
+        boss.lastSkill = pick
+        val interval = boss.shootInterval
+        when (pick) {
+            0 -> { fireBossVolley(2 + boss.phase); boss.skillCd = (interval * 0.75f).toInt() }
+            1 -> { fireBossFan(5 + boss.phase * 2); boss.skillCd = (interval * 0.8f).toInt() }
+            2 -> { boss.state = 1; boss.stateT = 0 }
+            3 -> { boss.state = 3; boss.stateT = 0 }
+            4 -> {
+                if (enemies.size < 3) {
+                    for (sgn in floatArrayOf(-1f, 1f)) {
+                        val ex = (boss.x + boss.w / 2f + sgn * 110f).coerceIn(arenaLeft + 40f, arenaRight - 40f)
+                        val r = 20f
+                        enemies.add(ZEnemy(ex, GROUND_Y - r - 8f, r, 0, MOB_HP[0], MOB_HP[0], 1.2f, sgn, ex, 120f))
+                    }
+                    onEvent("bossSummon")
+                }
+                boss.skillCd = (interval * 0.9f).toInt()
+            }
+        }
+    }
+
+    private fun fireBossVolley(count: Int = 2) {
         val cx = boss.x + boss.w / 2f
-        for (off in floatArrayOf(-16f, 16f)) {
-            bossRockets.add(ZBossRocket(cx + off, boss.y, 0f, -6f))
+        val half = (count - 1) / 2f
+        for (i in 0 until count) {
+            val off = (i - half) * 22f
+            bossRockets.add(ZBossRocket(cx + off, boss.y, off * 0.05f, -6f))
             repeat(5) { spawnSmoke(cx + off + (Random.nextFloat() - 0.5f) * 8f, boss.y + (Random.nextFloat() - 0.5f) * 8f) }
         }
         onEvent("bossShoot")
+    }
+
+    private fun fireBossFan(count: Int) {
+        val cx = boss.x + boss.w / 2f
+        val cy = boss.y + boss.h * 0.4f
+        val toPlayer = atan2((py + ph / 2f) - cy, (px + pw / 2f) - cx)
+        val spread = 1.5f
+        for (i in 0 until count) {
+            val a = toPlayer - spread / 2f + spread * i / (count - 1).coerceAtLeast(1)
+            bossRockets.add(ZBossRocket(cx, cy, cos(a) * 4.6f, sin(a) * 4.6f, straight = true).also { it.up = false; it.angle = a })
+        }
+        onEvent("bossFire")
+    }
+
+    private fun updateShocks() {
+        val it = shocks.iterator()
+        while (it.hasNext()) {
+            val sh = it.next()
+            sh.x += sh.dir * 5.5f
+            sh.life--
+            if (sh.life % 4 == 0) spawnSmoke(sh.x, GROUND_Y - 8f)
+            if (!dead && invuln <= 0 && abs((px + pw / 2f) - sh.x) < 26f && py + ph > GROUND_Y - 34f) {
+                hurtPlayer(4, sh.x, 6f, -7f)
+            }
+            if (sh.life <= 0 || sh.x < arenaLeft - 40f || sh.x > arenaRight + 40f) it.remove()
+        }
+    }
+
+    private fun updateRainCoins() {
+        val cx = px + pw / 2f
+        val cy = py + ph / 2f
+        val it = rainCoins.iterator()
+        while (it.hasNext()) {
+            val c = it.next()
+            c.vy += 0.38f
+            c.x += c.vx
+            c.y += c.vy
+            c.vx *= 0.995f
+            c.life--
+            for (p in platforms) {
+                if (c.x > p.x && c.x < p.x + p.w && c.y > p.y - 8f && c.y < p.y + 16f && c.vy > 0f) {
+                    c.y = p.y - 8f; c.vy *= -0.45f; c.vx *= 0.8f
+                }
+            }
+            if (!dead && hypot(cx - c.x, cy - c.y) < 44f) {
+                coinCount++
+                onEvent("coin")
+                it.remove()
+                continue
+            }
+            if (c.life <= 0 || c.y > GROUND_Y + 300f) it.remove()
+        }
     }
 
     private fun updateBossRockets() {
@@ -992,7 +1161,9 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             rk.life--
             rk.trail++
             if (rk.trail % 2 == 0) spawnSmoke(rk.x, rk.y)
-            if (rk.up) {
+            if (rk.straight) {
+                // летит по прямой
+            } else if (rk.up) {
                 rk.vy -= 0.15f
                 if (rk.vy < -9f) rk.vy = -9f
                 rk.homingTimer--
@@ -1134,10 +1305,12 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         updatePickups()
         updateBoss()
         updateBossRockets()
+        updateShocks()
+        updateRainCoins()
         updateEnemies()
         updateFX()
         updateCamera()
-        if (!levelDone && boss.dead && !dead) {
+        if (!levelDone && boss.dead && !dead && boss.deadT > 300) {
             levelDone = true
             onEvent("levelDone")
         }
@@ -1145,7 +1318,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
     fun hud(): ZHud = ZHud(
         hp = max(0, hp), lives = lives, coins = coinCount, ammo = ammo, weapon = weapon,
-        bossHp = max(0, boss.hp), bossMax = boss.maxHp, bossActive = boss.active && !boss.dead,
+        bossHp = max(0, boss.hp), bossPhase = boss.phase, bossMax = boss.maxHp, bossActive = boss.active && !boss.dead,
         mobsLeft = enemies.size, level = level
     )
 }
@@ -1248,6 +1421,23 @@ private fun DrawScope.drawSunflower(e: ZEnemy, t: Int, f: ZFrames) {
 
 private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     if (b.dead) return
+    val cDark: Color; val cMid: Color; val cLight: Color
+    when (b.kind) {
+        1 -> { cDark = Color(0xFF1B5E20); cMid = Color(0xFF43A047); cLight = Color(0xFFC8E6C9) }
+        2 -> { cDark = Color(0xFF7F0000); cMid = Color(0xFFE64A19); cLight = Color(0xFFFFCCBC) }
+        else -> { cDark = Color(0xFF4A148C); cMid = Color(0xFF8E24AA); cLight = Color(0xFFE1BEE7) }
+    }
+    val rage = b.phase >= 2
+    // предупреждение рывка/падения
+    if (b.state == 1) {
+        val a = 0.25f + 0.25f * sin(t * 0.5f)
+        drawRect(Color.Red.copy(alpha = a.coerceIn(0f, 1f)), Offset(b.x - 900f, GROUND_Y - 60f), Size(1800f, 60f))
+    }
+    if (b.state == 3 || b.state == 4) {
+        drawCircle(Color.Red.copy(alpha = 0.35f), 70f, Offset(b.x + b.w / 2f, GROUND_Y - 4f), style = Stroke(6f))
+    }
+    if (rage) drawCircle(Color(0xFFFF1744).copy(alpha = 0.18f + 0.1f * sin(t * 0.3f)), b.w * 1.1f, Offset(b.x + b.w / 2f, b.y + b.h / 2f))
+
     val cx = b.x + b.w / 2f
     val bob = sin(t * 0.07f) * 4f
     val cy = b.y + b.h / 2f + bob
@@ -1255,16 +1445,26 @@ private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     val rh = b.h * 0.62f
     // антенны-пушки
     for (side in floatArrayOf(-1f, 1f)) {
-        drawLine(Color(0xFF4A148C), Offset(cx + side * rw * 0.35f, cy - rh * 0.8f), Offset(cx + side * rw * 0.55f, cy - rh * 1.45f), 7f, StrokeCap.Round)
+        drawLine(cDark, Offset(cx + side * rw * 0.35f, cy - rh * 0.8f), Offset(cx + side * rw * 0.55f, cy - rh * 1.45f), 7f, StrokeCap.Round)
         drawCircle(Color(0xFFFF5252), 9f, Offset(cx + side * rw * 0.55f, cy - rh * 1.45f))
+    }
+    // рога
+    for (side in floatArrayOf(-1f, 1f)) {
+        val hp = Path().apply {
+            moveTo(cx + side * rw * 0.22f, cy - rh * 0.95f)
+            lineTo(cx + side * rw * 0.42f, cy - rh * (if (rage) 1.9f else 1.5f))
+            lineTo(cx + side * rw * 0.1f, cy - rh * 1.0f)
+            close()
+        }
+        drawPath(hp, if (rage) Color(0xFFFFEB3B) else Color(0xFFFFF8E1))
     }
     // ножки
     val st = sin(t * 0.15f) * 5f
-    drawRoundRect(Color(0xFF4A148C), Offset(cx - rw * 0.45f + st, cy + rh * 0.7f), Size(18f, 26f), CornerRadius(8f))
-    drawRoundRect(Color(0xFF4A148C), Offset(cx + rw * 0.45f - 18f - st, cy + rh * 0.7f), Size(18f, 26f), CornerRadius(8f))
+    drawRoundRect(cDark, Offset(cx - rw * 0.45f + st, cy + rh * 0.7f), Size(18f, 26f), CornerRadius(8f))
+    drawRoundRect(cDark, Offset(cx + rw * 0.45f - 18f - st, cy + rh * 0.7f), Size(18f, 26f), CornerRadius(8f))
     // тело
     drawOval(
-        Brush.radialGradient(listOf(Color(0xFFE1BEE7), Color(0xFF8E24AA), Color(0xFF4A148C)), center = Offset(cx - rw * 0.2f, cy - rh * 0.3f), radius = rw * 1.1f),
+        Brush.radialGradient(listOf(cLight, cMid, cDark), center = Offset(cx - rw * 0.2f, cy - rh * 0.3f), radius = rw * 1.1f),
         Offset(cx - rw / 2f, cy - rh), Size(rw, rh * 2f)
     )
     // глаза
@@ -1446,6 +1646,24 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
             if (h.targetBoss) drawTargetMark(Offset(w.boss.x + w.boss.w / 2f, w.boss.y + w.boss.h / 2f), 64f, t)
             drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.3f), 18f, Offset(h.x, h.y))
             rotate(t * 6f, Offset(h.x, h.y)) { drawStar(Offset(h.x, h.y), 12f, Color(0xFFFFEB3B)) }
+        }
+        // ударные волны босса
+        for (sh in w.shocks) {
+            val h = 46f + 10f * sin(sh.life * 0.4f)
+            val path = Path().apply {
+                moveTo(sh.x - 22f, GROUND_Y)
+                lineTo(sh.x, GROUND_Y - h)
+                lineTo(sh.x + 22f, GROUND_Y)
+                close()
+            }
+            drawPath(path, Color(0xFFFF7043))
+            drawPath(path, Color(0xFFFFEB3B), style = Stroke(4f))
+        }
+        // монеты, сыплющиеся из побеждённого босса
+        for (c in w.rainCoins) {
+            val sq = abs(cos((c.life + c.x) * 0.15f))
+            drawOval(Color(0xFFFFC107), Offset(c.x - 11f * sq, c.y - 11f), Size(22f * sq, 22f))
+            drawOval(Color(0xFFFFF59D), Offset(c.x - 6f * sq, c.y - 7f), Size(8f * sq, 12f))
         }
         // ракеты босса — огненные шары
         for (r in w.bossRockets) {
@@ -1640,6 +1858,7 @@ fun ZelikAdventureScreen(
     var world by remember { mutableStateOf<ZelikWorld?>(null) }
     var hud by remember { mutableStateOf(ZHud()) }
     var tick by remember { mutableIntStateOf(0) }
+    var confettiTrig by remember { mutableIntStateOf(0) }
 
     fun playEvent(ev: String, w: ZelikWorld) {
         when (ev) {
@@ -1648,16 +1867,23 @@ fun ZelikAdventureScreen(
             "throw" -> soundPlayer.playCatapultLaunch()
             "mortar" -> soundPlayer.playMagicSparkle()
             "boom" -> soundPlayer.playCatapultCrashLand()
-            "boom_small" -> soundPlayer.playPelmeshHitObstacle(0.9f)
+            "boom_small" -> soundManager.play("zb_boom", volume = 0.7f)
             "hit" -> soundPlayer.playPop(1.3f)
-            "coin" -> soundPlayer.playPelmeshCollectItem("COIN", 1.0f)
+            "coin" -> soundManager.play("zb_coin", volume = 0.7f, rate = 0.9f + Random.nextFloat() * 0.3f)
             "heal" -> soundPlayer.playSparkleChime()
-            "hurt" -> { soundPlayer.playCartoonYelp(); soundPlayer.vibrateSquishDeform() }
+            "hurt" -> { soundManager.play("zb_ouch", volume = 0.9f); soundPlayer.vibrateSquishDeform() }
             "fall" -> soundPlayer.playComicalFallWobble()
-            "roar" -> soundPlayer.playBearGrowl()
-            "bossHit" -> soundPlayer.playPop(0.6f)
-            "bossShoot" -> soundPlayer.playBowShot()
-            "bossDead" -> soundPlayer.playLegendaryFanfare()
+            "roar", "bossRoar" -> soundManager.play("zb_roar", volume = 0.9f)
+            "bossHit" -> soundManager.play("zb_hurt", volume = 0.8f)
+            "bossShoot" -> soundManager.play("zb_rocket", volume = 0.8f)
+            "bossFire" -> soundManager.play("zb_fire", volume = 0.8f)
+            "bossCharge" -> soundManager.play("zb_charge", volume = 0.9f)
+            "bossDash" -> soundManager.play("zb_dash", volume = 0.9f)
+            "bossSlam" -> { soundManager.play("zb_slam", volume = 1f); soundManager.play("zb_shock", volume = 0.7f) }
+            "bossSummon" -> soundManager.play("zb_summon", volume = 0.9f)
+            "bossPhase" -> soundManager.play("zb_phase", volume = 1f)
+            "bossCoinRain" -> soundManager.play("zb_coinrain", volume = 1f)
+            "bossDead" -> { soundManager.play("zb_down", volume = 1f); soundManager.play("zb_victory", volume = 0.9f); confettiTrig++ }
             "pickup" -> soundPlayer.playChime(1.4f)
             "helperShoot" -> { soundPlayer.playPop(1.7f); helperAnim.jump(220f); helperAnim.squash = 0.4f }
             "wings" -> soundPlayer.playMagicSparkle()
@@ -1671,6 +1897,13 @@ fun ZelikAdventureScreen(
                 hud = w.hud()
                 screen = ZScreen.GAME_OVER
             }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        for (n in listOf("zb_roar", "zb_hurt", "zb_rocket", "zb_fire", "zb_charge", "zb_dash", "zb_slam", "zb_shock",
+            "zb_summon", "zb_phase", "zb_coin", "zb_coinrain", "zb_victory", "zb_down", "zb_ouch", "zb_boom")) {
+            try { soundManager.play(n, volume = 0f) } catch (_: Throwable) {}
         }
     }
 
@@ -1775,7 +2008,7 @@ fun ZelikAdventureScreen(
                         .width(220.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("БОСС", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF4A148C))
+                    Text(if (hud.bossPhase >= 2) "БОСС 🔥 ЯРОСТЬ!" else if (hud.bossPhase == 1) "БОСС 😡 ${hud.bossHp}/${hud.bossMax}" else "БОСС ${hud.bossHp}/${hud.bossMax}", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF4A148C))
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -1787,7 +2020,7 @@ fun ZelikAdventureScreen(
                             Modifier
                                 .fillMaxSize()
                                 .fillMaxWidth(hud.bossHp / hud.bossMax.toFloat())
-                                .background(Color(0xFF8E24AA))
+                                .background(if (hud.bossPhase >= 2) Color(0xFFE53935) else if (hud.bossPhase == 1) Color(0xFFFB8C00) else Color(0xFF8E24AA))
                         )
                     }
                 }
@@ -1876,7 +2109,7 @@ fun ZelikAdventureScreen(
                         Spacer(Modifier.width(6.dp))
                         KitLongButton(
                             R.drawable.ui_btn_long_blue,
-                            if (houseList.isEmpty()) "Помощник: сначала собери в Фабрике" else if (helperIdx < 0) "Помощник: нет" else "Помощник №${helperIdx + 1}",
+                            if (houseList.isEmpty()) "Нужен монстрик 👾" else if (helperIdx < 0) "Помощник: нет" else "Помощник №${helperIdx + 1}",
                             190.dp, 12.sp, selected = helperIdx >= 0
                         ) {
                             if (houseList.isNotEmpty()) {
@@ -1893,7 +2126,7 @@ fun ZelikAdventureScreen(
             }
         }
 
-        LottieConfetti(if (screen == ZScreen.LEVEL_DONE) 1 else 0, Modifier.fillMaxSize())
+        LottieConfetti(confettiTrig * 2 + (if (screen == ZScreen.LEVEL_DONE) 1 else 0), Modifier.fillMaxSize())
 
         if (screen == ZScreen.PAUSED) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {

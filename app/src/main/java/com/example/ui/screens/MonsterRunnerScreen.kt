@@ -98,7 +98,7 @@ private class RunWorld(val toddler: Boolean) {
     var bossSeg = -1
     var bossT = 0f
     var bossHp = 0
-    val bossMax = if (toddler) 8 else 16
+    val bossMax = if (toddler) 12 else 24
     var projT = 0f
     var coinT = 0f
     val projs = ArrayList<RunProj>()
@@ -191,6 +191,12 @@ private class RunWorld(val toddler: Boolean) {
             projT = if (toddler) 3.4f else 2.1f
             val fly = !toddler && Random.nextBoolean()
             projs.add(RunProj(dist + visibleW + 80f, if (fly) 95f else 0f, fly))
+            // в ярости босс стреляет двойными залпами
+            if (!toddler && bossHp <= bossMax / 2) {
+                projs.add(RunProj(dist + visibleW + 260f, if (!fly) 95f else 0f, !fly))
+                projT *= 0.8f
+            }
+            onEvent("bossShoot")
         }
         if (coinT <= 0f) {
             coinT = 1.7f
@@ -238,17 +244,23 @@ private class RunWorld(val toddler: Boolean) {
             }
         }
         updateBoss(dt, visibleW, hx)
+        val shower = ArrayList<RunCoin>()
         for (c in items) {
             if (c.taken) continue
             if (abs(c.x - hx) < 30f && abs(c.y - (hy + 34f)) < 46f) {
                 c.taken = true; coins++; onEvent("coin")
                 if (bossState == 1) {
                     bossHp--
-                    if (bossHp <= 0) { bossState = 2; projs.clear(); coins += 20; nextX = dist + visibleW + 300f; onEvent("bossDown") }
-                    else onEvent("bossHit")
+                    if (bossHp <= 0) { bossState = 2; projs.clear(); coins += 40; nextX = dist + visibleW + 300f; onEvent("bossDown")
+                        for (k in 0..17) {
+                            val a = k / 17f * PI.toFloat()
+                            shower.add(RunCoin(dist + 160f + k * 34f, 40f + sin(a) * 110f))
+                        }
+                    } else onEvent("bossHit")
                 }
             }
         }
+        items.addAll(shower)
         obs.removeAll { it.x < dist - 300f }
         items.removeAll { it.x < dist - 300f }
     }
@@ -329,21 +341,22 @@ fun MonsterRunnerScreen(
 
     world.onEvent = { ev ->
         when (ev) {
-            "jump" -> soundManager.play("boing", volume = 0.6f)
-            "jump2" -> soundPlayer.playPop(1.6f)
-            "land" -> soundPlayer.playPop(0.6f)
-            "coin" -> soundPlayer.playChime(1.0f + (world.coins % 8) * 0.09f)
-            "hit" -> { soundPlayer.playCartoonYelp(); soundPlayer.vibrateSquishDeform() }
+            "jump" -> soundManager.play("zb_jump", volume = 0.7f)
+            "jump2" -> soundManager.play("zb_jump2", volume = 0.7f)
+            "land" -> soundManager.play("zb_land", volume = 0.5f)
+            "coin" -> soundManager.play("zb_coin", volume = 0.7f, rate = 0.9f + (world.coins % 8) * 0.05f)
+            "hit" -> { soundManager.play("zb_ouch", volume = 0.9f); soundPlayer.vibrateSquishDeform() }
             "loc" -> {
                 soundPlayer.playFanfare()
                 banner = BIOME_NAMES[world.loc] + "!"
                 confetti(sizeW / 2f, sizeH * 0.35f, 40)
                 lottieTick++
             }
-            "bossStart" -> { hudLocForBoss = world.loc; soundPlayer.playBearGrowl(); banner = "⚠️ БОСС! Лови монетки!" }
-            "bossHit" -> { bossAnim.squash = 0.6f; soundPlayer.playPop(0.7f) }
+            "bossStart" -> { hudLocForBoss = world.loc; soundManager.play("zb_roar", volume = 0.9f); banner = "⚠️ БОСС! Лови монетки!" }
+            "bossHit" -> { bossAnim.squash = 0.6f; soundManager.play("zb_hurt", volume = 0.8f) }
+            "bossShoot" -> soundManager.play("zb_rocket", volume = 0.6f)
             "bossDown" -> {
-                soundPlayer.playLegendaryFanfare(); banner = "🎉 Босс побеждён! +20 🪙"
+                soundManager.play("zb_down", volume = 1f); soundManager.play("zb_victory", volume = 0.9f); soundManager.play("zb_coinrain", volume = 1f); banner = "🎉 Босс побеждён! +40 🪙"
                 confetti(sizeW / 2f, sizeH * 0.4f, 60); lottieTick++
             }
             "bossLeave" -> { banner = "Босс убежал!" }
@@ -505,7 +518,7 @@ fun MonsterRunnerScreen(
                 Spacer(Modifier.height(6.dp))
                 KitLongButton(
                     R.drawable.ui_btn_long_blue,
-                    if (houseList.isEmpty()) "Монстрик: собери в Фабрике" else "Другой монстрик (${heroIdx + 1}/${houseList.size})",
+                    if (houseList.isEmpty()) "Нужен монстрик 👾" else "Другой монстрик (${heroIdx + 1}/${houseList.size})",
                     230.dp, 12.sp
                 ) {
                     if (houseList.isNotEmpty()) {

@@ -40,3 +40,6 @@ Kenney «Monster Builder Pack» — лицензия CC0 (kenney.nl). Файлы
 - «stringstar fields» и «kinda cute forest» — автор Trix: можно использовать где угодно, кредит приветствуется. Файлы fld_*.webp, for_*.webp.
 - «Medieval pixel art tileset (free)» — лицензия в пакете не указана, проверить. Файлы cas_*.webp.
 - Не использованы: Among Us (Lottie) — чужой товарный знак; FBX-анимации — 3D, для Unity-версии; Lua — скрипт Aseprite.
+
+## Звуки боссов и платформера (zb_*.ogg)
+Сгенерированы нами программно (numpy → ogg), лицензионных ограничений нет.

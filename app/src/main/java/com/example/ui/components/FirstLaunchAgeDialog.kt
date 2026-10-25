@@ -59,7 +59,7 @@ fun FirstLaunchAgeDialog(
                 )
 
                 Text(
-                    text = "Удерживайте карточку 2 секунды для выбора возраста",
+                    text = "Нажмите на карточку. Выбор можно поменять в настройках для родителей.",
                     style = PlayTypography.bodyLarge,
                     fontSize = 14.sp,
                     color = ColorInk.copy(alpha = 0.7f),
@@ -132,13 +132,7 @@ private fun HoldAgeCard(
         modifier = modifier
             .height(210.dp)
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                    }
-                )
+                detectTapGestures(onTap = { onTrigger() })
             }
     ) {
         Box(

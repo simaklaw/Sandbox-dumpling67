@@ -252,6 +252,11 @@ class SoundManager(
         }
     }
 
+    /** Заранее загружает raw-звуки (без воспроизведения), чтобы первый тап не упал в запасной звук. */
+    fun preloadRaw(names: List<String>) {
+        for (n in names) { try { loadRawSoundFile(n) } catch (_: Throwable) {} }
+    }
+
     private fun loadRawSoundFile(fileName: String): Int? {
         if (!isSoundPoolSupported) return null
 

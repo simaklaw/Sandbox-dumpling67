@@ -1901,10 +1901,8 @@ fun ZelikAdventureScreen(
     }
 
     LaunchedEffect(Unit) {
-        for (n in listOf("zb_roar", "zb_hurt", "zb_rocket", "zb_fire", "zb_charge", "zb_dash", "zb_slam", "zb_shock",
-            "zb_summon", "zb_phase", "zb_coin", "zb_coinrain", "zb_victory", "zb_down", "zb_ouch", "zb_boom")) {
-            try { soundManager.play(n, volume = 0f) } catch (_: Throwable) {}
-        }
+        soundManager.preloadRaw(listOf("zb_roar", "zb_hurt", "zb_rocket", "zb_fire", "zb_charge", "zb_dash", "zb_slam", "zb_shock",
+            "zb_summon", "zb_phase", "zb_coin", "zb_coinrain", "zb_victory", "zb_down", "zb_ouch", "zb_boom"))
     }
 
     LaunchedEffect(Unit) {

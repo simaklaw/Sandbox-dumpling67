@@ -339,6 +339,9 @@ fun MonsterRunnerScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        soundManager.preloadRaw(listOf("zb_jump", "zb_jump2", "zb_land", "zb_coin", "zb_ouch", "zb_roar", "zb_hurt", "zb_rocket", "zb_down", "zb_victory", "zb_coinrain"))
+    }
     world.onEvent = { ev ->
         when (ev) {
             "jump" -> soundManager.play("zb_jump", volume = 0.7f)

@@ -313,7 +313,7 @@ fun BalloonPopScreen(
     var ready by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        for (k in 1..6) { try { soundManager.play("bp_pop$k", volume = 0f) } catch (_: Throwable) {} }
+        soundManager.preloadRaw((1..6).map { "bp_pop$it" })
     }
     world.onPop = { ci ->
         // у каждого цвета свой звук лопания, плюс случайная высота

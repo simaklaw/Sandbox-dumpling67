@@ -16,7 +16,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
@@ -33,6 +40,7 @@ import com.example.shared.LocalAgeProfile
 import com.example.shared.SoundManager
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.max
@@ -54,7 +62,9 @@ private class GalKind(val front: Int, val back: Int, val isDuck: Boolean)
 private class GalObj(var kind: Int, var x: Float) {
     var hitT = -1f   // <0 — не сбита
     val phase = Random.nextFloat() * 6.28f
+    var sp = 0.85f + Random.nextFloat() * 0.3f   // у каждой игрушки своя скорость
 }
+private class GalTracer(val x0: Float, val y0: Float, val x1: Float, val y1: Float) { var t = 0f }
 
 private class GalGolden(var x: Float, val lane: Int, val dir: Float) { var hitT = -1f; val phase = Random.nextFloat() * 6.28f }
 private class GalBurst(var delay: Float, val x: Float, val y: Float)
@@ -79,19 +89,40 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     var goldenTimer = 9f
     val bursts = ArrayList<GalBurst>()
     var big5 = 0f
+    // пистолет
+    var aim = 0f            // угол ствола, рад (0 — вверх)
+    var aimIdle = 0f
+    var recoil = 0f         // 1 — только что выстрелил
+    var recoilV = 0f
+    var flash = 0f
+    var shake = 0f
+    val tracers = ArrayList<GalTracer>()
+    fun pivot() = Offset(w / 2f, h + 6f * density)
+    fun gunUnit() = h * 0.0021f
+    fun muzzle(): Offset {
+        val u = gunUnit()
+        val len = (158f + 20f * recoil.coerceAtMost(1f) * -1f + 0f) * u
+        val p = pivot()
+        return Offset(p.x + sin(aim) * len, p.y - cos(aim) * len)
+    }
+    fun aimAt(x: Float, y: Float) {
+        val p = pivot()
+        aim = atan2(x - p.x, max(40f * density, p.y - y)).coerceIn(-1.2f, 1.2f)
+        aimIdle = 2.5f
+    }
     var onEvent: (String, Int) -> Unit = { _, _ -> }
     val kinds = listOf(
         GalKind(0, 0, true), GalKind(1, 0, true), GalKind(2, 0, true), GalKind(3, 0, true), GalKind(4, 0, true),
         GalKind(5, 1, false), GalKind(6, 1, false), GalKind(7, 1, false), GalKind(8, 1, false)
     )
     private val laneKinds = arrayOf(intArrayOf(0, 1, 2, 3), intArrayOf(3, 4, 5, 6, 0), intArrayOf(5, 6, 7, 8, 4))
-    private val laneSpeed = floatArrayOf(55f, 75f, 100f)
+    private val laneSpeed = floatArrayOf(36f, 48f, 62f)
     private val laneDir = floatArrayOf(1f, -1f, 1f)
 
     val objW get() = 80f * density * (if (toddler) 1.15f else 1f)
     fun laneTop(i: Int) = h * (0.36f + 0.145f * i)
-    private val perLane get() = if (toddler) 2 else 3
-    private fun speedMul() = (if (toddler) 0.7f else 1f) * (1f + 0.18f * min(level, 5))
+    private val perLane get() = if (toddler) 1 else 2
+    private fun speedMul() = (if (toddler) 0.65f else 1f) * (1f + 0.08f * min(level, 5))
 
     fun init(width: Float, height: Float) {
         if (w == width && h == height) return
@@ -113,7 +144,9 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     private fun respawn(o: GalObj, lane: Int) {
         o.kind = laneKinds[lane][Random.nextInt(laneKinds[lane].size)]
         o.hitT = -1f
-        o.x = if (laneDir[lane] > 0f) -objW - Random.nextFloat() * objW else w + objW + Random.nextFloat() * objW
+        o.sp = 0.85f + Random.nextFloat() * 0.3f
+        val gap = Random.nextFloat() * objW * (if (toddler) 3f else 2f)
+        o.x = if (laneDir[lane] > 0f) -objW - gap else w + objW + gap
     }
 
     fun goldenCenter(g: GalGolden): Offset {
@@ -140,6 +173,22 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     }
 
     fun tap(x: Float, y: Float) {
+        aimAt(x, y)
+        recoil = 1f; recoilV = 0f; flash = 1f; shake = 1f
+        val m = muzzle()
+        tracers.add(GalTracer(m.x, m.y, x, y))
+        run {
+            val u = gunUnit()
+            val ang = aim
+            repeat(5) {
+                sparks.add(GalSpark(m.x, m.y, sin(ang) * 120f * density + (Random.nextFloat() - 0.5f) * 90f * density,
+                    -cos(ang) * 120f * density - Random.nextFloat() * 60f * density, Color(0xFFB0BEC5), (5f + Random.nextFloat() * 6f) * density))
+            }
+            val p = pivot()
+            sparks.add(GalSpark(p.x + sin(ang) * 80f * u + cos(ang) * 14f * u, p.y - cos(ang) * 80f * u + sin(ang) * 14f * u,
+                cos(ang) * 260f * density, -300f * density, Color(0xFFFFC107), 4.5f * density))
+        }
+        onEvent("shot", score)
         val rad = objW * 0.66f * (if (toddler) 1.2f else 1f)
         val gd = golden
         if (gd != null && gd.hitT < 0f) {
@@ -216,11 +265,20 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
                 gd.x += gd.dir * 40f * density * dt
                 if (gd.hitT > 1.4f) { golden = null; goldenTimer = 10f + Random.nextFloat() * 8f }
             } else {
-                gd.x += gd.dir * (if (toddler) 130f else 190f) * density * dt
+                gd.x += gd.dir * (if (toddler) 100f else 140f) * density * dt
                 if (gd.x < -objW * 1.6f || gd.x > w + objW * 1.6f) { golden = null; goldenTimer = 8f + Random.nextFloat() * 8f }
             }
         }
         if (big5 > 0f) big5 -= dt
+        // пружина отдачи
+        recoilV += (-recoil * 260f - recoilV * 16f) * dt
+        recoil += recoilV * dt
+        if (recoil < 0f) { recoil = 0f; recoilV = 0f }
+        flash = max(0f, flash - dt * 12f)
+        shake = max(0f, shake - dt * 9f)
+        if (aimIdle > 0f) aimIdle -= dt else aim *= (1f - min(1f, dt * 2.5f))
+        val tri = tracers.iterator()
+        while (tri.hasNext()) { val tr = tri.next(); tr.t += dt; if (tr.t > 0.12f) tri.remove() }
         val bi = bursts.iterator()
         while (bi.hasNext()) {
             val b = bi.next()
@@ -244,7 +302,7 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
                     o.x += laneDir[li] * laneSpeed[li] * speedMul() * density * dt * 0.3f
                     if (o.hitT > 1.4f) respawn(o, li)
                 } else {
-                    o.x += laneDir[li] * laneSpeed[li] * speedMul() * density * dt
+                    o.x += laneDir[li] * laneSpeed[li] * o.sp * speedMul() * density * dt
                     if (laneDir[li] > 0f && o.x > w + objW) respawn(o, li)
                     if (laneDir[li] < 0f && o.x < -objW) respawn(o, li)
                 }
@@ -324,6 +382,7 @@ fun ShootingGalleryScreen(
 
     world.onEvent = { ev, score ->
         when (ev) {
+            "shot" -> { soundManager.play("sg_shot", volume = 0.9f, rate = 0.95f + Random.nextFloat() * 0.1f); soundPlayer.vibrateSquishDeform() }
             "hitDuck" -> {
                 soundManager.play(if (Random.nextBoolean()) "animal_duck_1" else "animal_duck_2")
                 soundPlayer.playPop(1.3f)
@@ -358,6 +417,7 @@ fun ShootingGalleryScreen(
                     world.tap(down.position.x, down.position.y)
                     do {
                         val e = awaitPointerEvent()
+                        e.changes.firstOrNull()?.let { world.aimAt(it.position.x, it.position.y) }
                         e.changes.forEach { it.consume() }
                     } while (e.changes.any { it.pressed })
                 }
@@ -370,6 +430,7 @@ fun ShootingGalleryScreen(
         }
     }
 
+    LaunchedEffect(Unit) { soundManager.preloadRaw(listOf("sg_shot")) }
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
@@ -530,6 +591,20 @@ private fun DrawScope.drawGallery(
         drawCircle(p.color.copy(alpha = p.life.coerceIn(0f, 1f)), p.r, Offset(p.x, p.y))
     }
 
+    // трассеры пуль
+    for (tr in w.tracers) {
+        val k = 1f - tr.t / 0.12f
+        drawLine(Color(0xFFFFF59D).copy(alpha = k), Offset(tr.x0, tr.y0), Offset(tr.x1, tr.y1), 5f * d * k + 1f, StrokeCap.Round)
+        drawLine(Color.White.copy(alpha = k), Offset(tr.x0, tr.y0), Offset(tr.x1, tr.y1), 2f * d, StrokeCap.Round)
+    }
+
+    // стойка и пистолет
+    drawCounter(sw, sh, d)
+    drawPistol(w, d)
+
+    // свет: прожекторы, вспышка выстрела и виньетка
+    drawLights(w, sw, sh, d)
+
     // занавес: сверху и по бокам
     run {
         var x = 0f
@@ -569,5 +644,79 @@ private fun DrawScope.drawGallery(
     } else if (w.banner > 0f) {
         val k = 1f + 0.12f * sin(t * 14f)
         imgC(go, sw / 2f, sh * 0.2f, 170f * d * k, min(1f, w.banner * 2f))
+    }
+}
+
+
+private fun DrawScope.drawCounter(sw: Float, sh: Float, d: Float) {
+    val ch = 34f * d
+    drawRect(
+        Brush.verticalGradient(listOf(Color(0xFF7B4A2A), Color(0xFF4E2C17)), startY = sh - ch, endY = sh),
+        Offset(0f, sh - ch), Size(sw, ch)
+    )
+    drawRect(Color(0xFFD7A36E), Offset(0f, sh - ch), Size(sw, 4f * d))
+    drawRect(Color.Black.copy(alpha = 0.25f), Offset(0f, sh - ch + 4f * d), Size(sw, 5f * d))
+}
+
+private fun DrawScope.drawLights(w: GalleryWorld, sw: Float, sh: Float, d: Float) {
+    for (fx in floatArrayOf(0.28f, 0.72f)) {
+        val path = Path().apply {
+            moveTo(sw * fx - 20f * d, 50f * d); lineTo(sw * fx + 20f * d, 50f * d)
+            lineTo(sw * fx + 150f * d, sh); lineTo(sw * fx - 150f * d, sh); close()
+        }
+        drawPath(path, Brush.verticalGradient(listOf(Color(0x30FFF3C4), Color(0x00FFF3C4)), startY = 50f * d, endY = sh))
+    }
+    if (w.flash > 0f) {
+        val m = w.muzzle()
+        val r = 120f * d * w.flash + 10f
+        drawCircle(Brush.radialGradient(listOf(Color(0xCCFFF59D), Color(0x00FFB300)), center = m, radius = r), r, m)
+        drawRect(Color.White.copy(alpha = 0.10f * w.flash))
+    }
+    drawRect(
+        Brush.radialGradient(
+            listOf(Color.Transparent, Color(0x66000000)),
+            center = Offset(sw / 2f, sh * 0.5f), radius = max(sw, sh) * 0.75f
+        )
+    )
+}
+
+/** Игрушечный пистолет (вид сбоку, ствол вверх) с рукой. Отдача: рама откатывается, затвор — ещё дальше. */
+private fun DrawScope.drawPistol(w: GalleryWorld, d: Float) {
+    val u = w.gunUnit()
+    val p = w.pivot()
+    val rc = w.recoil.coerceIn(0f, 1.3f)
+    rotate(degrees = w.aim * 180f / PI.toFloat() + rc * 5f * (if (w.aim >= 0f) -1f else 1f), pivot = p) {
+        val kick = rc * 22f
+        val slideKick = rc * 14f
+        val body = Color(0xFF3F4A59)
+        val bodyHi = Color(0xFF6B7A8F)
+        val orange = Color(0xFFFF7043)
+        fun px(v: Float) = p.x + v * u
+        fun py(v: Float) = p.y + (v + kick) * u
+        drawOval(Color.Black.copy(alpha = 0.2f), Offset(px(-24f), py(-30f)), Size(56f * u, 16f * u))
+        drawRoundRect(Color(0xFF2B3340), Offset(px(-11f), py(-110f)), Size(22f * u, 80f * u), CornerRadius(5f * u))
+        val grip = Path().apply {
+            moveTo(px(-13f), py(-52f)); lineTo(px(13f), py(-52f))
+            lineTo(px(27f), py(40f)); lineTo(px(-1f), py(40f)); close()
+        }
+        drawPath(grip, Color(0xFF8D5A34))
+        drawArc(Color(0xFF2B3340), 0f, 180f, false, Offset(px(10f), py(-50f)), Size(18f * u, 20f * u), style = androidx.compose.ui.graphics.drawscope.Stroke(4f * u))
+        drawRoundRect(orange, Offset(px(14f), py(-46f)), Size(5f * u, 11f * u), CornerRadius(2f * u))
+        val sy = py(-150f) + slideKick * u
+        drawRoundRect(body, Offset(px(-15f), sy), Size(30f * u, 114f * u), CornerRadius(8f * u))
+        drawRoundRect(bodyHi, Offset(px(-11f), sy + 6f * u), Size(5f * u, 100f * u), CornerRadius(3f * u))
+        for (i in 0..4) drawRect(Color(0xFF2B3340), Offset(px(5f), sy + (84f + i * 5f) * u), Size(8f * u, 2f * u))
+        drawRect(Color(0xFF1A1F27), Offset(px(1f), sy + 22f * u), Size(14f * u, 24f * u))
+        drawRect(Color(0xFFFFEB3B), Offset(px(-2f), sy - 5f * u), Size(4f * u, 8f * u))
+        val ty = py(-164f) + slideKick * 0.3f * u
+        drawRoundRect(orange, Offset(px(-9f), ty), Size(18f * u, 16f * u), CornerRadius(5f * u))
+        drawRoundRect(Color(0xFFFFAB91), Offset(px(-6f), ty + 2f * u), Size(4f * u, 11f * u), CornerRadius(2f * u))
+        drawCircle(Color(0xFF1A1F27), 4f * u, Offset(px(0f), ty))
+        val skin = Color(0xFFFFCC9A)
+        val skinShade = Color(0xFFE5A672)
+        drawRoundRect(skin, Offset(px(-6f), py(-30f)), Size(46f * u, 74f * u), CornerRadius(20f * u))
+        for (i in 0..3) drawRoundRect(skinShade, Offset(px(18f), py(-24f + i * 15f)), Size(28f * u, 4f * u), CornerRadius(2f * u))
+        drawRoundRect(skin, Offset(px(-22f), py(-62f)), Size(15f * u, 42f * u), CornerRadius(7f * u))
+        drawRoundRect(skin, Offset(px(10f), py(-62f)), Size(13f * u, 30f * u), CornerRadius(6f * u))
     }
 }

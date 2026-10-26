@@ -70,13 +70,19 @@ private const val RUN_K = 2.6f             // масштаб пиксель-ар
 
 private class RunObs(val x: Float, val kind: Int, val w: Float, val h: Float)
 private class RunCoin(val x: Float, val y: Float) { var taken = false }
-private class RunProj(var x: Float, val y: Float, val fly: Boolean)
-
-private val RUN_BOSSES = listOf(
-    MonSpec(body = 2, color = 2, arm = 2, leg = 3, eyes = 3, eyeCount = 1, mouth = 7, nose = 0, detail = 5),
-    MonSpec(body = 0, color = 1, arm = 4, leg = 0, eyes = 6, eyeCount = 3, mouth = 9, nose = 2, detail = 4),
-    MonSpec(body = 4, color = 3, arm = 1, leg = 4, eyes = 2, eyeCount = 2, mouth = 11, nose = 1, detail = 2)
-)
+private class RunFire(var x: Float, val y: Float, var t: Float = 0f)
+private class RunFx(val x: Float, val y: Float, val n: Int)
+/** Чудик: kind 0 — колобок, 1 — прыгун, 2 — здоровяк (2 попадания). */
+private class RunFoe(var x: Float, val kind: Int) {
+    val w = if (kind == 2) 78f else 58f
+    val h = if (kind == 2) 88f else 62f
+    var hp = if (kind == 2) 2 else 1
+    var y = 0f
+    var vy = 0f
+    var hopT = 0.6f
+    var flash = 0f
+    var dead = false
+}
 
 private class RunWorld(val toddler: Boolean) {
     var dist = 0f
@@ -94,14 +100,13 @@ private class RunWorld(val toddler: Boolean) {
     var loc = 0
     var squash = 0f
     var wasAir = false
-    var bossState = 0      // 0 — нет, 1 — бой, 2 — закончен
-    var bossSeg = -1
-    var bossT = 0f
-    var bossHp = 0
-    val bossMax = if (toddler) 12 else 24
-    var projT = 0f
-    var coinT = 0f
-    val projs = ArrayList<RunProj>()
+    var kills = 0
+    var fireCd = 0f
+    var muzzle = 0f
+    var hxw = 0f
+    val foes = ArrayList<RunFoe>()
+    val fires = ArrayList<RunFire>()
+    val fx = ArrayList<RunFx>()
     val obs = ArrayList<RunObs>()
     val items = ArrayList<RunCoin>()
     var onEvent: (String) -> Unit = {}
@@ -111,8 +116,8 @@ private class RunWorld(val toddler: Boolean) {
         loc = startLoc
         hy = 0f; vy = 0f; airJumps = 0
         lives = 3; coins = 0; invuln = 0f; slow = 0f; over = false; time = 0f
-        obs.clear(); items.clear(); projs.clear()
-        bossState = 0; bossSeg = -1; bossT = 0f
+        obs.clear(); items.clear(); foes.clear(); fires.clear(); fx.clear()
+        kills = 0; fireCd = 0f; muzzle = 0f
         nextX = dist + visibleW + 300f
     }
 
@@ -144,22 +149,26 @@ private class RunWorld(val toddler: Boolean) {
                 else -> { w = 23f * RUN_K; h = 15f * RUN_K } // сундук
             }
             val sp = baseSpeed()
-            if (r < 0.62f) {
+            if (r < 0.40f) {
                 obs.add(RunObs(nextX, kind, w, h))
                 for (k in 0..4) {
                     val a = k / 4f * PI.toFloat()
-                    items.add(RunCoin(nextX + w / 2f - 80f + k * 40f, h + 26f + sin(a) * 70f))
+                    items.add(RunCoin(nextX + w / 2f - 120f + k * 60f, h + 40f + sin(a) * 80f))
                 }
-            } else if (r < 0.78f && !toddler) {
+            } else if (r < 0.52f && !toddler) {
                 obs.add(RunObs(nextX, kind, w, h))
-                obs.add(RunObs(nextX + w + 150f, (kind + 1) % 4, w, h))
+                obs.add(RunObs(nextX + w + 190f, (kind + 1) % 4, w, h))
                 for (k in 0..6) {
                     val a = k / 6f * PI.toFloat()
-                    items.add(RunCoin(nextX + w / 2f - 20f + k * 38f, h + 30f + sin(a) * 85f))
+                    items.add(RunCoin(nextX + w / 2f - 40f + k * 55f, h + 40f + sin(a) * 95f))
                 }
-                nextX += w + 150f
+                nextX += w + 190f
+            } else if (r < 0.84f) {
+                val fk = if (toddler) Random.nextInt(2) else Random.nextInt(3)
+                foes.add(RunFoe(nextX, fk))
+                if (!toddler && Random.nextFloat() < 0.35f) foes.add(RunFoe(nextX + 170f, Random.nextInt(2)))
             } else {
-                for (k in 0..5) items.add(RunCoin(nextX + k * 42f, 26f + (if (k % 2 == 0) 0f else 14f)))
+                for (k in 0..5) items.add(RunCoin(nextX + k * 62f, 36f + (if (k % 2 == 0) 0f else 20f)))
             }
             nextX += (sp * (if (toddler) 1.5f else 1.05f) + 260f) * (0.9f + Random.nextFloat() * 0.6f)
         }
@@ -177,45 +186,61 @@ private class RunWorld(val toddler: Boolean) {
         onEvent("hit")
     }
 
-    private fun updateBoss(dt: Float, visibleW: Float, hx: Float) {
-        val seg = (dist / RUN_LOC_LEN).toInt()
-        if (bossState != 1 && bossSeg != seg && dist - seg * RUN_LOC_LEN > RUN_LOC_LEN * 0.8f) {
-            bossSeg = seg; bossState = 1; bossT = 0f; bossHp = bossMax; projT = 2.2f; coinT = 0.8f
-            onEvent("bossStart")
-        }
-        if (bossState != 1) return
-        bossT += dt
-        projT -= dt
-        coinT -= dt
-        if (projT <= 0f) {
-            projT = if (toddler) 3.4f else 2.1f
-            val fly = !toddler && Random.nextBoolean()
-            projs.add(RunProj(dist + visibleW + 80f, if (fly) 95f else 0f, fly))
-            // в ярости босс стреляет двойными залпами
-            if (!toddler && bossHp <= bossMax / 2) {
-                projs.add(RunProj(dist + visibleW + 260f, if (!fly) 95f else 0f, !fly))
-                projT *= 0.8f
+    fun fire() {
+        if (over || fireCd > 0f) return
+        fireCd = if (toddler) 0.6f else 0.42f
+        muzzle = 0.18f
+        fires.add(RunFire(hxw + 50f, hy + 64f))
+        onEvent("fire")
+    }
+
+    private fun killFoe(f: RunFoe) {
+        f.dead = true
+        kills++
+        coins += 2
+        for (k in 0..2) items.add(RunCoin(f.x - 40f + k * 40f, 50f + f.y + (if (k == 1) 30f else 0f)))
+        fx.add(RunFx(f.x, f.y + f.h / 2f, 16))
+        onEvent("foeDie")
+    }
+
+    private fun updateFoes(dt: Float, visibleW: Float, hx: Float) {
+        hxw = hx
+        fireCd = max(0f, fireCd - dt)
+        muzzle = max(0f, muzzle - dt)
+        if (toddler && fireCd <= 0f && foes.any { !it.dead && it.x > hx + 100f && it.x < hx + visibleW * 0.7f }) fire()
+        val walk = if (toddler) 30f else 60f
+        for (f in foes) {
+            if (f.dead) continue
+            f.flash = max(0f, f.flash - dt)
+            f.x -= walk * dt
+            if (f.kind == 1) {
+                f.hopT -= dt
+                if (f.hopT <= 0f && f.y <= 0f) { f.vy = 560f; f.hopT = 1.1f + Random.nextFloat() * 0.5f }
+                if (f.y > 0f || f.vy > 0f) {
+                    f.y += f.vy * dt; f.vy -= 1900f * dt
+                    if (f.y <= 0f) { f.y = 0f; f.vy = 0f }
+                }
             }
-            onEvent("bossShoot")
+            val near = abs(f.x - hx) < f.w / 2f + 14f
+            if (invuln <= 0f && near && hy < f.y + f.h - 16f && hy + 100f > f.y) { hurt(); break }
         }
-        if (coinT <= 0f) {
-            coinT = 1.7f
-            for (k in 0..5) {
-                val a = k / 5f * PI.toFloat()
-                items.add(RunCoin(dist + visibleW + 120f + k * 40f, 60f + sin(a) * 90f))
+        for (p in fires) {
+            p.x += 780f * dt
+            p.t += dt
+            for (f in foes) {
+                if (f.dead) continue
+                if (abs(p.x - f.x) < f.w / 2f + 14f && p.y > f.y - 12f && p.y < f.y + f.h + 12f) {
+                    p.x = 1e9f
+                    f.hp--
+                    f.flash = 0.18f
+                    fx.add(RunFx(f.x, p.y, 6))
+                    if (f.hp <= 0) killFoe(f) else onEvent("foeHit")
+                    break
+                }
             }
         }
-        for (p in projs) {
-            p.x -= 170f * dt
-            val near = hx + 12f > p.x - 14f && hx - 12f < p.x + 14f
-            val hit = if (p.fly) (hy > 15f && hy < 111f) else (hy < 34f)
-            if (invuln <= 0f && near && hit) { hurt(); break }
-        }
-        projs.removeAll { it.x < dist - 300f }
-        if (bossT > 20f) {
-            bossState = 2; projs.clear(); nextX = dist + visibleW + 300f
-            onEvent("bossLeave")
-        }
+        fires.removeAll { it.x > dist + visibleW + 120f }
+        foes.removeAll { it.dead || it.x < dist - 300f }
     }
 
     fun step(dt: Float, visibleW: Float, heroX: Float) {
@@ -232,7 +257,7 @@ private class RunWorld(val toddler: Boolean) {
             wasAir = true
         } else wasAir = false
         squash *= (1f - min(1f, dt * 9f))
-        if (bossState != 1) spawn(visibleW)
+        spawn(visibleW)
         val nl = (dist / RUN_LOC_LEN).toInt() % BIOME_COUNT
         if (nl != loc) { loc = nl; onEvent("loc") }
         val hx = dist + heroX
@@ -243,21 +268,12 @@ private class RunWorld(val toddler: Boolean) {
                 break
             }
         }
-        updateBoss(dt, visibleW, hx)
+        updateFoes(dt, visibleW, hx)
         val shower = ArrayList<RunCoin>()
         for (c in items) {
             if (c.taken) continue
-            if (abs(c.x - hx) < 30f && abs(c.y - (hy + 34f)) < 46f) {
+            if (abs(c.x - hx) < 52f && abs(c.y - (hy + 55f)) < 68f) {
                 c.taken = true; coins++; onEvent("coin")
-                if (bossState == 1) {
-                    bossHp--
-                    if (bossHp <= 0) { bossState = 2; projs.clear(); coins += 40; nextX = dist + visibleW + 300f; onEvent("bossDown")
-                        for (k in 0..17) {
-                            val a = k / 17f * PI.toFloat()
-                            shower.add(RunCoin(dist + 160f + k * 34f, 40f + sin(a) * 110f))
-                        }
-                    } else onEvent("bossHit")
-                }
             }
         }
         items.addAll(shower)
@@ -298,9 +314,6 @@ fun MonsterRunnerScreen(
     val heroImgs = rememberMonImgs(heroSpec)
     val heroAnim = remember { MonAnim().also { it.danceUntil = 1e9f } }
     val biomeGfx = rememberZBiomeGfx()
-    var hudLocForBoss by remember { mutableIntStateOf(0) }
-    val bossSpec = RUN_BOSSES[hudLocForBoss]
-    val bossImgs = rememberMonImgs(bossSpec)
 
     var screen by remember { mutableStateOf(RunScreen.MENU) }
     var startLoc by remember { mutableIntStateOf(0) }
@@ -316,9 +329,7 @@ fun MonsterRunnerScreen(
     var hudLives by remember { mutableIntStateOf(3) }
     var hudLoc by remember { mutableIntStateOf(0) }
     var hudDist by remember { mutableIntStateOf(0) }
-    var hudBoss by remember { mutableIntStateOf(0) }
-    var hudBossHp by remember { mutableIntStateOf(0) }
-    val bossAnim = remember { MonAnim().also { it.danceUntil = 1e9f } }
+    var hudKills by remember { mutableIntStateOf(0) }
     var sizeW by remember { mutableFloatStateOf(0f) }
     var sizeH by remember { mutableFloatStateOf(0f) }
     val sparks = remember { mutableListOf<FloatArray>() }
@@ -340,7 +351,7 @@ fun MonsterRunnerScreen(
     }
 
     LaunchedEffect(Unit) {
-        soundManager.preloadRaw(listOf("zb_jump", "zb_jump2", "zb_land", "zb_coin", "zb_ouch", "zb_roar", "zb_hurt", "zb_rocket", "zb_down", "zb_victory", "zb_coinrain"))
+        soundManager.preloadRaw(listOf("zb_jump", "zb_jump2", "zb_land", "zb_coin", "zb_ouch", "zb_hurt", "zb_rocket", "zb_down"))
     }
     world.onEvent = { ev ->
         when (ev) {
@@ -355,14 +366,12 @@ fun MonsterRunnerScreen(
                 confetti(sizeW / 2f, sizeH * 0.35f, 40)
                 lottieTick++
             }
-            "bossStart" -> { hudLocForBoss = world.loc; soundManager.play("zb_roar", volume = 0.9f); banner = "⚠️ БОСС! Лови монетки!" }
-            "bossHit" -> { bossAnim.squash = 0.6f; soundManager.play("zb_hurt", volume = 0.8f) }
-            "bossShoot" -> soundManager.play("zb_rocket", volume = 0.6f)
-            "bossDown" -> {
-                soundManager.play("zb_down", volume = 1f); soundManager.play("zb_victory", volume = 0.9f); soundManager.play("zb_coinrain", volume = 1f); banner = "🎉 Босс побеждён! +40 🪙"
-                confetti(sizeW / 2f, sizeH * 0.4f, 60); lottieTick++
+            "fire" -> soundManager.play("zb_rocket", volume = 0.6f, rate = 1.25f)
+            "foeHit" -> soundManager.play("zb_hurt", volume = 0.8f, rate = 1.2f)
+            "foeDie" -> {
+                soundManager.play("zb_down", volume = 0.7f, rate = 1.5f)
+                soundManager.play("zb_coin", volume = 0.6f, rate = 1.3f)
             }
-            "bossLeave" -> { banner = "Босс убежал!" }
             "over" -> {
                 bank()
                 resultDist = (world.dist / 10f).toInt()
@@ -394,7 +403,7 @@ fun MonsterRunnerScreen(
             .testTag("monster_runner_root")
             .pointerInput(screen) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
+                    awaitFirstDown()
                     if (screen == RunScreen.PLAY) world.jump()
                 }
             }
@@ -425,19 +434,49 @@ fun MonsterRunnerScreen(
                         if (c.taken || c.x > camX + wpx / z + 60f || c.x < camX - 60f) continue
                         val sq = abs(cos(clock * 5f + c.x * 0.02f))
                         val cy = gy - c.y
-                        drawOval(Color(0xFFFFC107), Offset(c.x - 9f * sq - 2f, cy - 11f), Size(18f * sq + 4f, 22f))
-                        drawOval(Color(0xFFFFF176), Offset(c.x - 4f * sq, cy - 7f), Size(7f * sq + 1f, 12f))
+                        drawOval(Color(0xFFE65100), Offset(c.x - 17f * sq - 3f, cy - 22f), Size(34f * sq + 6f, 44f))
+                        drawOval(Color(0xFFFFC107), Offset(c.x - 16f * sq - 1f, cy - 20f), Size(32f * sq + 2f, 40f))
+                        drawOval(Color(0xFFFFF176), Offset(c.x - 8f * sq, cy - 13f), Size(14f * sq + 2f, 24f))
                     }
-                    for (p in world.projs) {
-                        if (p.fly) {
-                            val cy = gy - p.y
-                            drawCircle(Color(0xFFFF7043).copy(alpha = 0.35f), 26f, Offset(p.x + 14f, cy))
-                            drawCircle(Color(0xFFFF7043), 16f, Offset(p.x, cy))
-                            drawCircle(Color(0xFFFFEB3B), 8f, Offset(p.x - 2f, cy))
-                        } else {
-                            drawCircle(Color(0xFF607D8B), 16f, Offset(p.x, gy - 16f))
-                            drawCircle(Color(0xFF90A4AE), 7f, Offset(p.x - 5f, gy - 21f))
+                    for (f in world.foes) {
+                        if (f.dead || f.x > camX + wpx / z + 100f || f.x < camX - 100f) continue
+                        val bob = sin(clock * 9f + f.x * 0.05f) * 3f
+                        val base = gy - f.y
+                        val col = when (f.kind) { 0 -> Color(0xFF7CB342); 1 -> Color(0xFFAB47BC); else -> Color(0xFFE53935) }
+                        val body = if (f.flash > 0f) Color.White else col
+                        drawOval(Color.Black.copy(alpha = 0.22f), Offset(f.x - f.w * 0.45f, gy - 6f), Size(f.w * 0.9f, 12f))
+                        // ножки
+                        val st = sin(clock * 12f + f.x) * 5f
+                        drawOval(Color(0xFF37474F), Offset(f.x - f.w * 0.32f + st, base - 10f), Size(18f, 12f))
+                        drawOval(Color(0xFF37474F), Offset(f.x + f.w * 0.32f - 18f - st, base - 10f), Size(18f, 12f))
+                        drawOval(body, Offset(f.x - f.w / 2f, base - f.h + bob), Size(f.w, f.h - 4f - bob))
+                        if (f.kind == 2) {
+                            drawCircle(Color(0xFFFFF59D), 7f, Offset(f.x - f.w * 0.3f, base - f.h + 6f + bob))
+                            drawCircle(Color(0xFFFFF59D), 7f, Offset(f.x + f.w * 0.3f, base - f.h + 6f + bob))
                         }
+                        if (f.kind == 1) drawCircle(Color(0xFFCE93D8), 8f, Offset(f.x, base - f.h + 2f + bob))
+                        val ey = base - f.h * 0.62f + bob
+                        val ex = f.w * 0.19f
+                        drawCircle(Color.White, 9f, Offset(f.x - ex, ey))
+                        drawCircle(Color.White, 9f, Offset(f.x + ex, ey))
+                        drawCircle(Color(0xFF212121), 4.5f, Offset(f.x - ex - 2f, ey + 1f))
+                        drawCircle(Color(0xFF212121), 4.5f, Offset(f.x + ex - 2f, ey + 1f))
+                        drawRoundRect(Color(0xFF3E2723), Offset(f.x - f.w * 0.2f, ey + 15f), Size(f.w * 0.4f, 8f), androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+                        drawRect(Color.White, Offset(f.x - 5f, ey + 15f), Size(4f, 4f))
+                        drawRect(Color.White, Offset(f.x + 4f, ey + 15f), Size(4f, 4f))
+                        if (f.hp > 1) {
+                            drawRoundRect(Color.Black.copy(alpha = 0.4f), Offset(f.x - 20f, base - f.h - 14f), Size(40f, 7f), androidx.compose.ui.geometry.CornerRadius(3f, 3f))
+                            drawRoundRect(Color(0xFFFF7043), Offset(f.x - 20f, base - f.h - 14f), Size(40f * f.hp / 2f, 7f), androidx.compose.ui.geometry.CornerRadius(3f, 3f))
+                        }
+                    }
+                    for (p in world.fires) {
+                        val cy = gy - p.y
+                        val fl = sin(p.t * 40f) * 3f
+                        drawCircle(Color(0xFFFF5722).copy(alpha = 0.25f), 34f, Offset(p.x - 10f, cy))
+                        for (k in 1..4) drawCircle(Color(0xFFFF7043).copy(alpha = 0.5f - k * 0.1f), 20f - k * 3f, Offset(p.x - k * 20f, cy + fl * k * 0.3f))
+                        drawCircle(Color(0xFFFF6F00), 22f + fl, Offset(p.x, cy))
+                        drawCircle(Color(0xFFFFCA28), 14f, Offset(p.x + 2f, cy))
+                        drawCircle(Color(0xFFFFF9C4), 7f, Offset(p.x + 4f, cy))
                     }
                 }
             }
@@ -450,12 +489,12 @@ fun MonsterRunnerScreen(
                 val lay = monLayout(heroImgs, heroXdp * z, (gy - lift) * z + 2f, 96f * z, 118f * z)
                 drawMonster(heroImgs, heroSpec, lay, heroAnim, clock * (if (running) 1.4f else 0.6f), z, 0.5f)
             }
-            if (running && world.bossState == 1) {
-                val inK = min(1f, world.bossT)
-                val bx = wpx * (1.25f - 0.38f * inK)
-                bossAnim.squash *= 0.9f
-                val lay = monLayout(bossImgs, bx, gy * z + 2f, 230f * z, 270f * z)
-                drawMonster(bossImgs, bossSpec, lay, bossAnim, clock * 1.1f, z, -0.7f)
+            if (running && world.muzzle > 0f) {
+                val mx = (heroXdp + 46f) * z
+                val my = (gy - world.hy - 64f) * z
+                val k = world.muzzle / 0.18f
+                drawCircle(Color(0xFFFF6F00).copy(alpha = 0.5f * k), 44f * z * (1.2f - k * 0.4f), Offset(mx, my))
+                drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.9f * k), 22f * z, Offset(mx, my))
             }
             val pal = listOf(Color(0xFFFFD54F), Color(0xFFFF8A65), Color(0xFF4FC3F7), Color(0xFFAED581), Color(0xFFF06292))
             for (s in sparks) drawCircle(pal[s[5].toInt() % 5].copy(alpha = s[4].coerceIn(0f, 1f)), 4f * z, Offset(s[0], s[1]))
@@ -469,26 +508,23 @@ fun MonsterRunnerScreen(
             ) {
                 RunChip("🪙 $hudCoins")
                 RunChip("📏 $hudDist м")
+                RunChip("👾 $hudKills")
                 if (!toddler) RunChip("❤️".repeat(max(0, hudLives)))
                 RunChip(BIOME_NAMES[hudLoc])
             }
-            if (hudBoss == 1) {
-                Row(
-                    Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 52.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("👹", fontSize = 22.sp)
-                    Box(
-                        Modifier.padding(start = 6.dp).size(width = 160.dp, height = 14.dp)
-                            .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(7.dp))
-                    ) {
-                        Box(
-                            Modifier.fillMaxSize().fillMaxWidth(hudBossHp / world.bossMax.toFloat())
-                                .background(Color(0xFFE53935), RoundedCornerShape(7.dp))
-                        )
-                    }
-                }
-            }
+            Box(
+                Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 20.dp)
+                    .size(96.dp)
+                    .background(Color(0xFFFF6F00).copy(alpha = 0.85f), androidx.compose.foundation.shape.CircleShape)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val d = awaitFirstDown()
+                            d.consume()
+                            if (screen == RunScreen.PLAY) world.fire()
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("🔥", fontSize = 44.sp) }
             if (banner.isNotEmpty()) {
                 Text(
                     banner, fontSize = 38.sp, fontWeight = FontWeight.Black, color = Color(0xFFFFEB3B),
@@ -505,7 +541,7 @@ fun MonsterRunnerScreen(
             ) {
                 KitWindow(width = 330.dp, title = "Забег") {
                     Text(
-                        if (toddler) "Тапай — монстрик прыгает!\nСобирай монетки." else "Тап — прыжок, ещё тап в воздухе — двойной.\nПерепрыгивай бочки и ящики!",
+                        if (toddler) "Тапай — монстрик прыгает и сам плюётся огнём!\nЖги чудиков, собирай монетки." else "Тап — прыжок (в воздухе — двойной).\n🔥 — огненный шар из рук: жги чудиков!",
                         fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(6.dp))
@@ -568,7 +604,12 @@ fun MonsterRunnerScreen(
                 if (screen == RunScreen.PLAY && sizeW > 0f) {
                     world.step(dt, sizeW / density, sizeW / density * 0.24f)
                     hudCoins = world.coins; hudLives = world.lives; hudLoc = world.loc; hudDist = (world.dist / 10f).toInt()
-                    hudBoss = world.bossState; hudBossHp = world.bossHp
+                    hudKills = world.kills
+                }
+                if (world.fx.isNotEmpty()) {
+                    val gyPx = sizeH * 0.78f
+                    for (e in world.fx) confetti((e.x - world.dist) * density, gyPx - e.y * density, e.n)
+                    world.fx.clear()
                 }
                 val it = sparks.iterator()
                 while (it.hasNext()) {

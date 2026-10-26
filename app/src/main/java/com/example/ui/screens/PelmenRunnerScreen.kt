@@ -454,13 +454,10 @@ fun PelmenRunnerScreen(
                             // 🌟 Check interactive sticker unlocks for toddler achievements
                             coroutineScope.launch {
                                 val newlyUnlocked = repository.checkAndUnlockDistanceStickers(currDist)
-                                if (newlyUnlocked.isNotEmpty()) {
-                                    val newest = newlyUnlocked.first()
-                                    newlyUnlockedSticker = newest
-                                    runnerSoundManager.playStickerUnlockCelebration()
-                                    addPopup("НАКЛЕЙКА: ${newest.emoji} ${newest.title}!", physicsEngine.heroBody.position.x, physicsEngine.heroBody.position.y - 2.2f, Color(0xFFFFD54F))
-                                }
-                            }
+                                // Наклейки открываются тихо, без окон и всплывашек поверх игры —
+                                // смотреть их можно в альбоме (кнопка 📖).
+                                if (newlyUnlocked.isNotEmpty()) { /* silent */ }
+                                                            }
                         }
                     }
 

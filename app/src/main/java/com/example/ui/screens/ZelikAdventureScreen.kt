@@ -120,6 +120,8 @@ private class ZEnemy(
 ) {
     var hitFlash = 0
     val anim = Random.nextFloat() * 6.28f
+    var fireCd = 90 + Random.nextInt(120)   // подсолнухи плюются огнём
+    var windup = 0
 }
 
 private class ZCured(val x: Float, val bottom: Float, val h: Float) { var age = 0 }
@@ -1212,7 +1214,29 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
     private fun updateEnemies() {
         for (e in enemies) {
-            e.x += e.vx * e.dir
+            if (e.tier >= 1 && !dead) {
+                val dxp = px + pw / 2f - e.x
+                val dyp = py + ph / 2f - e.y
+                if (e.windup > 0) {
+                    e.windup--
+                    e.dir = if (dxp >= 0f) 1f else -1f
+                    if (e.windup == 0) {
+                        val sx = e.x + e.dir * e.r
+                        val sy = e.y - e.r * 0.9f
+                        val a = atan2(py + ph / 2f - sy, px + pw / 2f - sx)
+                        val sp = if (e.tier == 2) 5.2f else 4.4f
+                        bossRockets.add(ZBossRocket(sx, sy, cos(a) * sp, sin(a) * sp, straight = true).also { it.angle = a; it.up = false; it.life = 200 })
+                        e.fireCd = if (e.tier == 2) 150 else 200
+                        onEvent("sunFire")
+                    }
+                } else {
+                    e.fireCd--
+                    if (e.fireCd <= 0) {
+                        if (abs(dxp) < 560f && abs(dyp) < 280f) e.windup = 34 else e.fireCd = 30
+                    }
+                }
+            }
+            if (e.windup <= 0) e.x += e.vx * e.dir
             if (e.x > e.baseX + e.range) e.dir = -1f
             if (e.x < e.baseX - e.range) e.dir = 1f
             if (e.hitFlash > 0) e.hitFlash--
@@ -1410,6 +1434,14 @@ private fun DrawScope.drawSunflower(e: ZEnemy, t: Int, f: ZFrames) {
         if (e.hitFlash > 0) drawImage(img, dstOffset = IntOffset((e.x - ww / 2f).toInt(), (bottom - hh).toInt()),
             dstSize = IntSize(ww.toInt().coerceAtLeast(1), hh.toInt().coerceAtLeast(1)), alpha = 0.5f,
             colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White, androidx.compose.ui.graphics.BlendMode.SrcAtop))
+    }
+    if (e.windup > 0) {
+        val k = 1f - e.windup / 34f
+        val cx = e.x + e.dir * e.r * 0.9f
+        val cy = e.y - e.r * 0.9f
+        drawCircle(Color(0xFFFF6F00).copy(alpha = 0.35f + 0.3f * k), e.r * (0.5f + 0.7f * k), Offset(cx, cy))
+        drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.8f), e.r * 0.35f * k + 3f, Offset(cx, cy))
+        drawCircle(Color(0xFFFF1744).copy(alpha = 0.25f * k), e.r * 1.4f, Offset(e.x, e.y), style = Stroke(3f))
     }
     if (e.hp < e.maxHp) {
         val bw = e.r * 1.6f
@@ -1876,6 +1908,7 @@ fun ZelikAdventureScreen(
             "roar", "bossRoar" -> soundManager.play("zb_roar", volume = 0.9f)
             "bossHit" -> soundManager.play("zb_hurt", volume = 0.8f)
             "bossShoot" -> soundManager.play("zb_rocket", volume = 0.8f)
+            "sunFire" -> soundManager.play("zb_rocket", volume = 0.5f, rate = 1.3f)
             "bossFire" -> soundManager.play("zb_fire", volume = 0.8f)
             "bossCharge" -> soundManager.play("zb_charge", volume = 0.9f)
             "bossDash" -> soundManager.play("zb_dash", volume = 0.9f)

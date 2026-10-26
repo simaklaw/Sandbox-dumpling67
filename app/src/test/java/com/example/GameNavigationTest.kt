@@ -32,7 +32,7 @@ class GameNavigationTest {
 
     @Test
     fun homeLevelGamesReturnHome() {
-        listOf(1, 2, 7, 9).forEach {
+        listOf(1, 7, 9).forEach {
             assertNull(folderTypeForPage(it))
             assertEquals(AppScreenState.Home, parentStateForGame(it, isToddler2 = false))
         }

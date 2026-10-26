@@ -6,7 +6,9 @@ import androidx.compose.ui.graphics.Color
 enum class BusyboardPage(val title: String, val iconEmoji: String) {
     BUTTONS_LEVERS("Кнопки и рычаги", "🔘"),
     LIGHTS_MECHANICS("Свет и механика", "💡"),
-    PEEKABOO("Ку-ку", "🏠")
+    PEEKABOO("Ку-ку", "🏠"),
+    MUSIC("Музыка", "🎹"),
+    TOYS("Игрушки", "🎡")
 }
 
 data class PeekabooAnimal(

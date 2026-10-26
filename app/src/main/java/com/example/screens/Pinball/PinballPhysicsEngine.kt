@@ -375,24 +375,46 @@ class PinballPhysicsEngine(
         }
     }
 
+    // Ручное удержание кнопок: автолапки не должны отпускать то, что держит палец.
+    @Volatile private var manualLeft = false
+    @Volatile private var manualRight = false
+    private var leftOn = false
+    private var rightOn = false
+
+    /** Нажатие/отпускание левой кнопки пальцем. */
+    fun holdLeft(pressed: Boolean) {
+        manualLeft = pressed
+        setLeftFlipperEngaged(pressed || false)
+    }
+
+    /** Нажатие/отпускание правой кнопки пальцем. */
+    fun holdRight(pressed: Boolean) {
+        manualRight = pressed
+        setRightFlipperEngaged(pressed || false)
+    }
+
     fun setLeftFlipperEngaged(engaged: Boolean) {
         val mult = currentSpeedMode.flipperSpeedMultiplier
+        if (!engaged && manualLeft) return
         if (engaged) {
             leftFlipperJoint?.motorSpeed = 18f * mult
-            onSoundTriggered("flip")
+            if (!leftOn) onSoundTriggered("flip")
         } else {
             leftFlipperJoint?.motorSpeed = -12f * mult
         }
+        leftOn = engaged
     }
 
     fun setRightFlipperEngaged(engaged: Boolean) {
         val mult = currentSpeedMode.flipperSpeedMultiplier
+        if (!engaged && manualRight) return
         if (engaged) {
             rightFlipperJoint?.motorSpeed = -18f * mult
-            onSoundTriggered("flip")
+            if (!rightOn) onSoundTriggered("flip")
         } else {
             rightFlipperJoint?.motorSpeed = 12f * mult
         }
+        rightOn = engaged
     }
 
     fun spawnBall(initialPos: Vec2 = Vec2(4.5f, 3.0f)) {

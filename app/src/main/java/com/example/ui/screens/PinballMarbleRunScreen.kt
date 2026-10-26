@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -244,11 +245,12 @@ fun PinballMarbleRunScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        // 1. Vector 3-Layer Scene Background: Caramel Machine Room
-        SceneBackground(theme = SceneTheme.ROOM)
-
-        // 2. Decor layer behind field (non-interactive)
-        DecorLayer(items = pinballDecors, controller = decorController)
+        // Чистый фон без наложений (раньше поверх поля просвечивала комната с декором)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0xFF311B92), Color(0xFF512DA8), Color(0xFF7E57C2))))
+        )
 
         Column(
             modifier = Modifier
@@ -347,10 +349,10 @@ fun PinballMarbleRunScreen(
                                             prefs.edit().putBoolean("first_launch_pinball", false).apply()
                                         }
                                         leftPressed = true
-                                        engine.setLeftFlipperEngaged(true)
+                                        engine.holdLeft(true)
                                         tryAwaitRelease()
                                         leftPressed = false
-                                        engine.setLeftFlipperEngaged(false)
+                                        engine.holdLeft(false)
                                     }
                                 )
                             }
@@ -369,14 +371,59 @@ fun PinballMarbleRunScreen(
                                             prefs.edit().putBoolean("first_launch_pinball", false).apply()
                                         }
                                         rightPressed = true
-                                        engine.setRightFlipperEngaged(true)
+                                        engine.holdRight(true)
                                         tryAwaitRelease()
                                         rightPressed = false
-                                        engine.setRightFlipperEngaged(false)
+                                        engine.holdRight(false)
                                     }
                                 )
                             }
                     )
+                }
+            }
+
+            // Две большие кнопки-лапки: левая и правая лопатки (работают одновременно, мультитач)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(84.dp)
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                for (isLeft in listOf(true, false)) {
+                    val pressed = if (isLeft) leftPressed else rightPressed
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(28.dp))
+                            .background(
+                                if (pressed) Color(0xFFFFD54F) else if (isLeft) Color(0xFFFF8A65) else Color(0xFF4DD0E1),
+                                RoundedCornerShape(28.dp)
+                            )
+                            .clip(RoundedCornerShape(28.dp))
+                            .pointerInput(isLeft) {
+                                detectTapGestures(
+                                    onPress = {
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        if (isFirstLaunch) {
+                                            isFirstLaunch = false
+                                            prefs.edit().putBoolean("first_launch_pinball", false).apply()
+                                        }
+                                        if (isLeft) { leftPressed = true; engine.holdLeft(true) }
+                                        else { rightPressed = true; engine.holdRight(true) }
+                                        haptics.vibrateShort()
+                                        tryAwaitRelease()
+                                        if (isLeft) { leftPressed = false; engine.holdLeft(false) }
+                                        else { rightPressed = false; engine.holdRight(false) }
+                                    }
+                                )
+                            }
+                            .testTag(if (isLeft) "pinball_left_flipper_btn" else "pinball_right_flipper_btn")
+                    ) {
+                        Text(text = if (isLeft) "⬆️ 🐾" else "🐾 ⬆️", fontSize = 34.sp)
+                    }
                 }
             }
 
@@ -387,8 +434,8 @@ fun PinballMarbleRunScreen(
                 border = BorderStroke(3.dp, ColorInk),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(84.dp)
-                    .padding(top = 4.dp)
+                    .height(76.dp)
+                    .padding(top = 6.dp)
             ) {
                 Row(
                     modifier = Modifier

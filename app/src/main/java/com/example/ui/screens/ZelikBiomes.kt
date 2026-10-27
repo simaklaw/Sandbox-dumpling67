@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.IntOffset
@@ -15,15 +16,16 @@ import androidx.compose.ui.unit.IntSize
 import com.example.R
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.sin
 import kotlin.math.roundToInt
 
 /**
- * Локации для платформера и раннера: 0 — Поля, 1 — Лес, 2 — Замок.
+ * Локации для платформера и раннера: 0 — Поля, 1 — Лес, 2 — Замок, 3 — Вулкан (рисуется кодом, без картинок).
  * Пиксель-арт: Trix (stringstar fields, kinda cute forest — «можно использовать везде, кредит приветствуется»)
  * и Medieval pixel art tileset (free). См. SOUND_CREDITS.md.
  */
-internal const val BIOME_COUNT = 3
-internal val BIOME_NAMES = listOf("🌾 Поля", "🌲 Лес", "🏰 Замок")
+internal const val BIOME_COUNT = 4
+internal val BIOME_NAMES = listOf("🌾 Поля", "🌲 Лес", "🏰 Замок", "🌋 Вулкан")
 
 internal fun biomeOfLevel(level: Int): Int = ((level - 1) % BIOME_COUNT + BIOME_COUNT) % BIOME_COUNT
 
@@ -107,6 +109,7 @@ internal fun DrawScope.drawBiomeBackdrop(b: ZBiomeGfx, biome: Int, camX: Float, 
             parallaxItems(190f * z, camX * z * 0.45f, { i -> if (i % 3 == 0) null else b.forDeco }, 4.6f * z, baseY + 6f * z, 0.8f,
                 { i -> if (i % 2 == 0) 0f else 8f * z })
         }
+        3 -> drawVolcanoBackdrop(camX, z, baseY, t)
         else -> {
             drawRect(Brush.verticalGradient(listOf(Color(0xFF0E0C1E), Color(0xFF2A2350), Color(0xFF3A2F66))), size = size)
             val sc = 3.4f * z
@@ -134,6 +137,19 @@ internal fun DrawScope.drawBiomeGround(b: ZBiomeGfx, biome: Int, x0: Float, x1: 
             var xx = floor(x0 / 36f) * 36f
             while (xx < x1) { drawRect(Color(0xFF6E8B2C), Offset(xx, y + 17f), Size(10f, 5f)); xx += 36f }
         }
+        3 -> {
+            drawRect(Color(0xFF1E0F12), Offset(x0, y), Size(w, h))
+            drawRect(Color(0xFF4A2424), Offset(x0, y), Size(w, 10f))
+            drawRect(Color(0xFF2E1618), Offset(x0, y + 10f), Size(w, 8f))
+            var xx = floor(x0 / 96f) * 96f
+            while (xx < x1) {
+                val k = (xx / 96f).toInt()
+                val gl = 0.6f + 0.4f * sin(k * 1.7f)
+                drawRoundRect(Color(0xFFFF6F00).copy(alpha = gl), Offset(xx + 14f, y + 24f + (k % 3) * 14f), Size(34f + (k % 4) * 8f, 6f), CornerRadius(3f))
+                drawRoundRect(Color(0xFFFFD54F).copy(alpha = gl * 0.8f), Offset(xx + 20f, y + 25f + (k % 3) * 14f), Size(16f, 3f), CornerRadius(2f))
+                xx += 96f
+            }
+        }
         else -> {
             drawRect(Color(0xFF14122A), Offset(x0, y), Size(w, h))
             val tw = 192f * 2.2f
@@ -154,9 +170,56 @@ internal fun DrawScope.drawBiomePlatform(biome: Int, x: Float, y: Float, w: Floa
             drawRoundRect(Color(0xFF4A2C40), Offset(x, y), Size(w, h), CornerRadius(8f))
             drawRoundRect(Color(0xFFD6906A), Offset(x, y), Size(w, 10f), CornerRadius(5f))
         }
+        3 -> {
+            drawRoundRect(Color(0xFF2A1A22), Offset(x, y), Size(w, h), CornerRadius(6f))
+            drawRoundRect(Color(0xFFFF7043), Offset(x, y), Size(w, 9f), CornerRadius(4f))
+            drawRoundRect(Color(0xFFFFCA28), Offset(x + 4f, y + 1f), Size(w - 8f, 3f), CornerRadius(2f))
+        }
         else -> {
             drawRoundRect(Color(0xFF2A1F3E), Offset(x, y), Size(w, h), CornerRadius(6f))
             drawRoundRect(Color(0xFFD46A6A), Offset(x, y), Size(w, 9f), CornerRadius(4f))
         }
+    }
+}
+
+
+/** Вулкан: закат цвета лавы, дальние вулканы с кратерами, ближние холмы и летящие угольки. */
+private fun DrawScope.drawVolcanoBackdrop(camX: Float, z: Float, baseY: Float, t: Int) {
+    val w = size.width
+    val h = size.height
+    drawRect(Brush.verticalGradient(listOf(Color(0xFF1A0508), Color(0xFF5A1308), Color(0xFFC0410F)), startY = 0f, endY = baseY), size = size)
+    // дальние вулканы
+    fun mountains(spacing: Float, par: Float, ph: Float, col: Color, crater: Boolean) {
+        val scroll = camX * z * par
+        val first = floor(scroll / spacing).toInt() - 1
+        val n = (w / spacing).toInt() + 3
+        for (i in first until first + n) {
+            val cx = i * spacing - scroll + spacing * 0.5f
+            val mh = ph * (0.75f + 0.25f * ((i * 7 % 5) / 4f))
+            val path = Path().apply {
+                moveTo(cx - spacing * 0.7f, baseY); lineTo(cx - spacing * 0.12f, baseY - mh)
+                lineTo(cx + spacing * 0.12f, baseY - mh); lineTo(cx + spacing * 0.7f, baseY); close()
+            }
+            drawPath(path, col)
+            if (crater) {
+                val a = 0.55f + 0.25f * sin(t * 0.08f + i)
+                drawCircle(Color(0xFFFF6F00).copy(alpha = a * 0.5f), spacing * 0.2f, Offset(cx, baseY - mh))
+                drawRoundRect(Color(0xFFFFB300).copy(alpha = a), Offset(cx - spacing * 0.12f, baseY - mh - 4f * z), Size(spacing * 0.24f, 9f * z), CornerRadius(4f * z))
+                // лавовый ручей по склону
+                drawRect(Color(0xFFFF7043).copy(alpha = a * 0.7f), Offset(cx - 3f * z, baseY - mh), Size(6f * z, mh * 0.55f))
+            }
+        }
+    }
+    mountains(520f * z, 0.08f, h * 0.46f, Color(0xFF3A100C), true)
+    mountains(380f * z, 0.2f, h * 0.30f, Color(0xFF260C0E), false)
+    // лавовое зарево у горизонта
+    drawRect(Brush.verticalGradient(listOf(Color(0x00FF6F00), Color(0x66FF6F00)), startY = baseY - h * 0.18f, endY = baseY), Offset(0f, baseY - h * 0.18f), Size(w, h * 0.18f))
+    // угольки
+    for (i in 0 until 26) {
+        val sp = 0.3f + (i % 5) * 0.12f
+        val x = (((i * 137.5f) * z - camX * z * 0.35f) % w + w) % w
+        val y = baseY - (((t * (0.8f + sp * 1.6f) * z) + i * 97f * z) % (baseY * 0.95f))
+        val a = (0.5f + 0.5f * sin(t * 0.1f + i)).coerceIn(0.2f, 1f)
+        drawCircle(Color(0xFFFFB74D).copy(alpha = a), (1.4f + (i % 3)) * z, Offset(x + sin(t * 0.03f + i) * 8f * z, y))
     }
 }

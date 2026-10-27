@@ -418,7 +418,7 @@ fun MonsterRunnerScreen(
             val running = screen != RunScreen.MENU
             val camX = if (running) world.dist else clock * 60f + startLoc * RUN_LOC_LEN
             val bi = if (running) world.loc else startLoc
-            drawBiomeBackdrop(biomeGfx, bi, camX, 0f, z, gy, 0)
+            drawBiomeBackdrop(biomeGfx, bi, camX, 0f, z, gy, (clock * 60f).toInt())
             withTransform({
                 translate(-camX * z, 0f)
                 scale(z, z, Offset.Zero)
@@ -549,7 +549,7 @@ fun MonsterRunnerScreen(
                         for (i in 0 until BIOME_COUNT) {
                             KitLongButton(
                                 if (i == 0) R.drawable.ui_btn_long_green else if (i == 1) R.drawable.ui_btn_long_blue else R.drawable.ui_btn_long_red,
-                                BIOME_NAMES[i].substringAfter(' '), 82.dp, 11.sp, selected = startLoc == i
+                                BIOME_NAMES[i].substringAfter(' '), 64.dp, 10.sp, selected = startLoc == i
                             ) { startLoc = i; soundPlayer.playPop(1.2f) }
                         }
                     }

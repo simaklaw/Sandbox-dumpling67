@@ -1457,6 +1457,7 @@ private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     when (b.kind) {
         1 -> { cDark = Color(0xFF1B5E20); cMid = Color(0xFF43A047); cLight = Color(0xFFC8E6C9) }
         2 -> { cDark = Color(0xFF7F0000); cMid = Color(0xFFE64A19); cLight = Color(0xFFFFCCBC) }
+        3 -> { cDark = Color(0xFF3E0A0A); cMid = Color(0xFFBF360C); cLight = Color(0xFFFFE082) }
         else -> { cDark = Color(0xFF4A148C); cMid = Color(0xFF8E24AA); cLight = Color(0xFFE1BEE7) }
     }
     val rage = b.phase >= 2
@@ -2124,8 +2125,8 @@ fun ZelikAdventureScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         for (i in 0 until BIOME_COUNT) {
                             KitLongButton(
-                                if (i == 0) R.drawable.ui_btn_long_green else if (i == 1) R.drawable.ui_btn_long_blue else R.drawable.ui_btn_long_red,
-                                BIOME_NAMES[i], 100.dp, 11.sp, selected = startBiome == i
+                                if (i == 0) R.drawable.ui_btn_long_green else if (i == 1) R.drawable.ui_btn_long_blue else if (i == 2) R.drawable.ui_btn_long_red else R.drawable.ui_btn_long_red,
+                                BIOME_NAMES[i], 76.dp, 10.sp, selected = startBiome == i
                             ) { startBiome = i; soundPlayer.playPop(1.2f) }
                         }
                     }

@@ -40,6 +40,7 @@ private val TODDLER_HOME_GAMES = listOf(
     FolderItem("Шарики", "🎈", 7, ColorBlue),
     FolderItem("Рисование", "🎨", 9, ColorGreen),
     FolderItem("Бизиборд", "🎛️", 10, ColorOrange),
+    FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
     FolderItem("Дождик", "🌧️", 24, ColorBlue),
     FolderItem("Кто в коробке?", "🎁", 25, ColorPink),
     FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),

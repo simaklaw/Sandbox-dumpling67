@@ -54,6 +54,7 @@ val FOLDER_ITEMS: Map<FolderType, List<FolderItem>> = mapOf(
         FolderItem("Монстрики", "👾", 32, ColorOrange),
         FolderItem("Забег монстрика", "🏃", 33, ColorGreen),
         FolderItem("Пинбол", "🔮", 12, ColorYellow),
+        FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
         FolderItem("Бизиборд", "🎛️", 10, ColorGreen),
         FolderItem("Раннер 67", "🏃‍♂️", 5, ColorBlue),
         FolderItem("Зверята", "🐮", 0, ColorPurple)

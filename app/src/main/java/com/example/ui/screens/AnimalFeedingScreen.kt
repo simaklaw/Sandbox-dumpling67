@@ -50,6 +50,9 @@ fun getFeedingPlateColor(type: String): Color = when (type) {
     "milk" -> Color(0xFFFFFFFF)
     "carrot" -> Color(0xFFFFB347)
     "apple" -> Color(0xFF9EE7A5)
+    "icecream" -> Color(0xFFFFC1DC)
+    "banana" -> Color(0xFFFFF59D)
+    "cookie" -> Color(0xFFFFCC80)
     else -> Color(0xFFFFE082)
 }
 
@@ -66,7 +69,10 @@ private val FOOD_ICONS = mapOf(
     "🐟" to com.example.R.drawable.food_fish,
     "🥛" to com.example.R.drawable.food_milk,
     "🥕" to com.example.R.drawable.food_carrot,
-    "🍎" to com.example.R.drawable.food_apple
+    "🍎" to com.example.R.drawable.food_apple,
+    "🍦" to com.example.R.drawable.food_icecream,
+    "🍌" to com.example.R.drawable.food_banana,
+    "🍪" to com.example.R.drawable.food_cookie
 )
 
 @Composable
@@ -87,7 +93,10 @@ val FEEDING_FOODS = listOf(
     FoodData("🐟", "fish"),
     FoodData("🥛", "milk"),
     FoodData("🥕", "carrot"),
-    FoodData("🍎", "apple")
+    FoodData("🍎", "apple"),
+    FoodData("🍦", "icecream"),
+    FoodData("🍌", "banana"),
+    FoodData("🍪", "cookie")
 )
 
 // Active states of pet
@@ -132,9 +141,9 @@ fun AnimalFeedingScreen(
     // Choose favorite food for pet
     fun getFavoriteFoodForPet(petId: String): FoodData {
         val favorites = when (petId) {
-            "dog" -> listOf(FEEDING_FOODS[0], FEEDING_FOODS[1]) // bone, meat
-            "cat" -> listOf(FEEDING_FOODS[2], FEEDING_FOODS[3]) // fish, milk
-            else -> listOf(FEEDING_FOODS[4], FEEDING_FOODS[5])  // carrot, apple
+            "dog" -> listOf(FEEDING_FOODS[0], FEEDING_FOODS[1], FEEDING_FOODS[8]) // bone, meat, cookie
+            "cat" -> listOf(FEEDING_FOODS[2], FEEDING_FOODS[3], FEEDING_FOODS[6]) // fish, milk, ice cream
+            else -> listOf(FEEDING_FOODS[4], FEEDING_FOODS[5], FEEDING_FOODS[7])  // carrot, apple, banana
         }
         return favorites.random()
     }
@@ -162,6 +171,7 @@ fun AnimalFeedingScreen(
     // Coordinates of mouth & food items for collision and flying
     var mouthCenterScreen by remember { mutableStateOf(Offset.Zero) }
     val foodSlotPositions = remember { mutableStateMapOf<Int, Offset>() }
+    val foodSlotTypes = remember { mutableStateMapOf<String, Int>() }
 
     // Consecutive declines tracker for tutorial pointer
     var consecutiveDeclines by remember { mutableIntStateOf(0) }
@@ -223,9 +233,9 @@ fun AnimalFeedingScreen(
     // Check if food type matches pet's favorite
     fun isFavoriteFood(petId: String, foodType: String): Boolean {
         return when (petId) {
-            "dog" -> foodType == "bone" || foodType == "meat"
-            "cat" -> foodType == "fish" || foodType == "milk"
-            else -> foodType == "carrot" || foodType == "apple"
+            "dog" -> foodType == "bone" || foodType == "meat" || foodType == "cookie"
+            "cat" -> foodType == "fish" || foodType == "milk" || foodType == "icecream"
+            else -> foodType == "carrot" || foodType == "apple" || foodType == "banana"
         }
     }
 
@@ -625,16 +635,16 @@ fun AnimalFeedingScreen(
 
                     // Determine 4 products (2 favorite + 2 other) or 3 products for 2yo
                     val favs = when (selectedPetId) {
-                        "dog" -> listOf(FEEDING_FOODS[0], FEEDING_FOODS[1]) // bone, meat
-                        "cat" -> listOf(FEEDING_FOODS[2], FEEDING_FOODS[3]) // fish, milk
-                        else -> listOf(FEEDING_FOODS[4], FEEDING_FOODS[5])  // carrot, apple
+                        "dog" -> listOf(FEEDING_FOODS[0], FEEDING_FOODS[1], FEEDING_FOODS[8]) // bone, meat, cookie
+                        "cat" -> listOf(FEEDING_FOODS[2], FEEDING_FOODS[3], FEEDING_FOODS[6]) // fish, milk, ice cream
+                        else -> listOf(FEEDING_FOODS[4], FEEDING_FOODS[5], FEEDING_FOODS[7])  // carrot, apple, banana
                     }
                     val others = FEEDING_FOODS.filter { it !in favs }
                     val displayedFoods = remember(selectedPetId, ageProfile.isToddler2) {
                         if (ageProfile.isToddler2) {
-                            (favs + others.take(1)).take(3)
+                            (favs.shuffled().take(2) + others.shuffled().take(1)).take(3)
                         } else {
-                            (favs + others.take(2)).take(4)
+                            (favs + others.shuffled().take(1)).take(4)
                         }
                     }
 
@@ -652,6 +662,7 @@ fun AnimalFeedingScreen(
                                 modifier = Modifier
                                     .size(calculatedSizeDp)
                                     .onGloballyPositioned { coords ->
+                                        foodSlotTypes[food.type] = index
                                         val positionInWindow = coords.localToWindow(Offset.Zero)
                                         foodSlotPositions[index] = Offset(
                                             positionInWindow.x + coords.size.width / 2f,
@@ -775,8 +786,7 @@ fun AnimalFeedingScreen(
 
         // 🖐️ Animated guide hand hint (Idle hint or successive mistakes)
         if (showIdleHint || showTutorialHint) {
-            val targetFood = FEEDING_FOODS.firstOrNull { it.type == currentWantFood.type }
-            val targetIndex = FEEDING_FOODS.indexOf(targetFood).coerceAtLeast(0)
+            val targetIndex = foodSlotTypes[currentWantFood.type] ?: 0
             val startOffset = foodSlotPositions[targetIndex] ?: Offset(150f, 650f)
 
             HintHand(

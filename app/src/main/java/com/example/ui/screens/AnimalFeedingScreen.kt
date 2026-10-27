@@ -59,6 +59,28 @@ data class FoodData(
     val type: String
 )
 
+/** Нарисованная иконка еды (по эмодзи-ключу); если картинки нет — показываем эмодзи. */
+private val FOOD_ICONS = mapOf(
+    "🦴" to com.example.R.drawable.food_bone,
+    "🥩" to com.example.R.drawable.food_meat,
+    "🐟" to com.example.R.drawable.food_fish,
+    "🥛" to com.example.R.drawable.food_milk,
+    "🥕" to com.example.R.drawable.food_carrot,
+    "🍎" to com.example.R.drawable.food_apple
+)
+
+@Composable
+private fun FoodIcon(emoji: String, size: androidx.compose.ui.unit.Dp) {
+    val res = FOOD_ICONS[emoji]
+    if (res != null) {
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(res),
+            contentDescription = null,
+            modifier = Modifier.size(size)
+        )
+    } else Text(text = emoji, fontSize = (size.value * 0.8f).sp)
+}
+
 val FEEDING_FOODS = listOf(
     FoodData("🦴", "bone"),
     FoodData("🥩", "meat"),
@@ -437,7 +459,7 @@ fun AnimalFeedingScreen(
                             color = ColorInk
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = currentWantFood.emoji, fontSize = 24.sp)
+                        FoodIcon(currentWantFood.emoji, 30.dp)
                     }
                 }
             }
@@ -685,7 +707,7 @@ fun AnimalFeedingScreen(
                                         )
                                     }
                             ) {
-                                Text(text = food.emoji, fontSize = emojiFontSize)
+                                FoodIcon(food.emoji, (calculatedSizeDp.value * 0.78f).dp)
                             }
                         }
                     }
@@ -711,7 +733,7 @@ fun AnimalFeedingScreen(
                     .background(ColorWhite.copy(alpha = 0.9f), CircleShape)
                     .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
             ) {
-                Text(text = draggedFoodEmoji, fontSize = 42.sp)
+                FoodIcon(draggedFoodEmoji, 60.dp)
             }
         }
 
@@ -731,7 +753,7 @@ fun AnimalFeedingScreen(
                     .background(ColorWhite.copy(alpha = 0.9f), CircleShape)
                     .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
             ) {
-                Text(text = draggedFoodEmoji, fontSize = 42.sp)
+                FoodIcon(draggedFoodEmoji, 60.dp)
             }
         }
 

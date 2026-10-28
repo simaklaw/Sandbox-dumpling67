@@ -269,14 +269,12 @@ private class RunWorld(val toddler: Boolean) {
             }
         }
         updateFoes(dt, visibleW, hx)
-        val shower = ArrayList<RunCoin>()
         for (c in items) {
             if (c.taken) continue
             if (abs(c.x - hx) < 52f && abs(c.y - (hy + 55f)) < 68f) {
                 c.taken = true; coins++; onEvent("coin")
             }
         }
-        items.addAll(shower)
         obs.removeAll { it.x < dist - 300f }
         items.removeAll { it.x < dist - 300f }
     }

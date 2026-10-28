@@ -56,7 +56,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.ui.window.Dialog
-import androidx.compose.material3.Text
+import com.example.shared.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
+import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier

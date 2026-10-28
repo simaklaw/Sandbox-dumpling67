@@ -463,8 +463,9 @@ private fun DrawScope.word(s: String, x: Float, y: Float, sizePx: Float, color: 
     wordStroke.textSize = sizePx; wordStroke.strokeWidth = sizePx * 0.2f; wordStroke.alpha = a
     wordFill.textSize = sizePx; wordFill.color = color.copy(alpha = 1f).toArgb(); wordFill.alpha = a
     val cv = drawContext.canvas.nativeCanvas
-    cv.drawText(s, x, y, wordStroke)
-    cv.drawText(s, x, y, wordFill)
+    val s2 = com.example.shared.i18n.tr(s)
+    cv.drawText(s2, x, y, wordStroke)
+    cv.drawText(s2, x, y, wordFill)
 }
 
 private fun Color.toArgb(): Int =

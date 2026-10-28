@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.example.shared.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -1098,8 +1098,8 @@ private fun DrawScope.skDrawFront(w: SkWorld, imgs: SkImgs) {
         skWordFill.color = ((255 shl 24) or ((wd.color.red * 255).toInt() shl 16) or ((wd.color.green * 255).toInt() shl 8) or (wd.color.blue * 255).toInt())
         cv.save()
         cv.scale(1f / w.density(), 1f / w.density(), 0f, 0f)
-        cv.drawText(wd.text, wd.x * w.density(), wd.y * w.density(), skWordStroke)
-        cv.drawText(wd.text, wd.x * w.density(), wd.y * w.density(), skWordFill)
+        cv.drawText(com.example.shared.i18n.tr(wd.text), wd.x * w.density(), wd.y * w.density(), skWordStroke)
+        cv.drawText(com.example.shared.i18n.tr(wd.text), wd.x * w.density(), wd.y * w.density(), skWordFill)
         cv.restore()
     }
     if (w.flash > 0f) drawRect(w.flashColor.copy(alpha = (w.flash * 0.3f).coerceIn(0f, 0.35f)), Offset.Zero, Size(w.w, w.h))

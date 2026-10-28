@@ -14,7 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,6 +147,20 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(text = if (musicOn) "🎵" else "🔇", fontSize = 24.sp)
+                    }
+                    // 🌐 Язык RU / EN
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE3F2FD))
+                            .clickable {
+                                com.example.shared.i18n.I18n.setLang(context, if (com.example.shared.i18n.I18n.isEnglish) "ru" else "en")
+                                soundManager.play("pop")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Text(text = if (com.example.shared.i18n.I18n.isEnglish) "EN" else "RU", fontSize = 16.sp, fontWeight = FontWeight.Black, color = ColorInk)
                     }
                     // ⚙️ Parental Gate Settings Gear with 3-second hold circular animation
                     ParentGearButton(

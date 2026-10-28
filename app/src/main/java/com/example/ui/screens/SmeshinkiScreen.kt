@@ -18,7 +18,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.example.shared.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -770,7 +770,7 @@ private fun DrawScope.drawSmeshinki(world: SmWorld, skin: SmeshinkiSkin, paint: 
             3 -> {
                 paint.textSize = p.size
                 paint.alpha = (a * 255).toInt()
-                drawContext.canvas.nativeCanvas.drawText(p.text, p.x, p.y, paint)
+                drawContext.canvas.nativeCanvas.drawText(com.example.shared.i18n.tr(p.text), p.x, p.y, paint)
             }
         }
     }

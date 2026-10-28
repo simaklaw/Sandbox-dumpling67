@@ -91,6 +91,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        com.example.shared.i18n.I18n.init(applicationContext)
 
         // Set default uncaught exception handler to prevent hard crashes and log issues cleanly
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()

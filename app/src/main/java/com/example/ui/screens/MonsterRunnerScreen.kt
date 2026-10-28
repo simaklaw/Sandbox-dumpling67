@@ -71,6 +71,7 @@ private const val RUN_K = 2.6f             // масштаб пиксель-ар
 
 private class RunObs(val x: Float, val kind: Int, val w: Float, val h: Float)
 private class RunCoin(val x: Float, val y: Float) { var taken = false }
+private class RunOrb(var x: Float, val y: Float)
 private class RunFire(var x: Float, val y: Float, var t: Float = 0f)
 private class RunFx(val x: Float, val y: Float, val n: Int)
 /** Чудик: kind 0 — колобок, 1 — прыгун, 2 — здоровяк (2 попадания). */
@@ -106,8 +107,14 @@ private class RunWorld(val toddler: Boolean) {
     var muzzle = 0f
     var hxw = 0f
     var vw = 800f
-    var genieUsed = false
-    var genieT = -1f
+    var bossState = 0       // 0 нет, 1 бой, 2 побеждён
+    var bossHp = 0
+    var bossMax = 1
+    var bossT = 0f
+    var bossFlash = 0f
+    var bossAtkT = 2f
+    var bossLap = -1
+    val orbs = ArrayList<RunOrb>()
     val foes = ArrayList<RunFoe>()
     val fires = ArrayList<RunFire>()
     val fx = ArrayList<RunFx>()
@@ -120,9 +127,9 @@ private class RunWorld(val toddler: Boolean) {
         loc = startLoc
         hy = 0f; vy = 0f; airJumps = 0
         lives = 3; coins = 0; invuln = 0f; slow = 0f; over = false; time = 0f
-        obs.clear(); items.clear(); foes.clear(); fires.clear(); fx.clear()
+        obs.clear(); items.clear(); foes.clear(); fires.clear(); fx.clear(); orbs.clear()
+        bossState = 0; bossLap = -1; bossFlash = 0f
         kills = 0; fireCd = 0f; muzzle = 0f
-        genieUsed = false; genieT = -1f
         nextX = dist + visibleW + 300f
     }
 
@@ -199,16 +206,66 @@ private class RunWorld(val toddler: Boolean) {
         onEvent("fire")
     }
 
-    fun callGenie() {
-        if (over || genieUsed) return
-        genieUsed = true; genieT = 0f
-        onEvent("genie")
-    }
+    fun bossSx(): Float = vw - 170f
+    fun bossY(): Float = 150f + sin(time * 2.2f) * 16f
 
-    fun genieSx(): Float {
-        val x0 = hxw - dist + 70f
-        if (genieT < 0.5f) return x0
-        return x0 + (vw + 220f - x0) * min(1f, (genieT - 0.5f) / 1.2f)
+    private fun updateBoss(dt: Float, visibleW: Float, hx: Float) {
+        bossFlash = max(0f, bossFlash - dt)
+        val cycle = BIOME_COUNT * RUN_LOC_LEN
+        val lap = (dist / cycle).toInt()
+        // старт: конец локации «Вулкан» (последняя в круге)
+        if (bossState == 0 && lap != bossLap && dist - lap * cycle >= cycle - RUN_LOC_LEN * 0.30f) {
+            bossLap = lap
+            bossState = 1
+            bossMax = if (toddler) 8 else 14
+            bossHp = bossMax
+            bossAtkT = 2.2f
+            nextX = 1e9f
+            foes.clear()
+            obs.removeAll { it.x > dist + visibleW * 0.6f }
+            onEvent("bossStart")
+        }
+        if (bossState == 0) return
+        if (bossState == 1) {
+            bossAtkT -= dt
+            if (bossAtkT <= 0f) {
+                bossAtkT = (if (toddler) 3.2f else 2.0f) + Random.nextFloat() * 0.8f
+                val high = !toddler && Random.nextBoolean()
+                orbs.add(RunOrb(dist + bossSx() - 40f, if (high) 150f else 26f))
+                onEvent("bossAtk")
+            }
+            for (p in fires) {
+                if (abs(p.x - (dist + bossSx())) < 90f && abs(p.y - bossY()) < 120f) {
+                    p.x = 1e9f
+                    bossHp--
+                    bossFlash = 0.15f
+                    fx.add(RunFx(dist + bossSx() - 40f, p.y, 6))
+                    if (bossHp <= 0) {
+                        bossState = 2; bossT = 0f; orbs.clear()
+                    } else onEvent("bossHit")
+                    break
+                }
+            }
+        } else {
+            bossT += dt
+            if (((bossT * 6f).toInt()) != (((bossT - dt) * 6f).toInt())) {
+                fx.add(RunFx(dist + bossSx() + (Random.nextFloat() - 0.5f) * 140f, bossY() + (Random.nextFloat() - 0.5f) * 140f, 16))
+            }
+            if (bossT >= 2f) {
+                bossState = 0
+                kills += 5
+                coins += 25
+                for (k in 0..11) items.add(RunCoin(dist + visibleW * 0.55f + k * 52f, 40f + (k % 3) * 40f))
+                nextX = dist + visibleW + 500f
+                onEvent("bossWin")
+            }
+        }
+        for (o in orbs) {
+            o.x -= 360f * dt
+            if (invuln <= 0f && abs(o.x - hx) < 36f && o.y + 26f > hy && o.y - 26f < hy + 100f) { hurt(); o.x = -1e9f }
+        }
+        for (p in fires) for (o in orbs) if (abs(p.x - o.x) < 34f && abs(p.y - o.y) < 40f) { p.x = 1e9f; fx.add(RunFx(o.x, o.y, 6)); o.x = -1e9f }
+        orbs.removeAll { it.x < dist - 200f }
     }
 
     private fun killFoe(f: RunFoe) {
@@ -224,7 +281,7 @@ private class RunWorld(val toddler: Boolean) {
         hxw = hx
         fireCd = max(0f, fireCd - dt)
         muzzle = max(0f, muzzle - dt)
-        if (toddler && fireCd <= 0f && foes.any { !it.dead && it.x > hx + 100f && it.x < hx + visibleW * 0.7f }) fire()
+        if (toddler && fireCd <= 0f && (bossState == 1 || foes.any { !it.dead && it.x > hx + 100f && it.x < hx + visibleW * 0.7f })) fire()
         val walk = if (toddler) 30f else 60f
         for (f in foes) {
             if (f.dead) continue
@@ -266,7 +323,10 @@ private class RunWorld(val toddler: Boolean) {
         slow = max(0f, slow - dt)
         invuln = max(0f, invuln - dt)
         speed = baseSpeed() * (if (slow > 0f) 0.55f else 1f)
-        dist += speed * dt
+        if (bossState != 0) {
+            val capD = ((dist / (BIOME_COUNT * RUN_LOC_LEN)).toInt() + 1) * BIOME_COUNT * RUN_LOC_LEN - 2f
+            dist = min(dist + speed * 0.4f * dt, capD)
+        } else dist += speed * dt
         if (hy > 0f || vy > 0f) {
             hy += vy * dt
             vy -= RUN_GRAVITY * dt
@@ -287,14 +347,7 @@ private class RunWorld(val toddler: Boolean) {
         }
         vw = visibleW
         updateFoes(dt, visibleW, hx)
-        if (genieT >= 0f) {
-            genieT += dt
-            if (genieT >= 0.5f) {
-                val gx = genieSx()
-                for (f in foes) if (!f.dead && f.x - dist < gx + 50f) killFoe(f)
-            }
-            if (genieT > 2.2f) genieT = -1f
-        }
+        updateBoss(dt, visibleW, hx)
         for (c in items) {
             if (c.taken) continue
             if (abs(c.x - hx) < 52f && abs(c.y - (hy + 55f)) < 68f) {
@@ -344,7 +397,7 @@ fun MonsterRunnerScreen(
             try { android.graphics.BitmapFactory.decodeResource(context.resources, id)?.asImageBitmap() } catch (e: Throwable) { null }
         }
     }
-    var hudGenie by remember { mutableStateOf(true) }
+    var hudBoss by remember { mutableFloatStateOf(-1f) }
     val biomeGfx = rememberZBiomeGfx()
 
     var screen by remember { mutableStateOf(RunScreen.MENU) }
@@ -398,9 +451,18 @@ fun MonsterRunnerScreen(
                 confetti(sizeW / 2f, sizeH * 0.35f, 40)
                 lottieTick++
             }
-            "genie" -> {
-                soundManager.play("sw_rage", volume = 0.9f, rate = 1.3f)
-                soundManager.play("sw_dash", volume = 0.9f, rate = 0.7f)
+            "bossStart" -> {
+                soundManager.play("sw_rage", volume = 1f, rate = 0.8f)
+                banner = "⚠️ ДЖИНН-БОСС!"
+            }
+            "bossAtk" -> soundManager.play("sw_warn", volume = 0.7f, rate = 0.9f)
+            "bossHit" -> soundManager.play("zb_hurt", volume = 0.7f, rate = 0.7f)
+            "bossWin" -> {
+                soundPlayer.playFanfare()
+                soundManager.play("sw_boom", volume = 1f, rate = 0.7f)
+                banner = "ПОБЕДА!"
+                confetti(sizeW / 2f, sizeH * 0.35f, 60)
+                lottieTick++
             }
             "fire" -> soundManager.play("zb_rocket", volume = 0.6f, rate = 1.25f)
             "foeHit" -> soundManager.play("zb_hurt", volume = 0.8f, rate = 1.2f)
@@ -534,22 +596,29 @@ fun MonsterRunnerScreen(
                 drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.9f * k), 22f * z, Offset(mx, my))
             }
             val pal = listOf(Color(0xFFFFD54F), Color(0xFFFF8A65), Color(0xFF4FC3F7), Color(0xFFAED581), Color(0xFFF06292))
-            if (running && world.genieT >= 0f && genieFrames.isNotEmpty()) {
-                val gt = world.genieT
-                val sc = if (gt < 0.5f) 0.2f + 0.8f * (gt / 0.5f) else 1f
-                val gxPx = world.genieSx() * z
-                val gyPx2 = (gy - 100f - (if (gt < 0.5f) 0f else sin(gt * 5f) * 10f)) * z
-                // дымный вихрь за спиной
-                for (k in 0 until 6) {
-                    val a = (0.32f - k * 0.045f).coerceAtLeast(0f)
-                    drawCircle(Color(0xFFB388FF).copy(alpha = a), (60f - k * 5f) * z * sc, Offset(gxPx - (30f + k * 34f) * z * sc, gyPx2 + sin(gt * 9f + k) * 14f * z))
-                    drawCircle(Color(0xFF4DD0E1).copy(alpha = a * 0.7f), (36f - k * 3f) * z * sc, Offset(gxPx - (50f + k * 30f) * z * sc, gyPx2 + 20f * z + cos(gt * 8f + k) * 12f * z))
-                }
-                val img = genieFrames[((gt * 14f).toInt()) % genieFrames.size]
-                val h = 220f * z * sc
+            if (running && world.bossState != 0 && genieFrames.isNotEmpty()) {
+                val dying = world.bossState == 2
+                val shrink = if (dying) (1f - world.bossT / 2f).coerceIn(0.05f, 1f) else 1f
+                val bxPx = (world.bossSx()) * z
+                val byPx = (gy - world.bossY()) * z
+                val h = 300f * z * shrink
+                val img = genieFrames[((clock * 9f).toInt()) % genieFrames.size]
                 val k2 = h / img.height
-                withTransform({ translate(gxPx - img.width * k2 / 2f, gyPx2 - h / 2f); scale(k2, k2, Offset.Zero) }) { drawImage(img, Offset.Zero) }
-                if (gt >= 0.5f) drawCircle(Color(0xFFFFFFFF).copy(alpha = 0.18f), 90f * z, Offset(gxPx + 70f * z, gyPx2))
+                // аура
+                drawCircle(Color(0xFFE040FB).copy(alpha = 0.18f + 0.08f * sin(clock * 6f)), h * 0.55f, Offset(bxPx, byPx))
+                val tint = if (world.bossFlash > 0f) androidx.compose.ui.graphics.ColorFilter.tint(Color(0xAAFFFFFF), androidx.compose.ui.graphics.BlendMode.SrcAtop) else null
+                withTransform({
+                    rotate(if (dying) world.bossT * 240f else 0f, Offset(bxPx, byPx))
+                    translate(bxPx - img.width * k2 / 2f, byPx - h / 2f); scale(k2, k2, Offset.Zero)
+                }) { drawImage(img, Offset.Zero, colorFilter = tint) }
+                for (o in world.orbs) {
+                    val ox = (o.x - world.dist) * z
+                    val oy = (gy - o.y) * z
+                    drawCircle(Color(0xFFE040FB).copy(alpha = 0.35f), 42f * z, Offset(ox, oy))
+                    drawCircle(Color(0xFF7C4DFF), 26f * z, Offset(ox, oy))
+                    drawCircle(Color(0xFF80DEEA), 15f * z, Offset(ox + sin(clock * 12f) * 3f * z, oy))
+                    drawCircle(Color.White.copy(alpha = 0.8f), 6f * z, Offset(ox - 8f * z, oy - 8f * z))
+                }
             }
             booms.removeAll { clock - it[2] >= BOOM_TIME }
             for (b in booms) drawBoom(boomFrames, b[0], b[1], 150f * z, clock - b[2])
@@ -581,19 +650,20 @@ fun MonsterRunnerScreen(
                     },
                 contentAlignment = Alignment.Center
             ) { Text("🔥", fontSize = 44.sp) }
-            Box(
-                Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 128.dp, bottom = 22.dp)
-                    .size(72.dp)
-                    .background(if (hudGenie) Color(0xFF7E57C2).copy(alpha = 0.92f) else Color(0xFF455A64).copy(alpha = 0.6f), androidx.compose.foundation.shape.CircleShape)
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            val d = awaitFirstDown()
-                            d.consume()
-                            if (screen == RunScreen.PLAY) world.callGenie()
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) { Text(if (hudGenie) "🧞" else "💨", fontSize = 34.sp) }
+            if (hudBoss >= 0f) {
+                Row(
+                    Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 52.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🧞", fontSize = 22.sp)
+                    Box(
+                        Modifier.padding(start = 6.dp).size(width = 170.dp, height = 14.dp)
+                            .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(7.dp))
+                    ) {
+                        Box(Modifier.size(width = (170f * hudBoss.coerceIn(0f, 1f)).dp, height = 14.dp).background(Color(0xFFE040FB), RoundedCornerShape(7.dp)))
+                    }
+                }
+            }
             if (banner.isNotEmpty()) {
                 Text(
                     banner, fontSize = 38.sp, fontWeight = FontWeight.Black, color = Color(0xFFFFEB3B),
@@ -610,7 +680,7 @@ fun MonsterRunnerScreen(
             ) {
                 KitWindow(width = 330.dp, title = "Забег") {
                     Text(
-                        if (toddler) "Тапай — монстрик прыгает и сам плюётся огнём!\nЖги чудиков, собирай монетки." else "Тап — прыжок (в воздухе — двойной).\n🔥 — огненный шар из рук: жги чудиков!\n🧞 — раз за забег джинн сметёт всех чудиков!",
+                        if (toddler) "Тапай — монстрик прыгает и сам плюётся огнём!\nЖги чудиков, собирай монетки." else "Тап — прыжок (в воздухе — двойной).\n🔥 — огненный шар из рук: жги чудиков!\nВ конце Вулкана ждёт джинн-босс!",
                         fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(6.dp))
@@ -674,7 +744,7 @@ fun MonsterRunnerScreen(
                     world.step(dt, sizeW / density, sizeW / density * 0.24f)
                     hudCoins = world.coins; hudLives = world.lives; hudLoc = world.loc; hudDist = (world.dist / 10f).toInt()
                     hudKills = world.kills
-                    hudGenie = !world.genieUsed
+                    hudBoss = if (world.bossState == 1) world.bossHp.toFloat() / world.bossMax else -1f
                 }
                 if (world.fx.isNotEmpty()) {
                     val gyPx = sizeH * 0.78f

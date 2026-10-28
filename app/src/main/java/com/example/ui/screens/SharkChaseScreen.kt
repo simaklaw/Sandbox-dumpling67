@@ -85,6 +85,9 @@ private class SkObs(val kind: Int, val x: Float, val y: Float, val w: Float, val
     var smashed = false
     var zap = 0f
 }
+private class SkKit(val x: Float, val y: Float) { var taken = false }
+private class SkBoom(var x: Float, var y: Float, val size: Float) { var age = 0f }
+private class SkImgs(val boom: List<ImageBitmap>, val mine: ImageBitmap?, val kit: ImageBitmap?)
 private class SkPearl(val x: Float, val y: Float) { var taken = false }
 private class SkRing(val x: Float, val y: Float) { var taken = false }
 private class SkSchool(val x: Float, val y: Float, val n: Int) { var eaten = false; val ph = Random.nextFloat() * 6.28f }
@@ -135,6 +138,9 @@ private class SkWorld(val toddler: Boolean) {
     val obs = ArrayList<SkObs>()
     val pearlsL = ArrayList<SkPearl>()
     val rings = ArrayList<SkRing>()
+    val kits = ArrayList<SkKit>()
+    val booms = ArrayList<SkBoom>()
+    var shield = 0f
     val schools = ArrayList<SkSchool>()
     val parts = ArrayList<SkPart>()
     val words = ArrayList<SkWord>()
@@ -159,7 +165,7 @@ private class SkWorld(val toddler: Boolean) {
         state = 0; telT = 0f; stunT = 0f; snapCd = 2.5f
         rageT = 0f; warnT = 0f; rageCd = 10f; chewT = 0f; eatT = 0f; snapped = false
         over = false; pearls = 0; combo = 0; comboT = 0f
-        obs.clear(); pearlsL.clear(); rings.clear(); schools.clear(); parts.clear(); words.clear()
+        obs.clear(); pearlsL.clear(); rings.clear(); kits.clear(); booms.clear(); shield = 0f; schools.clear(); parts.clear(); words.clear()
         nextX = 650f
         running = true
         onEvent("start", 0f)
@@ -180,8 +186,22 @@ private class SkWorld(val toddler: Boolean) {
         if (words.size > 5) words.removeAt(0)
     }
 
+    private fun boom(x: Float, y: Float, size: Float) {
+        booms.add(SkBoom(x, y, size))
+        if (booms.size > 8) booms.removeAt(0)
+    }
+
     private fun hitBy(o: SkObs?) {
         if (invuln > 0f) return
+        if (shield > 0f) {
+            shield = 0f; invuln = 1.2f
+            word("ЩИТ!", heroX, hy - 56f, Color(0xFF80DEEA))
+            flash = 0.3f; flashColor = Color(0xFF80DEEA)
+            onEvent("ring", 0f)
+            if (o != null && o.kind == 4) { o.smashed = true; boom(heroX + 30f, hy, 110f); onEvent("boom", 0f) }
+            return
+        }
+        if (o != null && o.kind == 4) { o.smashed = true; boom(heroX, hy, 170f); onEvent("boom", 0f) }
         stun = 1.1f; invuln = 2.0f; combo = 0
         o?.zap = 0.6f
         shake = 0.8f
@@ -205,7 +225,7 @@ private class SkWorld(val toddler: Boolean) {
 
     private fun spawn() {
         while (nextX < dist + w + 400f) {
-            val p = Random.nextInt(if (toddler) 5 else 8)
+            val p = Random.nextInt(if (toddler) 5 else 10)
             val lo = minY + 10f
             val hi = maxY - 10f
             when (p) {
@@ -249,6 +269,17 @@ private class SkWorld(val toddler: Boolean) {
                     obs.add(SkObs(0, nextX + 20f, 0f, 90f, max(60f, hs)))
                     for (k in 0..3) pearlsL.add(SkPearl(nextX + 40f, y2 + 60f + k * 0f - 0f).also { })
                 }
+                8 -> {
+                    val y1 = lo + Random.nextFloat() * (hi - lo)
+                    obs.add(SkObs(4, nextX, y1, 64f, 64f))
+                    obs.add(SkObs(4, nextX + 190f, lo + Random.nextFloat() * (hi - lo), 64f, 64f))
+                    for (k in 0..3) pearlsL.add(SkPearl(nextX + 70f + k * 30f, (lo + hi) / 2f))
+                }
+                9 -> {
+                    val y = lo + 30f + Random.nextFloat() * (hi - lo - 60f)
+                    kits.add(SkKit(nextX + 120f, y))
+                    obs.add(SkObs(4, nextX + 330f, lo + Random.nextFloat() * (hi - lo), 64f, 64f))
+                }
                 else -> {
                     val y = lo + Random.nextFloat() * (hi - lo)
                     rings.add(SkRing(nextX + 160f, y))
@@ -265,6 +296,8 @@ private class SkWorld(val toddler: Boolean) {
         shake = max(0f, shake - dt * 3f)
         flash = max(0f, flash - dt * 2.4f)
         stepParticles(dt)
+        for (b in booms) { b.age += dt; b.x -= 170f * dt }
+        booms.removeAll { it.age >= BOOM_TIME }
         if (!running) { dist += 150f * dt; return }
         if (state == 3) {
             eatT += dt
@@ -273,6 +306,7 @@ private class SkWorld(val toddler: Boolean) {
                 snapped = true
                 onEvent("chomp", 0f)
                 shake = 1f; flash = 0.6f; flashColor = Color(0xFFFF5252)
+                boom(heroX + 20f, hy, 230f); onEvent("boom", 0f)
                 word("ХРУСЬ!", heroX, hy - 60f, Color(0xFFFFEB3B))
                 for (i in 0 until 26) parts.add(SkPart(heroX, hy, (Random.nextFloat() - 0.5f) * 520f, (Random.nextFloat() - 0.5f) * 520f, if (i % 2 == 0) 0 else 2, if (i % 3 == 0) Color(0xFFFFEB3B) else Color.White, 4f + Random.nextFloat() * 6f, -30f).also { it.decay = 0.9f })
             }
@@ -336,7 +370,10 @@ private class SkWorld(val toddler: Boolean) {
                 if (telT <= 0f) {
                     if (abs(hy - biteY) < 58f && invuln <= 0f || (abs(hy - biteY) < 58f && gap < 40f)) {
                         if (toddler) { state = 2; stunT = 0.7f; gap += 160f; snapCd = 1.5f; onEvent("miss", 0f); word("ПРОМАХ!", heroX - 80f, hy - 50f, Color.White) }
-                        else eaten()
+                        else if (shield > 0f) {
+                            shield = 0f; invuln = 1.2f; state = 2; stunT = 0.7f; gap += 120f; snapCd = 1.4f
+                            onEvent("ring", 0f); word("ЩИТ!", heroX, hy - 56f, Color(0xFF80DEEA))
+                        } else eaten()
                     } else {
                         state = 2; stunT = 0.7f; gap += 90f; snapCd = 1.1f
                         onEvent("miss", 0f)
@@ -373,6 +410,10 @@ private class SkWorld(val toddler: Boolean) {
                     val cy = o.y + sin(time * 2f + o.phase) * 40f
                     hit = hypot(hx - o.x, hy - cy) < hr + o.w * 0.42f || hypot(hx - o.x, hy - (cy + o.w * 0.5f)) < hr + o.w * 0.28f
                 }
+                4 -> {
+                    val cy = o.y + sin(time * 1.3f + o.phase) * 10f
+                    hit = hypot(hx - o.x, hy - cy) < hr + o.w * 0.46f
+                }
                 else -> {
                     val cy = o.y + sin(time * 1.6f + o.phase) * 14f
                     hit = hypot(hx - o.x, hy - cy) < hr + o.w * 0.5f
@@ -400,6 +441,15 @@ private class SkWorld(val toddler: Boolean) {
                 onEvent("ring", 0f)
             }
         }
+        for (k in kits) {
+            if (k.taken) continue
+            if (hypot(k.x - hx, k.y - hy) < 46f) {
+                k.taken = true; shield = 1f
+                word("ЩИТ!", heroX, hy - 56f, Color(0xFF80DEEA))
+                flash = 0.3f; flashColor = Color(0xFF80DEEA)
+                onEvent("ring", 0f)
+            }
+        }
         // — акула сжирает всё на пути
         val sharkWX = dist + heroX - gap
         crunchCd = max(0f, crunchCd - dt)
@@ -417,7 +467,10 @@ private class SkWorld(val toddler: Boolean) {
             if (o.smashed) continue
             if (o.x + o.w * 0.5f < sharkWX + 20f) {
                 o.smashed = true
-                if (crunchCd <= 0f) { crunchCd = 0.12f; onEvent("crunch", 0f) }
+                if (o.kind == 4) {
+                    boom(o.x - dist + o.w / 2f, o.y, 150f); onEvent("boom", 0f)
+                    if (state == 0 || state == 1) { state = 2; stunT = 0.9f; gap += 70f; snapCd = 1.2f; word("БАХ!", o.x - dist, o.y - 40f, Color(0xFFFFEB3B)) }
+                } else if (crunchCd <= 0f) { crunchCd = 0.12f; onEvent("crunch", 0f); boom(o.x - dist + o.w / 2f, if (o.kind == 0) floorY - o.h / 2f else if (o.kind == 1) SK_SURFACE + o.h / 2f else o.y, 70f) }
                 val ox = o.x + o.w / 2f - dist
                 val oy = if (o.kind == 0) floorY - o.h / 2f else if (o.kind == 1) SK_SURFACE + o.h / 2f else o.y
                 for (i in 0 until 10) parts.add(SkPart(ox, oy, (Random.nextFloat() - 0.2f) * 360f, (Random.nextFloat() - 0.5f) * 300f, 1, Color(0xFF90A4AE), 5f + Random.nextFloat() * 6f, 500f).also { it.decay = 1.1f })
@@ -426,6 +479,7 @@ private class SkWorld(val toddler: Boolean) {
         obs.removeAll { it.smashed || it.x < dist - 500f }
         pearlsL.removeAll { it.taken || it.x < dist - 400f }
         rings.removeAll { it.taken || it.x < dist - 400f }
+        kits.removeAll { it.taken || it.x < dist - 400f }
         schools.removeAll { it.eaten || it.x < dist - 500f }
         spawn()
 
@@ -510,6 +564,10 @@ fun SharkChaseScreen(
             try { android.graphics.BitmapFactory.decodeResource(context.resources, id)?.asImageBitmap() } catch (e: Throwable) { null }
         }
     }
+    val imgs = remember {
+        fun ld(id: Int) = try { android.graphics.BitmapFactory.decodeResource(context.resources, id)?.asImageBitmap() } catch (e: Throwable) { null }
+        SkImgs(loadBoomFrames(context), ld(R.drawable.sw_mine), ld(R.drawable.sw_kitten))
+    }
     val world = remember(toddler) { SkWorld(toddler) }
     var screen by remember { mutableStateOf(SkScreen.MENU) }
     var tick by remember { mutableIntStateOf(0) }
@@ -533,7 +591,7 @@ fun SharkChaseScreen(
     val walletNow = remember(screen) { loadWallet(context) }
 
     LaunchedEffect(Unit) {
-        soundManager.preloadRaw(listOf("sw_dash", "sw_pearl", "sw_ring", "sw_hit", "sw_rage", "sw_warn", "sw_miss", "sw_chomp", "sw_gulp", "sw_start", "sw_over", "sw_heart", "sw_crunch"))
+        soundManager.preloadRaw(listOf("sw_dash", "sw_pearl", "sw_ring", "sw_hit", "sw_rage", "sw_warn", "sw_miss", "sw_chomp", "sw_gulp", "sw_start", "sw_over", "sw_heart", "sw_crunch", "sw_boom"))
     }
     world.onEvent = { ev, arg ->
         when (ev) {
@@ -548,6 +606,7 @@ fun SharkChaseScreen(
             "gulp" -> soundManager.play("sw_gulp", volume = 0.7f)
             "crunch" -> soundManager.play("sw_crunch", volume = 0.45f, rate = 0.9f + Random.nextFloat() * 0.3f)
             "heart" -> soundManager.play("sw_heart", volume = 0.4f + arg * 0.5f)
+            "boom" -> soundManager.play("sw_boom", volume = 0.8f, rate = 0.9f + Random.nextFloat() * 0.2f)
             "chomp" -> { soundManager.play("sw_chomp", volume = 1f); soundPlayer.vibrateSquishDeform() }
             "over" -> {
                 soundManager.play("sw_over", volume = 0.8f)
@@ -595,7 +654,7 @@ fun SharkChaseScreen(
             val sy = if (world.shake > 0f) cos(clock * 80f) * 7f * world.shake else 0f
             withTransform({ translate(sx * z, sy * z); scale(z, z, Offset.Zero) }) {
                 skDrawSea(world)
-                skDrawObjects(world)
+                skDrawObjects(world, imgs)
             }
             // герой
             val show = screen == SkScreen.PLAY && world.state != 3 || (screen == SkScreen.PLAY && world.state == 3 && world.eatT < 0.28f)
@@ -611,7 +670,7 @@ fun SharkChaseScreen(
             }
             withTransform({ translate(sx * z, sy * z); scale(z, z, Offset.Zero) }) {
                 if (screen != SkScreen.OVER || world.state == 3) skDrawShark(world, sharkFrames)
-                skDrawFront(world)
+                skDrawFront(world, imgs)
             }
         }
 
@@ -686,7 +745,7 @@ fun SharkChaseScreen(
             ) {
                 KitWindow(width = 330.dp, title = "Жадная акула") {
                     Text(
-                        "Жадная акула хочет тебя съесть — не дай себя поймать!\nТяни пальцем вверх-вниз — плыви.\n🚀 — рывок. Лови 🐚, ныряй в золотые кольца.\nЗаманивай акулу в стайки рыбок!",
+                        "Жадная акула хочет тебя съесть — не дай себя поймать!\nТяни пальцем вверх-вниз — плыви.\n🚀 — рывок. Лови 🐚, ныряй в золотые кольца.\nЗаманивай акулу в стайки рыбок и на мины 💣!\nКотик 🐱 в пузыре — защитный щит.",
                         fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center
                     )
                 }
@@ -839,7 +898,7 @@ private fun DrawScope.skDrawSea(w: SkWorld) {
     drawPath(wave, Color.White.copy(alpha = 0.35f))
 }
 
-private fun DrawScope.skDrawObjects(w: SkWorld) {
+private fun DrawScope.skDrawObjects(w: SkWorld, imgs: SkImgs) {
     val camX = w.dist
     val t = w.time
     val sw = w.w
@@ -892,6 +951,16 @@ private fun DrawScope.skDrawObjects(w: SkWorld) {
                 drawCircle(Color.White.copy(alpha = 0.6f), r * 0.13f, Offset(sx - r * 0.4f, cy - r * 0.55f))
                 drawCircle(Color(0xFF4A148C), 3.5f, Offset(sx - r * 0.3f, cy - r * 0.2f)); drawCircle(Color(0xFF4A148C), 3.5f, Offset(sx + r * 0.3f, cy - r * 0.2f))
             }
+            4 -> { // морская мина
+                val cy = o.y + sin(t * 1.3f + o.phase) * 10f
+                val im = imgs.mine
+                val blink = 0.5f + 0.5f * sin(t * 8f + o.phase)
+                if (im != null) {
+                    val k = (o.w * 1.55f) / 192f
+                    withTransform({ translate(sx - o.w * 0.775f, cy - o.w * 0.775f); scale(k, k, Offset.Zero) }) { drawImage(im, Offset.Zero) }
+                } else drawCircle(Color(0xFF455A64), o.w * 0.5f, Offset(sx, cy))
+                drawCircle(Color(0xFFFF1744).copy(alpha = 0.35f + 0.5f * blink), 5f, Offset(sx, cy - o.w * 0.1f))
+            }
             else -> { // морской ёж
                 val cy = o.y + sin(t * 1.6f + o.phase) * 14f
                 val r = o.w * 0.36f
@@ -903,6 +972,18 @@ private fun DrawScope.skDrawObjects(w: SkWorld) {
                 drawCircle(Color(0xFFFF5252), 4f, Offset(sx - r * 0.3f, cy - r * 0.1f)); drawCircle(Color(0xFFFF5252), 4f, Offset(sx + r * 0.3f, cy - r * 0.1f))
             }
         }
+    }
+    for (kt in w.kits) {
+        val sx = kt.x - camX
+        if (sx > sw + 60f || sx < -60f) continue
+        val ky = kt.y + sin(t * 2.2f + kt.x * 0.01f) * 6f
+        drawCircle(Color(0xFFB2EBF2).copy(alpha = 0.35f), 40f, Offset(sx, ky))
+        imgs.kit?.let { im ->
+            val k = 54f / 200f
+            withTransform({ translate(sx - 27f, ky - 27f); scale(k, k, Offset.Zero) }) { drawImage(im, Offset.Zero) }
+        }
+        drawCircle(Color.White.copy(alpha = 0.7f), 40f, Offset(sx, ky), style = Stroke(2.5f))
+        drawCircle(Color.White.copy(alpha = 0.8f), 5f, Offset(sx - 18f, ky - 20f))
     }
     for (r in w.rings) {
         val sx = r.x - camX
@@ -985,7 +1066,7 @@ private val skWordStroke = android.graphics.Paint(android.graphics.Paint.ANTI_AL
     color = 0xFF08224F.toInt()
 }
 
-private fun DrawScope.skDrawFront(w: SkWorld) {
+private fun DrawScope.skDrawFront(w: SkWorld, imgs: SkImgs) {
     for (p in w.parts) {
         val a = p.life.coerceIn(0f, 1f)
         when (p.kind) {
@@ -998,6 +1079,13 @@ private fun DrawScope.skDrawFront(w: SkWorld) {
             }
             else -> drawCircle(p.color.copy(alpha = a), p.size * (0.5f + 0.5f * a), Offset(p.x, p.y))
         }
+    }
+    for (b in w.booms) drawBoom(imgs.boom, b.x, b.y, b.size, b.age)
+    if (w.shield > 0f && w.running && w.state != 3) {
+        val pr = 46f + 2f * sin(w.time * 7f)
+        drawCircle(Color(0xFFB2EBF2).copy(alpha = 0.28f), pr, Offset(w.heroX, w.hy))
+        drawCircle(Color.White.copy(alpha = 0.85f), pr, Offset(w.heroX, w.hy), style = Stroke(3f))
+        drawCircle(Color.White.copy(alpha = 0.8f), 6f, Offset(w.heroX - pr * 0.45f, w.hy - pr * 0.5f))
     }
     val cv = drawContext.canvas.nativeCanvas
     for (wd in w.words) {

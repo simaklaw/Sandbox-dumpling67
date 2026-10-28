@@ -311,6 +311,8 @@ fun MonsterRunnerScreen(
     val heroSpec = houseList.getOrNull(heroIdx) ?: MonSpec()
     val heroImgs = rememberMonImgs(heroSpec)
     val heroAnim = remember { MonAnim().also { it.danceUntil = 1e9f } }
+    val boomFrames = remember { loadBoomFrames(context) }
+    val booms = remember { ArrayList<FloatArray>() }
     val biomeGfx = rememberZBiomeGfx()
 
     var screen by remember { mutableStateOf(RunScreen.MENU) }
@@ -349,7 +351,7 @@ fun MonsterRunnerScreen(
     }
 
     LaunchedEffect(Unit) {
-        soundManager.preloadRaw(listOf("zb_jump", "zb_jump2", "zb_land", "zb_coin", "zb_ouch", "zb_hurt", "zb_rocket", "zb_down"))
+        soundManager.preloadRaw(listOf("zb_jump", "zb_jump2", "zb_land", "zb_coin", "zb_ouch", "zb_hurt", "zb_rocket", "zb_down", "sw_boom"))
     }
     world.onEvent = { ev ->
         when (ev) {
@@ -367,7 +369,8 @@ fun MonsterRunnerScreen(
             "fire" -> soundManager.play("zb_rocket", volume = 0.6f, rate = 1.25f)
             "foeHit" -> soundManager.play("zb_hurt", volume = 0.8f, rate = 1.2f)
             "foeDie" -> {
-                soundManager.play("zb_down", volume = 0.7f, rate = 1.5f)
+                soundManager.play("sw_boom", volume = 0.55f, rate = 1.3f)
+                soundManager.play("zb_down", volume = 0.5f, rate = 1.5f)
                 soundManager.play("zb_coin", volume = 0.6f, rate = 1.3f)
             }
             "over" -> {
@@ -495,6 +498,8 @@ fun MonsterRunnerScreen(
                 drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.9f * k), 22f * z, Offset(mx, my))
             }
             val pal = listOf(Color(0xFFFFD54F), Color(0xFFFF8A65), Color(0xFF4FC3F7), Color(0xFFAED581), Color(0xFFF06292))
+            booms.removeAll { clock - it[2] >= BOOM_TIME }
+            for (b in booms) drawBoom(boomFrames, b[0], b[1], 150f * z, clock - b[2])
             for (s in sparks) drawCircle(pal[s[5].toInt() % 5].copy(alpha = s[4].coerceIn(0f, 1f)), 4f * z, Offset(s[0], s[1]))
         }
 
@@ -606,7 +611,10 @@ fun MonsterRunnerScreen(
                 }
                 if (world.fx.isNotEmpty()) {
                     val gyPx = sizeH * 0.78f
-                    for (e in world.fx) confetti((e.x - world.dist) * density, gyPx - e.y * density, e.n)
+                    for (e in world.fx) {
+                        confetti((e.x - world.dist) * density, gyPx - e.y * density, e.n)
+                        if (e.n >= 16) booms.add(floatArrayOf((e.x - world.dist) * density, gyPx - e.y * density, clock))
+                    }
                     world.fx.clear()
                 }
                 val it = sparks.iterator()

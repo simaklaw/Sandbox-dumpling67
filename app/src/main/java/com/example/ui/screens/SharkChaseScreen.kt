@@ -33,7 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -67,7 +71,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * «Акулья погоня» — подводный раннер. Бешеная акула гонится за твоим монстриком.
+ * «Жадная акула» — подводный раннер. Жадная акула гонится за твоим монстриком.
  * Тяни пальцем вверх-вниз — плыви; 🚀 — рывок. Препятствия замедляют, а каждое замедление —
  * шаг к пасти. Вблизи акула кусает: успей уйти по глубине. Акула сжирает всё на пути —
  * заманивай её в стайки рыбок, лови золотые кольца и жемчуг.
@@ -501,6 +505,11 @@ fun SharkChaseScreen(
     val heroImgs = rememberMonImgs(heroSpec)
     val heroAnim = remember { MonAnim().also { it.danceUntil = 1e9f } }
 
+    val sharkFrames = remember {
+        listOf(R.drawable.shark_f00,R.drawable.shark_f01,R.drawable.shark_f02,R.drawable.shark_f03,R.drawable.shark_f04,R.drawable.shark_f05,R.drawable.shark_f06,R.drawable.shark_f07,R.drawable.shark_f08,R.drawable.shark_f09,R.drawable.shark_f10,R.drawable.shark_f11,R.drawable.shark_f12,R.drawable.shark_f13,R.drawable.shark_f14,R.drawable.shark_f15,R.drawable.shark_f16,R.drawable.shark_f17,R.drawable.shark_f18,R.drawable.shark_f19,R.drawable.shark_f20,R.drawable.shark_f21,R.drawable.shark_f22,R.drawable.shark_f23,R.drawable.shark_f24).mapNotNull { id ->
+            try { android.graphics.BitmapFactory.decodeResource(context.resources, id)?.asImageBitmap() } catch (e: Throwable) { null }
+        }
+    }
     val world = remember(toddler) { SkWorld(toddler) }
     var screen by remember { mutableStateOf(SkScreen.MENU) }
     var tick by remember { mutableIntStateOf(0) }
@@ -601,7 +610,7 @@ fun SharkChaseScreen(
                 }
             }
             withTransform({ translate(sx * z, sy * z); scale(z, z, Offset.Zero) }) {
-                if (screen != SkScreen.OVER || world.state == 3) skDrawShark(world)
+                if (screen != SkScreen.OVER || world.state == 3) skDrawShark(world, sharkFrames)
                 skDrawFront(world)
             }
         }
@@ -675,9 +684,9 @@ fun SharkChaseScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                KitWindow(width = 330.dp, title = "Акулья погоня") {
+                KitWindow(width = 330.dp, title = "Жадная акула") {
                     Text(
-                        "Бешеная акула гонится за тобой!\nТяни пальцем вверх-вниз — плыви.\n🚀 — рывок. Лови 🐚, ныряй в золотые кольца.\nЗаманивай акулу в стайки рыбок!",
+                        "Жадная акула хочет тебя съесть — не дай себя поймать!\nТяни пальцем вверх-вниз — плыви.\n🚀 — рывок. Лови 🐚, ныряй в золотые кольца.\nЗаманивай акулу в стайки рыбок!",
                         fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center
                     )
                 }
@@ -705,7 +714,7 @@ fun SharkChaseScreen(
 
         if (screen == SkScreen.OVER) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
-                KitWindow(width = 330.dp, title = if (newBest) "Рекорд!" else "Акула наелась") {
+                KitWindow(width = 330.dp, title = if (newBest) "Рекорд!" else "Жадина съела!") {
                     Text("📏 $resultM м   🐚 $resultP", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF6A1B4D))
                     Spacer(Modifier.height(8.dp))
                     KitLongButton(R.drawable.ui_btn_long_green, "Ещё раз ↻", 170.dp, 15.sp) { begin() }
@@ -933,7 +942,7 @@ private fun DrawScope.skFish(x: Float, y: Float, c: Color, dir: Float, t: Float)
     drawCircle(Color(0xFF212121), 1.3f, Offset(x + 5.6f * dir, y - 1.5f))
 }
 
-private fun DrawScope.skDrawShark(w: SkWorld) {
+private fun DrawScope.skDrawShark(w: SkWorld, frames: List<ImageBitmap>) {
     val mx = w.mouthX()
     val my = w.sharkY
     val rage = w.rageT > 0f || w.warnT > 0f || w.state == 1 || w.state == 3
@@ -944,67 +953,22 @@ private fun DrawScope.skDrawShark(w: SkWorld) {
         val a = ((1f - w.gap / 200f) * 0.45f) * (0.75f + 0.25f * sin(t * 10f))
         drawRect(Brush.horizontalGradient(listOf(Color(0xFFFF1744).copy(alpha = a), Color.Transparent), startX = 0f, endX = w.w * 0.4f), Offset.Zero, Size(w.w, w.h))
     }
-    val sc = 1.15f
+    if (frames.isEmpty()) return
+    val k = 250f / 300f
+    val lunge = if (w.state == 1) (1f - w.telT / 0.45f) * 40f else 0f
+    val pulse = if (w.state == 1) 1f + 0.12f * (1f - w.telT / 0.45f) else 1f
+    val spd = if (rage) 22f else 14f
+    val img = frames[((t * spd).toInt() % frames.size + frames.size) % frames.size]
+    val tint = if (rage) ColorFilter.tint(Color(0x66FF1744), BlendMode.SrcAtop) else null
+    val ox = if (w.state == 1) sin(t * 60f) * 2f else 0f
     withTransform({
-        translate(mx, my)
-        rotate(sin(t * 3f) * 2.5f, Offset.Zero)
-        scale(sc, sc, Offset.Zero)
+        translate(mx + lunge + ox, my)
+        rotate(sin(t * 3f) * 3f, Offset.Zero)
+        scale(pulse, pulse, Offset.Zero)
+        translate(-300f * k * 0.989f, -287f * k * 0.23f)
+        scale(k, k, Offset.Zero)
     }) {
-        val bodyCol = if (rage) Color(0xFF546E7A) else Color(0xFF607D8B)
-        // хвост-плавник сзади (покачивается)
-        val sway = sin(t * 5f) * 10f
-        val tail = Path().apply {
-            moveTo(-250f, -10f); lineTo(-322f + sway, -64f); lineTo(-300f + sway, -2f); lineTo(-326f + sway, 56f); lineTo(-250f, 12f); close()
-        }
-        drawPath(tail, shade(bodyCol, 0.85f))
-        // спинной и грудной плавники
-        drawPath(Path().apply { moveTo(-110f, -52f); lineTo(-165f, -112f); lineTo(-200f, -36f); close() }, shade(bodyCol, 0.8f))
-        drawPath(Path().apply { moveTo(-105f, 36f); lineTo(-150f, 94f); lineTo(-72f, 48f); close() }, shade(bodyCol, 0.8f))
-        // тело
-        val body = Path().apply {
-            moveTo(0f, 6f)
-            cubicTo(-30f, -40f, -110f, -66f, -190f, -38f)
-            lineTo(-262f, -12f); lineTo(-262f, 12f)
-            cubicTo(-190f, 42f, -110f, 58f, -62f, 42f)
-            lineTo(-40f, 30f); lineTo(0f, 12f); close()
-        }
-        drawPath(body, Brush.verticalGradient(listOf(shade(bodyCol, 1.1f), bodyCol, Color(0xFFCFD8DC)), startY = -66f, endY = 56f))
-        clipPath(body) {
-            drawOval(Color(0xFFECEFF1).copy(alpha = 0.95f), Offset(-230f, 14f), Size(230f, 52f))
-        }
-        drawPath(body, Color(0xFF263238), style = Stroke(3f))
-        // жабры
-        for (k in 0 until 3) drawLine(Color(0xFF37474F), Offset(-100f - k * 9f, -12f), Offset(-106f - k * 9f, 12f), 2.5f, StrokeCap.Round)
-        // внутри пасти
-        val hinge = Offset(-72f, 26f)
-        val ang = open * 0.85f
-        val jawLen = 78f
-        val jtipX = hinge.x + cos(ang) * jawLen
-        val jtipY = hinge.y + sin(ang) * jawLen * 0.9f + 4f
-        val mouthIn = Path().apply { moveTo(hinge.x, hinge.y - 4f); lineTo(0f, 12f); lineTo(jtipX, jtipY); close() }
-        drawPath(mouthIn, Color(0xFF7B1F2A))
-        drawOval(Color(0xFFE57373), Offset(hinge.x + 18f, hinge.y - 2f + sin(ang) * 10f), Size(36f, 12f))
-        // нижняя челюсть
-        withTransform({ rotate(ang * 57.3f, hinge) }) {
-            val jaw = Path().apply { moveTo(hinge.x, hinge.y - 6f); lineTo(hinge.x + jawLen, hinge.y - 2f); lineTo(hinge.x + jawLen - 6f, hinge.y + 14f); lineTo(hinge.x - 8f, hinge.y + 18f); close() }
-            drawPath(jaw, Color(0xFFCFD8DC))
-            drawPath(jaw, Color(0xFF263238), style = Stroke(2.5f))
-            for (k in 0 until 7) {
-                val tx = hinge.x + 10f + k * 10f
-                drawPath(Path().apply { moveTo(tx, hinge.y - 4f); lineTo(tx + 6f, hinge.y - 4f); lineTo(tx + 3f, hinge.y - 15f); close() }, Color.White)
-            }
-        }
-        // верхние зубы
-        for (k in 0 until 8) {
-            val tx = -6f - k * 8f
-            drawPath(Path().apply { moveTo(tx, 14f + k * 0.4f); lineTo(tx - 6f, 14f + k * 0.4f); lineTo(tx - 3f, 26f + k * 0.4f); close() }, Color.White)
-        }
-        // глаз
-        val eye = Offset(-44f, -10f)
-        if (rage) drawCircle(Color(0xFFFF1744).copy(alpha = 0.4f), 16f, eye)
-        drawCircle(if (rage) Color(0xFFFFEB3B) else Color.White, 8f, eye)
-        drawCircle(if (rage) Color(0xFFD50000) else Color(0xFF212121), 4f, Offset(eye.x + 2f, eye.y + 1f))
-        drawLine(Color(0xFF212121), Offset(eye.x - 14f, eye.y - 12f), Offset(eye.x + 10f, eye.y - 4f), 4f, StrokeCap.Round)
+        drawImage(img, Offset.Zero, colorFilter = tint)
     }
 }
 

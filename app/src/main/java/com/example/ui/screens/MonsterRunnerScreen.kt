@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
@@ -104,6 +105,9 @@ private class RunWorld(val toddler: Boolean) {
     var fireCd = 0f
     var muzzle = 0f
     var hxw = 0f
+    var vw = 800f
+    var genieUsed = false
+    var genieT = -1f
     val foes = ArrayList<RunFoe>()
     val fires = ArrayList<RunFire>()
     val fx = ArrayList<RunFx>()
@@ -118,6 +122,7 @@ private class RunWorld(val toddler: Boolean) {
         lives = 3; coins = 0; invuln = 0f; slow = 0f; over = false; time = 0f
         obs.clear(); items.clear(); foes.clear(); fires.clear(); fx.clear()
         kills = 0; fireCd = 0f; muzzle = 0f
+        genieUsed = false; genieT = -1f
         nextX = dist + visibleW + 300f
     }
 
@@ -194,6 +199,18 @@ private class RunWorld(val toddler: Boolean) {
         onEvent("fire")
     }
 
+    fun callGenie() {
+        if (over || genieUsed) return
+        genieUsed = true; genieT = 0f
+        onEvent("genie")
+    }
+
+    fun genieSx(): Float {
+        val x0 = hxw - dist + 70f
+        if (genieT < 0.5f) return x0
+        return x0 + (vw + 220f - x0) * min(1f, (genieT - 0.5f) / 1.2f)
+    }
+
     private fun killFoe(f: RunFoe) {
         f.dead = true
         kills++
@@ -268,7 +285,16 @@ private class RunWorld(val toddler: Boolean) {
                 break
             }
         }
+        vw = visibleW
         updateFoes(dt, visibleW, hx)
+        if (genieT >= 0f) {
+            genieT += dt
+            if (genieT >= 0.5f) {
+                val gx = genieSx()
+                for (f in foes) if (!f.dead && f.x - dist < gx + 50f) killFoe(f)
+            }
+            if (genieT > 2.2f) genieT = -1f
+        }
         for (c in items) {
             if (c.taken) continue
             if (abs(c.x - hx) < 52f && abs(c.y - (hy + 55f)) < 68f) {
@@ -313,6 +339,12 @@ fun MonsterRunnerScreen(
     val heroAnim = remember { MonAnim().also { it.danceUntil = 1e9f } }
     val boomFrames = remember { loadBoomFrames(context) }
     val booms = remember { ArrayList<FloatArray>() }
+    val genieFrames = remember {
+        listOf(R.drawable.genie_f0, R.drawable.genie_f1, R.drawable.genie_f2, R.drawable.genie_f3, R.drawable.genie_f4, R.drawable.genie_f5, R.drawable.genie_f6).mapNotNull { id ->
+            try { android.graphics.BitmapFactory.decodeResource(context.resources, id)?.asImageBitmap() } catch (e: Throwable) { null }
+        }
+    }
+    var hudGenie by remember { mutableStateOf(true) }
     val biomeGfx = rememberZBiomeGfx()
 
     var screen by remember { mutableStateOf(RunScreen.MENU) }
@@ -351,7 +383,7 @@ fun MonsterRunnerScreen(
     }
 
     LaunchedEffect(Unit) {
-        soundManager.preloadRaw(listOf("zb_jump", "zb_jump2", "zb_land", "zb_coin", "zb_ouch", "zb_hurt", "zb_rocket", "zb_down", "sw_boom"))
+        soundManager.preloadRaw(listOf("zb_jump", "zb_jump2", "zb_land", "zb_coin", "zb_ouch", "zb_hurt", "zb_rocket", "zb_down", "sw_boom", "sw_dash", "sw_rage"))
     }
     world.onEvent = { ev ->
         when (ev) {
@@ -365,6 +397,10 @@ fun MonsterRunnerScreen(
                 banner = BIOME_NAMES[world.loc] + "!"
                 confetti(sizeW / 2f, sizeH * 0.35f, 40)
                 lottieTick++
+            }
+            "genie" -> {
+                soundManager.play("sw_rage", volume = 0.9f, rate = 1.3f)
+                soundManager.play("sw_dash", volume = 0.9f, rate = 0.7f)
             }
             "fire" -> soundManager.play("zb_rocket", volume = 0.6f, rate = 1.25f)
             "foeHit" -> soundManager.play("zb_hurt", volume = 0.8f, rate = 1.2f)
@@ -498,6 +534,23 @@ fun MonsterRunnerScreen(
                 drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.9f * k), 22f * z, Offset(mx, my))
             }
             val pal = listOf(Color(0xFFFFD54F), Color(0xFFFF8A65), Color(0xFF4FC3F7), Color(0xFFAED581), Color(0xFFF06292))
+            if (running && world.genieT >= 0f && genieFrames.isNotEmpty()) {
+                val gt = world.genieT
+                val sc = if (gt < 0.5f) 0.2f + 0.8f * (gt / 0.5f) else 1f
+                val gxPx = world.genieSx() * z
+                val gyPx2 = (gy - 100f - (if (gt < 0.5f) 0f else sin(gt * 5f) * 10f)) * z
+                // дымный вихрь за спиной
+                for (k in 0 until 6) {
+                    val a = (0.32f - k * 0.045f).coerceAtLeast(0f)
+                    drawCircle(Color(0xFFB388FF).copy(alpha = a), (60f - k * 5f) * z * sc, Offset(gxPx - (30f + k * 34f) * z * sc, gyPx2 + sin(gt * 9f + k) * 14f * z))
+                    drawCircle(Color(0xFF4DD0E1).copy(alpha = a * 0.7f), (36f - k * 3f) * z * sc, Offset(gxPx - (50f + k * 30f) * z * sc, gyPx2 + 20f * z + cos(gt * 8f + k) * 12f * z))
+                }
+                val img = genieFrames[((gt * 14f).toInt()) % genieFrames.size]
+                val h = 220f * z * sc
+                val k2 = h / img.height
+                withTransform({ translate(gxPx - img.width * k2 / 2f, gyPx2 - h / 2f); scale(k2, k2, Offset.Zero) }) { drawImage(img, Offset.Zero) }
+                if (gt >= 0.5f) drawCircle(Color(0xFFFFFFFF).copy(alpha = 0.18f), 90f * z, Offset(gxPx + 70f * z, gyPx2))
+            }
             booms.removeAll { clock - it[2] >= BOOM_TIME }
             for (b in booms) drawBoom(boomFrames, b[0], b[1], 150f * z, clock - b[2])
             for (s in sparks) drawCircle(pal[s[5].toInt() % 5].copy(alpha = s[4].coerceIn(0f, 1f)), 4f * z, Offset(s[0], s[1]))
@@ -528,6 +581,19 @@ fun MonsterRunnerScreen(
                     },
                 contentAlignment = Alignment.Center
             ) { Text("🔥", fontSize = 44.sp) }
+            Box(
+                Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 128.dp, bottom = 22.dp)
+                    .size(72.dp)
+                    .background(if (hudGenie) Color(0xFF7E57C2).copy(alpha = 0.92f) else Color(0xFF455A64).copy(alpha = 0.6f), androidx.compose.foundation.shape.CircleShape)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val d = awaitFirstDown()
+                            d.consume()
+                            if (screen == RunScreen.PLAY) world.callGenie()
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text(if (hudGenie) "🧞" else "💨", fontSize = 34.sp) }
             if (banner.isNotEmpty()) {
                 Text(
                     banner, fontSize = 38.sp, fontWeight = FontWeight.Black, color = Color(0xFFFFEB3B),
@@ -544,7 +610,7 @@ fun MonsterRunnerScreen(
             ) {
                 KitWindow(width = 330.dp, title = "Забег") {
                     Text(
-                        if (toddler) "Тапай — монстрик прыгает и сам плюётся огнём!\nЖги чудиков, собирай монетки." else "Тап — прыжок (в воздухе — двойной).\n🔥 — огненный шар из рук: жги чудиков!",
+                        if (toddler) "Тапай — монстрик прыгает и сам плюётся огнём!\nЖги чудиков, собирай монетки." else "Тап — прыжок (в воздухе — двойной).\n🔥 — огненный шар из рук: жги чудиков!\n🧞 — раз за забег джинн сметёт всех чудиков!",
                         fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(6.dp))
@@ -608,6 +674,7 @@ fun MonsterRunnerScreen(
                     world.step(dt, sizeW / density, sizeW / density * 0.24f)
                     hudCoins = world.coins; hudLives = world.lives; hudLoc = world.loc; hudDist = (world.dist / 10f).toInt()
                     hudKills = world.kills
+                    hudGenie = !world.genieUsed
                 }
                 if (world.fx.isNotEmpty()) {
                     val gyPx = sizeH * 0.78f

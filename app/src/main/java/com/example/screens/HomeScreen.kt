@@ -5,6 +5,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -58,6 +59,8 @@ fun HomeScreen(
     onNavigateToGame: (Int, String) -> Unit,
     onNavigateToFolder: (String, FolderType) -> Unit,
     onOpenSettings: () -> Unit,
+    musicOn: Boolean = true,
+    onToggleMusic: () -> Unit = {},
     soundManager: SoundManager,
     haptics: Haptics = rememberHaptics()
 ) {
@@ -133,15 +136,28 @@ fun HomeScreen(
                     )
                 }
 
-                // ⚙️ Parental Gate Settings Gear with 3-second hold circular animation
-                ParentGearButton(
-                    onTrigger = {
-                        soundManager.play("chime")
-                        onOpenSettings()
-                    },
-                    soundManager = soundManager,
-                    haptics = haptics
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // 🎵 Фоновая музыка вкл/выкл
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(if (musicOn) Color(0xFFFFF8E1) else Color(0xFFE0E0E0))
+                            .clickable { onToggleMusic() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = if (musicOn) "🎵" else "🔇", fontSize = 24.sp)
+                    }
+                    // ⚙️ Parental Gate Settings Gear with 3-second hold circular animation
+                    ParentGearButton(
+                        onTrigger = {
+                            soundManager.play("chime")
+                            onOpenSettings()
+                        },
+                        soundManager = soundManager,
+                        haptics = haptics
+                    )
+                }
             }
 
             // Grid of 6 interactive cards

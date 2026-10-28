@@ -128,6 +128,13 @@ class MainActivity : ComponentActivity() {
         }
 
         try {
+            val on = getSharedPreferences("playground_prefs", MODE_PRIVATE).getBoolean("pref_music_enabled", true)
+            musicManager.setMusicEnabled(on)
+        } catch (e: Throwable) {
+            android.util.Log.w("MainActivity", "music pref", e)
+        }
+
+        try {
             tiltSensorManager = TiltSensorManager(this)
         } catch (e: Throwable) {
             android.util.Log.e("MainActivity", "Failed to init TiltSensorManager", e)
@@ -152,8 +159,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun hideSystemBars() {
+        try {
+            val c = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+            c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        } catch (e: Throwable) {
+            android.util.Log.w("MainActivity", "hideSystemBars", e)
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemBars()
+    }
+
     override fun onResume() {
         super.onResume()
+        hideSystemBars()
         try {
             if (::musicManager.isInitialized) musicManager.resumeMusic()
             if (::tiltSensorManager.isInitialized) tiltSensorManager.startListening()
@@ -213,6 +236,7 @@ fun MainAppScreen(
     var activeScreenState by rememberSaveable(stateSaver = AppScreenStateSaver) {
         mutableStateOf<AppScreenState>(AppScreenState.Home)
     }
+    var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
     var showExitProtectionDialog by remember { mutableStateOf(false) }
 
@@ -295,6 +319,14 @@ fun MainAppScreen(
                                 },
                                 onOpenSettings = {
                                     showParentSettings = true
+                                },
+                                musicOn = musicOn,
+                                onToggleMusic = {
+                                    val on = !musicOn
+                                    musicOn = on
+                                    prefs.edit().putBoolean("pref_music_enabled", on).apply()
+                                    viewModel.musicManager.setMusicEnabled(on)
+                                    if (on) soundManager.play("pop")
                                 },
                                 soundManager = soundManager,
                                 haptics = haptics

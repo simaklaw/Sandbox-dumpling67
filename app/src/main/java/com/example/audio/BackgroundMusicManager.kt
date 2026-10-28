@@ -177,6 +177,12 @@ class BackgroundMusicManager {
         loopJob = scope.launch { runLoop() }
     }
 
+    /** Включает/выключает фоновую музыку целиком (настройка родителя). */
+    fun setMusicEnabled(on: Boolean) {
+        isEnabled = on
+        if (on) resumeMusic() else pauseMusic()
+    }
+
     fun togglePlayPause() {
         if (_isPlaying.value) pauseMusic() else resumeMusic()
     }

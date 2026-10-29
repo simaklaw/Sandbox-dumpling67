@@ -5,6 +5,25 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import com.example.shared.i18n.Text
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.drawscope.withTransform
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,6 +97,11 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     var time = 0f
     var score = 0
     var level = 0
+    /** -1 — выбор режима, 0 — свободный, 1 — разгон, 2 — выживание. */
+    var mode = 0
+    var lives = 3
+    var over = false
+    var lifeFlash = 0f
     var banner = 0f      // сколько секунд ещё показывать «GO!»
     var bannerReady = 1.1f
     val lanes = Array(3) { ArrayList<GalObj>() }
@@ -99,9 +123,9 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     val tracers = ArrayList<GalTracer>()
     fun pivot() = Offset(w / 2f, h + 6f * density)
     fun gunUnit() = h * 0.0021f
+    fun gunScale() = h * 0.44f / 319f
     fun muzzle(): Offset {
-        val u = gunUnit()
-        val len = (158f + 20f * recoil.coerceAtMost(1f) * -1f + 0f) * u
+        val len = hypot(64f, 313f) * gunScale() - 16f * density * recoil.coerceAtMost(1f)
         val p = pivot()
         return Offset(p.x + sin(aim) * len, p.y - cos(aim) * len)
     }
@@ -122,23 +146,36 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     val objW get() = 80f * density * (if (toddler) 1.15f else 1f)
     fun laneTop(i: Int) = h * (0.36f + 0.145f * i)
     private val perLane get() = if (toddler) 1 else 2
-    private fun speedMul() = (if (toddler) 0.65f else 1f) * (1f + 0.08f * min(level, 5))
+    private fun speedMul(): Float {
+        val base = if (toddler) 0.65f else 1f
+        return if (mode <= 0) base * (1f + 0.08f * min(level, 5)) else base * min(3.2f, 1f + 0.045f * score)
+    }
 
     fun init(width: Float, height: Float) {
         if (w == width && h == height) return
-        val first = lanes[0].isEmpty()
         w = width; h = height
-        if (first) {
-            for (i in 0 until 3) {
-                val n = perLane
-                val span = w + 2f * objW
-                for (j in 0 until n) {
-                    val k = laneKinds[i][Random.nextInt(laneKinds[i].size)]
-                    val x = if (laneDir[i] > 0f) -objW + span / n * j else w + objW - span / n * j
-                    lanes[i].add(GalObj(k, x))
-                }
+        if (lanes[0].isEmpty()) populate()
+    }
+
+    private fun populate() {
+        for (i in 0 until 3) {
+            val n = perLane
+            val span = w + 2f * objW
+            for (j in 0 until n) {
+                val k = laneKinds[i][Random.nextInt(laneKinds[i].size)]
+                val x = if (laneDir[i] > 0f) -objW + span / n * j else w + objW - span / n * j
+                lanes[i].add(GalObj(k, x))
             }
         }
+    }
+
+    fun reset(m: Int) {
+        mode = m; score = 0; level = 0; lives = 3; over = false; lifeFlash = 0f
+        banner = 0f; bannerReady = 1.1f
+        lanes.forEach { it.clear() }
+        shots.clear(); holes.clear(); pluses.clear(); sparks.clear(); tracers.clear(); bursts.clear()
+        golden = null; goldenTimer = 9f; big5 = 0f
+        if (w > 0f) populate()
     }
 
     private fun respawn(o: GalObj, lane: Int) {
@@ -173,6 +210,7 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     }
 
     fun tap(x: Float, y: Float) {
+        if (mode < 0 || over) return
         aimAt(x, y)
         recoil = 1f; recoilV = 0f; flash = 1f; shake = 1f
         val m = muzzle()
@@ -199,6 +237,7 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
                 score += 5
                 shots.add(GalShot(x, y, true))
                 big5 = 1.3f
+                if (mode == 2 && lives < 3) { lives++; onEvent("lifeUp", lives) }
                 repeat(6) { bursts.add(GalBurst(it * 0.22f, w * (0.12f + Random.nextFloat() * 0.76f), h * (0.12f + Random.nextFloat() * 0.38f))) }
                 confetti(c.x, c.y, 26)
                 onEvent("golden", score)
@@ -238,6 +277,10 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
             if (y < laneTop(0) - 20f * density) holes.add(GalShot(x, y, false))
             if (holes.size > 14) holes.removeAt(0)
             onEvent("miss", score)
+            if (mode == 2) {
+                lives--; lifeFlash = 1f
+                if (lives <= 0) { over = true; onEvent("gameOver", score) } else onEvent("lifeLost", lives)
+            }
         }
     }
 
@@ -252,7 +295,7 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
         // золотой утёнок
         val gd = golden
         if (gd == null) {
-            goldenTimer -= dt
+            if (!over) goldenTimer -= dt
             if (goldenTimer <= 0f) {
                 val ln = Random.nextInt(3)
                 val dir = if (Random.nextBoolean()) 1f else -1f
@@ -270,6 +313,7 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
             }
         }
         if (big5 > 0f) big5 -= dt
+        lifeFlash = max(0f, lifeFlash - dt * 3f)
         // пружина отдачи
         recoilV += (-recoil * 260f - recoilV * 16f) * dt
         recoil += recoilV * dt
@@ -374,11 +418,34 @@ fun ShootingGalleryScreen(
         pine = ImageBitmap.imageResource(R.drawable.sg_tree_pine),
         clouds = listOf(ImageBitmap.imageResource(R.drawable.sg_cloud1), ImageBitmap.imageResource(R.drawable.sg_cloud2)),
         curtain = ImageBitmap.imageResource(R.drawable.sg_curtain),
-        valance = ImageBitmap.imageResource(R.drawable.sg_valance)
+        valance = ImageBitmap.imageResource(R.drawable.sg_valance),
+        rifle = ImageBitmap.imageResource(R.drawable.sg_rifle),
+        rifleRed = ImageBitmap.imageResource(R.drawable.sg_rifle_red),
+        bulletOn = ImageBitmap.imageResource(R.drawable.sg_bullet_on),
+        bulletOff = ImageBitmap.imageResource(R.drawable.sg_bullet_off),
+        gameOver = ImageBitmap.imageResource(R.drawable.sg_gameover)
     )
 
-    val world = remember { GalleryWorld(density, ageProfile.isToddler2) }
+    val toddler = ageProfile.isToddler2
+    val world = remember { GalleryWorld(density, toddler).also { it.mode = if (toddler) 0 else -1 } }
     var tick by remember { mutableIntStateOf(0) }
+    var modeUi by remember { mutableIntStateOf(if (toddler) 0 else -1) }
+    var best by remember { mutableIntStateOf(0) }
+    var newRecord by remember { mutableStateOf(false) }
+    var overFlag by remember { mutableStateOf(false) }
+    var overShown by remember { mutableStateOf(false) }
+    val prefs = remember { context.getSharedPreferences("playground_prefs", android.content.Context.MODE_PRIVATE) }
+    fun bestOf(m: Int): Int = try { prefs.getInt("sg_best_$m", 0) } catch (e: Exception) { 0 }
+    fun choose(m: Int) {
+        world.reset(m); modeUi = m; best = bestOf(m); newRecord = false; overFlag = false; overShown = false
+    }
+    fun noteScore(sc: Int) {
+        if (world.mode > 0 && sc > best) {
+            best = sc; newRecord = true
+            try { prefs.edit().putInt("sg_best_${world.mode}", sc).apply() } catch (e: Exception) { }
+        }
+    }
+    LaunchedEffect(overFlag) { if (overFlag) { delay(1000); overShown = true } }
 
     world.onEvent = { ev, score ->
         when (ev) {
@@ -387,11 +454,13 @@ fun ShootingGalleryScreen(
                 soundManager.play(if (Random.nextBoolean()) "animal_duck_1" else "animal_duck_2")
                 soundPlayer.playPop(1.3f)
                 soundPlayer.vibrateSquishDeform()
+                noteScore(score)
             }
             "hitTarget" -> {
                 soundPlayer.playChime(1.0f + (score % 5) * 0.12f)
                 soundPlayer.playPop(1.4f)
                 soundPlayer.vibrateSquishDeform()
+                noteScore(score)
             }
             "miss" -> soundPlayer.playPop(0.55f)
             "level" -> soundPlayer.playFanfare()
@@ -400,11 +469,16 @@ fun ShootingGalleryScreen(
                 soundPlayer.playLegendaryFanfare()
                 soundManager.play("animal_duck_1")
                 soundPlayer.vibrateSquishDeform()
+                noteScore(score)
             }
+            "lifeLost" -> { soundManager.play("boing", volume = 0.7f, rate = 0.6f); soundPlayer.vibrateMedium() }
+            "lifeUp" -> soundPlayer.playSparkleChime()
+            "gameOver" -> { soundManager.play("boing", volume = 0.9f, rate = 0.45f); soundPlayer.vibrateMedium(); overFlag = true }
             "firework" -> soundPlayer.playMagicSparkle()
         }
     }
 
+    Box(Modifier.fillMaxSize()) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -430,6 +504,71 @@ fun ShootingGalleryScreen(
         }
     }
 
+    if (modeUi > 0) {
+        Text(
+            "Рекорд: $best",
+            modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 96.dp, end = 70.dp),
+            fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color.White
+        )
+    }
+
+    if (modeUi < 0) {
+        val modes = listOf(
+            Triple("🦆", "Свободный", "Стреляй сколько хочешь — без проигрыша"),
+            Triple("⚡", "Разгон", "Чем больше попаданий — тем быстрее мишени"),
+            Triple("❤️", "Выживание", "Мишени ускоряются. 3 жизни: промах — минус одна")
+        )
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
+                .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } },
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 16.dp)) {
+                Text("Выбери игру", fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    modes.forEachIndexed { i, m ->
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White.copy(alpha = 0.95f),
+                            shadowElevation = 6.dp,
+                            modifier = Modifier.weight(1f).clickable { soundManager.play("pop"); choose(i) }
+                        ) {
+                            Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(m.first, fontSize = 32.sp)
+                                Text(m.second, fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color(0xFF5D3A1A), textAlign = TextAlign.Center)
+                                Spacer(Modifier.height(4.dp))
+                                Text(m.third, fontSize = 11.sp, color = Color(0xFF6D4C41), textAlign = TextAlign.Center)
+                                if (i > 0) {
+                                    val b = bestOf(i)
+                                    if (b > 0) Text("🏆 $b", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (overShown) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f))
+                .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } },
+            contentAlignment = Alignment.Center
+        ) {
+            KitWindow(width = 320.dp, title = "Игра окончена") {
+                Text("Счёт: ${world.score}", fontSize = 26.sp, fontWeight = FontWeight.Black, color = Color(0xFF6A1B4D))
+                Text("Рекорд: $best", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B4D))
+                if (newRecord && best > 0) Text("🏆 Новый рекорд!", fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color(0xFFE65100))
+                Spacer(Modifier.height(4.dp))
+                KitLongButton(R.drawable.ui_btn_long_green, "Ещё раз ↻", 170.dp, 14.sp) { choose(2) }
+                KitLongButton(R.drawable.ui_btn_long_blue, "Режимы", 130.dp, 13.sp) { modeUi = -1; world.reset(-1); overFlag = false; overShown = false }
+            }
+        }
+    }
+    }
+
     LaunchedEffect(Unit) { soundManager.preloadRaw(listOf("sg_shot")) }
     LaunchedEffect(Unit) {
         var last = 0L
@@ -452,7 +591,12 @@ private class GalleryArt(
     val pine: ImageBitmap,
     val clouds: List<ImageBitmap>,
     val curtain: ImageBitmap,
-    val valance: ImageBitmap
+    val valance: ImageBitmap,
+    val rifle: ImageBitmap,
+    val rifleRed: ImageBitmap,
+    val bulletOn: ImageBitmap,
+    val bulletOff: ImageBitmap,
+    val gameOver: ImageBitmap
 )
 
 private fun DrawScope.img(
@@ -600,7 +744,7 @@ private fun DrawScope.drawGallery(
 
     // стойка и пистолет
     drawCounter(sw, sh, d)
-    drawPistol(w, d)
+    drawRifle(w, if (w.mode == 2) art.rifleRed else art.rifle)
 
     // свет: прожекторы, вспышка выстрела и виньетка
     drawLights(w, sw, sh, d)
@@ -629,6 +773,18 @@ private fun DrawScope.drawGallery(
         img(digits[dg], cx, 70f * d - dh / 2f, dw, dh)
         cx += dw * 0.9f
     }
+
+    if (w.mode == 2) {
+        val bh = 40f * d
+        val bw = bh * 21f / 36f
+        var bx = sw - 62f * d - 14f * d - 3 * (bw + 6f * d)
+        for (i in 0 until 3) {
+            img(if (i < w.lives) art.bulletOn else art.bulletOff, bx, 50f * d, bw, bh)
+            bx += bw + 6f * d
+        }
+    }
+    if (w.lifeFlash > 0f) drawRect(Color(0xFFFF1744).copy(alpha = 0.3f * w.lifeFlash))
+    if (w.over) imgC(art.gameOver, sw / 2f, sh * 0.3f, 300f * d)
 
     if (w.big5 > 0f) {
         val k = 1f - w.big5 / 1.3f
@@ -680,43 +836,19 @@ private fun DrawScope.drawLights(w: GalleryWorld, sw: Float, sh: Float, d: Float
     )
 }
 
-/** Игрушечный пистолет (вид сбоку, ствол вверх) с рукой. Отдача: рама откатывается, затвор — ещё дальше. */
-private fun DrawScope.drawPistol(w: GalleryWorld, d: Float) {
-    val u = w.gunUnit()
+/** Винтовка из набора Kenney (вид сзади, ствол вверх). Отдача — откат вдоль оси. */
+private fun DrawScope.drawRifle(w: GalleryWorld, img: ImageBitmap) {
+    val sc = w.gunScale()
     val p = w.pivot()
     val rc = w.recoil.coerceIn(0f, 1.3f)
-    rotate(degrees = w.aim * 180f / PI.toFloat() + rc * 5f * (if (w.aim >= 0f) -1f else 1f), pivot = p) {
-        val kick = rc * 22f
-        val slideKick = rc * 14f
-        val body = Color(0xFF3F4A59)
-        val bodyHi = Color(0xFF6B7A8F)
-        val orange = Color(0xFFFF7043)
-        fun px(v: Float) = p.x + v * u
-        fun py(v: Float) = p.y + (v + kick) * u
-        drawOval(Color.Black.copy(alpha = 0.2f), Offset(px(-24f), py(-30f)), Size(56f * u, 16f * u))
-        drawRoundRect(Color(0xFF2B3340), Offset(px(-11f), py(-110f)), Size(22f * u, 80f * u), CornerRadius(5f * u))
-        val grip = Path().apply {
-            moveTo(px(-13f), py(-52f)); lineTo(px(13f), py(-52f))
-            lineTo(px(27f), py(40f)); lineTo(px(-1f), py(40f)); close()
-        }
-        drawPath(grip, Color(0xFF8D5A34))
-        drawArc(Color(0xFF2B3340), 0f, 180f, false, Offset(px(10f), py(-50f)), Size(18f * u, 20f * u), style = androidx.compose.ui.graphics.drawscope.Stroke(4f * u))
-        drawRoundRect(orange, Offset(px(14f), py(-46f)), Size(5f * u, 11f * u), CornerRadius(2f * u))
-        val sy = py(-150f) + slideKick * u
-        drawRoundRect(body, Offset(px(-15f), sy), Size(30f * u, 114f * u), CornerRadius(8f * u))
-        drawRoundRect(bodyHi, Offset(px(-11f), sy + 6f * u), Size(5f * u, 100f * u), CornerRadius(3f * u))
-        for (i in 0..4) drawRect(Color(0xFF2B3340), Offset(px(5f), sy + (84f + i * 5f) * u), Size(8f * u, 2f * u))
-        drawRect(Color(0xFF1A1F27), Offset(px(1f), sy + 22f * u), Size(14f * u, 24f * u))
-        drawRect(Color(0xFFFFEB3B), Offset(px(-2f), sy - 5f * u), Size(4f * u, 8f * u))
-        val ty = py(-164f) + slideKick * 0.3f * u
-        drawRoundRect(orange, Offset(px(-9f), ty), Size(18f * u, 16f * u), CornerRadius(5f * u))
-        drawRoundRect(Color(0xFFFFAB91), Offset(px(-6f), ty + 2f * u), Size(4f * u, 11f * u), CornerRadius(2f * u))
-        drawCircle(Color(0xFF1A1F27), 4f * u, Offset(px(0f), ty))
-        val skin = Color(0xFFFFCC9A)
-        val skinShade = Color(0xFFE5A672)
-        drawRoundRect(skin, Offset(px(-6f), py(-30f)), Size(46f * u, 74f * u), CornerRadius(20f * u))
-        for (i in 0..3) drawRoundRect(skinShade, Offset(px(18f), py(-24f + i * 15f)), Size(28f * u, 4f * u), CornerRadius(2f * u))
-        drawRoundRect(skin, Offset(px(-22f), py(-62f)), Size(15f * u, 42f * u), CornerRadius(7f * u))
-        drawRoundRect(skin, Offset(px(10f), py(-62f)), Size(13f * u, 30f * u), CornerRadius(6f * u))
+    val base = atan2(64f, 313f)
+    val deg = (w.aim + base) * 180f / PI.toFloat() + rc * 3f * (if (w.aim >= 0f) -1f else 1f)
+    rotate(degrees = deg, pivot = p) {
+        val kick = rc * 14f * w.density
+        drawImage(
+            img,
+            dstOffset = IntOffset((p.x - 88f * sc).roundToInt(), (p.y - 319f * sc + kick).roundToInt()),
+            dstSize = IntSize((img.width * sc).roundToInt(), (img.height * sc).roundToInt())
+        )
     }
 }

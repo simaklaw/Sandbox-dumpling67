@@ -1085,5 +1085,17 @@
  "Карта": "Map",
  "Уровень пройден!": "Level complete!",
  "Нажми, куда идти Зелику 👆 Нажми на Зелика — прыжок!": "Tap where Zelik should go 👆 Tap Zelik to jump!",
- "Нужно ещё кристаллов 💎: {}/{}": "More crystals needed 💎: {}/{}"
+ "Нужно ещё кристаллов 💎: {}/{}": "More crystals needed 💎: {}/{}",
+ "Выбери игру": "Choose a game",
+ "Свободный": "Free play",
+ "Разгон": "Speed-up",
+ "Выживание": "Survival",
+ "Стреляй сколько хочешь — без проигрыша": "Shoot as much as you like — no losing",
+ "Чем больше попаданий — тем быстрее мишени": "The more you hit, the faster the targets move",
+ "Мишени ускоряются. 3 жизни: промах — минус одна": "Targets speed up. 3 lives: every miss costs one",
+ "Рекорд: {}": "Best: {}",
+ "Счёт: {}": "Score: {}",
+ "Игра окончена": "Game over",
+ "Режимы": "Modes",
+ "🏆 Новый рекорд!": "🏆 New record!"
 }

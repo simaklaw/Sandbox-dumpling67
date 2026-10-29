@@ -126,11 +126,11 @@ fun AnimalFeedingScreen(
     val ageProfile = LocalAgeProfile.current
 
     // 1. App State for Pets & Satiety
-    val pets = remember { listOf("dog" to "🐶", "cat" to "🐱", "bunny" to "🐰") }
+    val pets = remember { listOf("dog" to "🐶", "cat" to "🐱", "pig" to "🐷") }
     var selectedPetId by remember { mutableStateOf("dog") }
 
-    // Satiety map for puppy, kitty, bunny (0 to 3)
-    val satietyMap = remember { mutableStateMapOf("dog" to 0, "cat" to 0, "bunny" to 0) }
+    // Satiety map for puppy, kitty, piglet (0 to 3)
+    val satietyMap = remember { mutableStateMapOf("dog" to 0, "cat" to 0, "pig" to 0) }
 
     // Active state machine for the selected pet
     var petState by remember { mutableStateOf(PetState.IDLE) }
@@ -196,10 +196,10 @@ fun AnimalFeedingScreen(
     val onReset = {
         satietyMap["dog"] = 0
         satietyMap["cat"] = 0
-        satietyMap["bunny"] = 0
+        satietyMap["pig"] = 0
         wantFoodMap["dog"] = getFavoriteFoodForPet("dog")
         wantFoodMap["cat"] = getFavoriteFoodForPet("cat")
-        wantFoodMap["bunny"] = getFavoriteFoodForPet("bunny")
+        wantFoodMap["pig"] = getFavoriteFoodForPet("pig")
         petState = PetState.IDLE
         consecutiveDeclines = 0
         showTutorialHint = false
@@ -268,9 +268,12 @@ fun AnimalFeedingScreen(
 
                 // Emit happy reward particles
                 soundManager.play("yum")
-                val playedHappy = soundManager.play("animal_${selectedPetId}_happy")
-                if (!playedHappy) {
-                    soundManager.play("animal_${selectedPetId}")
+                // у поросёнка есть только записи «хрю» (animal_pig), у собаки и кошки — ещё и «радостные»
+                if (selectedPetId == "pig") {
+                    soundManager.play("animal_pig")
+                } else {
+                    val playedHappy = soundManager.play("animal_${selectedPetId}_happy")
+                    if (!playedHappy) soundManager.play("animal_${selectedPetId}")
                 }
                 haptics.vibrate(30)
 
@@ -530,55 +533,7 @@ fun AnimalFeedingScreen(
                     }
                 }
 
-                // Interactive Toys on the Rug
-                val petToys = remember(selectedPetId, ageProfile.isToddler2) {
-                    val all = when (selectedPetId) {
-                        "dog" -> listOf("🎾" to "decor_ball", "🦴" to "decor_ball", "🔔" to "bell")
-                        "cat" -> listOf("🧶" to "decor_yarn", "🐟" to "decor_fish", "🔔" to "bell")
-                        else -> listOf("🥕" to "decor_plant", "🎾" to "decor_ball", "🔔" to "bell")
-                    }
-                    if (ageProfile.isToddler2) all.take(1) else all
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .align(Alignment.BottomCenter),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    petToys.forEach { (toyEmoji, toySound) ->
-                        val toyScale = remember { Animatable(1.0f) }
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(54.dp)
-                                .scale(toyScale.value)
-                                .clip(CircleShape)
-                                .background(ColorWhite.copy(alpha = 0.95f))
-                                .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
-                                .clickable {
-                                    soundManager.play(toySound)
-                                    soundManager.play("animal_$selectedPetId")
-                                    haptics.vibrateShort()
-                                    coroutineScope.launch {
-                                        toyScale.animateTo(1.35f, spring(Spring.DampingRatioMediumBouncy))
-                                        toyScale.animateTo(1.0f)
-                                    }
-                                    coroutineScope.launch {
-                                        petState = PetState.HAPPY
-                                        delay(1200)
-                                        if (petState == PetState.HAPPY) petState = PetState.IDLE
-                                    }
-                                }
-                        ) {
-                            Text(toyEmoji, fontSize = 28.sp)
-                        }
-                    }
-                }
-
-                // Interactive visual representation of Morphing Pet faces (Dog, Cat, Bunny)
+                // Interactive visual representation of Morphing Pet faces (Dog, Cat, Pig)
                 InteractivePetFace(
                     petId = selectedPetId,
                     state = petState,
@@ -799,7 +754,7 @@ fun AnimalFeedingScreen(
     }
 }
 
-// Complete beautiful interactive morphing face for Puppy, Kitty, Bunny
+// Complete beautiful interactive morphing face for Puppy, Kitty, Piglet
 @Composable
 fun InteractivePetFace(
     petId: String,
@@ -830,7 +785,7 @@ fun InteractivePetFace(
     val faceColor = when (petId) {
         "dog" -> Color(0xFFFFCC80) // Soft Dog Brown
         "cat" -> Color(0xFFEEEEEE) // Kitten Grey
-        else -> Color(0xFFFFF176)  // Bunny Soft Yellow
+        else -> Color(0xFFF8BBD0)  // Piglet Soft Pink
     }
 
     Box(
@@ -871,14 +826,31 @@ fun InteractivePetFace(
             // Eyes layout (open, happy, blinking or squished)
             EyesLayout(state = state)
 
-            // Nose
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .offset(y = 12.dp)
-                    .size(22.dp, 16.dp)
-                    .background(ColorInk, CircleShape)
-            )
+            // Nose (piglet gets a round snout with nostrils)
+            if (petId == "pig") {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(y = 14.dp)
+                        .size(58.dp, 38.dp)
+                        .border(BorderStroke(3.dp, ColorInk), CircleShape)
+                        .background(Color(0xFFF06292), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.size(8.dp, 12.dp).background(ColorInk, CircleShape))
+                        Box(Modifier.size(8.dp, 12.dp).background(ColorInk, CircleShape))
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(y = 12.dp)
+                        .size(22.dp, 16.dp)
+                        .background(ColorInk, CircleShape)
+                )
+            }
 
             // Morphing mouth
             MouthLayout(state = state, isFoodOverMouth = isFoodOverMouth)
@@ -942,25 +914,25 @@ fun EarsLayout(petId: String, state: PetState) {
             }
         }
         else -> {
-            // Long Bunny ears upright
+            // Piglet: small perky ears on top
             Box(modifier = Modifier.fillMaxSize()) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .offset(x = 34.dp, y = (-100).dp)
-                        .size(38.dp, 120.dp)
-                        .rotate(-8f + twitchAnim)
-                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(20.dp))
-                        .background(ColorWhite, RoundedCornerShape(20.dp))
+                        .offset(x = 22.dp, y = (-8).dp)
+                        .size(58.dp, 58.dp)
+                        .rotate(-28f + twitchAnim)
+                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(topStart = 30.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 30.dp))
+                        .background(Color(0xFFF48FB1), RoundedCornerShape(topStart = 30.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 30.dp))
                 )
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = (-34).dp, y = (-100).dp)
-                        .size(38.dp, 120.dp)
-                        .rotate(8f - twitchAnim)
-                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(20.dp))
-                        .background(ColorWhite, RoundedCornerShape(20.dp))
+                        .offset(x = (-22).dp, y = (-8).dp)
+                        .size(58.dp, 58.dp)
+                        .rotate(28f - twitchAnim)
+                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(topStart = 8.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 8.dp))
+                        .background(Color(0xFFF48FB1), RoundedCornerShape(topStart = 8.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 8.dp))
                 )
             }
         }

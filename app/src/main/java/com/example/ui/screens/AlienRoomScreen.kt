@@ -131,14 +131,14 @@ private val CRYSTAL_COLORS = listOf(
 
 // ───────────────────────────── Уровни ─────────────────────────────
 
-private const val G = 1500f
-private const val K_GROUND = 0
-private const val K_LEDGE = 1
-private const val K_RAFT = 2
-private const val K_LIFT = 3
-private const val K_BRIDGE = 4
+private const val ZR_G = 1500f
+private const val ZR_K_GROUND = 0
+private const val ZR_K_LEDGE = 1
+private const val ZR_K_RAFT = 2
+private const val ZR_K_LIFT = 3
+private const val ZR_K_BRIDGE = 4
 
-private class ZPlat(val x0: Float, val x1: Float, val top: Float, val kind: Int) {
+private class ZrPlat(val x0: Float, val x1: Float, val top: Float, val kind: Int) {
     var dx = 0f
     var curTop = top
     var prevTop = top
@@ -153,16 +153,16 @@ private class ZPlat(val x0: Float, val x1: Float, val top: Float, val kind: Int)
     fun right() = x0 + dx + (x1 - x0) * ext
 }
 
-private class ZItem(val x: Float, val y: Float, val star: Boolean) { var taken = false; val ph = Random.nextFloat() * 6.28f }
-private class ZSpring(val x: Float, val top: Float) { var squash = 0f }
-private class ZButton(val id: Int, val x: Float) { var pressed = false }
-private class ZSpark(var x: Float, var y: Float, var vx: Float, var vy: Float, val color: Color, var life: Float, val size: Float)
+private class ZrItem(val x: Float, val y: Float, val star: Boolean) { var taken = false; val ph = Random.nextFloat() * 6.28f }
+private class ZrSpring(val x: Float, val top: Float) { var squash = 0f }
+private class ZrButton(val id: Int, val x: Float) { var pressed = false }
+private class ZrSpark(var x: Float, var y: Float, var vx: Float, var vy: Float, val color: Color, var life: Float, val size: Float)
 
-private class ZLevel(val index: Int, val name: String, val emoji: String, val theme: Int) {
-    val plats = ArrayList<ZPlat>()
-    val items = ArrayList<ZItem>()
-    val springs = ArrayList<ZSpring>()
-    val buttons = ArrayList<ZButton>()
+private class ZrLevel(val index: Int, val name: String, val emoji: String, val theme: Int) {
+    val plats = ArrayList<ZrPlat>()
+    val items = ArrayList<ZrItem>()
+    val springs = ArrayList<ZrSpring>()
+    val buttons = ArrayList<ZrButton>()
     var len = 0f
     var crystals = 0
     var stars = 0
@@ -180,59 +180,59 @@ private val LEVEL_DEFS = listOf(
     Triple("Космопорт", "🚀", 5)
 )
 
-private fun ZLevel.crystal(x: Float, y: Float) { items.add(ZItem(x, y, false)); crystals++ }
-private fun ZLevel.star(x: Float, y: Float) { if (stars < 3) { items.add(ZItem(x, y, true)); stars++ } }
+private fun ZrLevel.crystal(x: Float, y: Float) { items.add(ZrItem(x, y, false)); crystals++ }
+private fun ZrLevel.star(x: Float, y: Float) { if (stars < 3) { items.add(ZrItem(x, y, true)); stars++ } }
 
 /** Ровный участок. */
-private fun ZLevel.flat(x0: Float, n: Int, withStar: Boolean = false): Float {
+private fun ZrLevel.flat(x0: Float, n: Int, withStar: Boolean = false): Float {
     val len = 120f + n * 70f
-    plats.add(ZPlat(x0, x0 + len, 0f, K_GROUND))
+    plats.add(ZrPlat(x0, x0 + len, 0f, ZR_K_GROUND))
     for (i in 0 until n) crystal(x0 + 90f + i * 70f, 42f + (if (i == n - 1 && n >= 3) 78f else 0f))
     if (withStar) star(x0 + len * 0.5f, 140f)
     return x0 + len
 }
 
 /** Ямы с водой: прыгает сам. */
-private fun ZLevel.hops(x0: Float, count: Int, gap: Float = 90f): Float {
+private fun ZrLevel.hops(x0: Float, count: Int, gap: Float = 90f): Float {
     var x = x0
-    plats.add(ZPlat(x, x + 200f, 0f, K_GROUND)); x += 200f
+    plats.add(ZrPlat(x, x + 200f, 0f, ZR_K_GROUND)); x += 200f
     for (i in 0 until count) {
         crystal(x + gap / 2f, 112f)
         x += gap
-        plats.add(ZPlat(x, x + 200f, 0f, K_GROUND)); x += 200f
+        plats.add(ZrPlat(x, x + 200f, 0f, ZR_K_GROUND)); x += 200f
         if (i == count - 1) star(x - 100f, 150f)
     }
     return x
 }
 
 /** Кочки через реку. */
-private fun ZLevel.stones(x0: Float): Float {
+private fun ZrLevel.stones(x0: Float): Float {
     var x = x0
-    plats.add(ZPlat(x, x + 150f, 0f, K_GROUND)); x += 150f
+    plats.add(ZrPlat(x, x + 150f, 0f, ZR_K_GROUND)); x += 150f
     for (i in 0 until 3) {
         x += 66f
-        plats.add(ZPlat(x, x + 72f, 0f, K_LEDGE))
+        plats.add(ZrPlat(x, x + 72f, 0f, ZR_K_LEDGE))
         crystal(x + 36f, 44f)
         x += 72f
     }
     x += 66f
-    plats.add(ZPlat(x, x + 150f, 0f, K_GROUND))
+    plats.add(ZrPlat(x, x + 150f, 0f, ZR_K_GROUND))
     star(x - 30f, 160f)
     return x + 150f
 }
 
 /** Лесенка вверх и вниз. */
-private fun ZLevel.stairs(x0: Float): Float {
+private fun ZrLevel.stairs(x0: Float): Float {
     val x = x0
-    plats.add(ZPlat(x, x + 100f, 0f, K_GROUND))
-    plats.add(ZPlat(x + 100f, x + 180f, 50f, K_LEDGE))
-    plats.add(ZPlat(x + 180f, x + 260f, 100f, K_LEDGE))
-    plats.add(ZPlat(x + 260f, x + 340f, 150f, K_LEDGE))
-    plats.add(ZPlat(x + 340f, x + 500f, 150f, K_LEDGE))
-    plats.add(ZPlat(x + 500f, x + 580f, 100f, K_LEDGE))
-    plats.add(ZPlat(x + 580f, x + 660f, 50f, K_LEDGE))
-    plats.add(ZPlat(x + 660f, x + 760f, 0f, K_GROUND))
-    plats.add(ZPlat(x, x + 760f, 0f, K_GROUND))
+    plats.add(ZrPlat(x, x + 100f, 0f, ZR_K_GROUND))
+    plats.add(ZrPlat(x + 100f, x + 180f, 50f, ZR_K_LEDGE))
+    plats.add(ZrPlat(x + 180f, x + 260f, 100f, ZR_K_LEDGE))
+    plats.add(ZrPlat(x + 260f, x + 340f, 150f, ZR_K_LEDGE))
+    plats.add(ZrPlat(x + 340f, x + 500f, 150f, ZR_K_LEDGE))
+    plats.add(ZrPlat(x + 500f, x + 580f, 100f, ZR_K_LEDGE))
+    plats.add(ZrPlat(x + 580f, x + 660f, 50f, ZR_K_LEDGE))
+    plats.add(ZrPlat(x + 660f, x + 760f, 0f, ZR_K_GROUND))
+    plats.add(ZrPlat(x, x + 760f, 0f, ZR_K_GROUND))
     crystal(x + 140f, 90f); crystal(x + 220f, 140f)
     crystal(x + 380f, 192f); crystal(x + 460f, 192f)
     crystal(x + 620f, 92f)
@@ -241,10 +241,10 @@ private fun ZLevel.stairs(x0: Float): Float {
 }
 
 /** Гриб-батут и высокий выступ. */
-private fun ZLevel.mushroom(x0: Float): Float {
-    plats.add(ZPlat(x0, x0 + 700f, 0f, K_GROUND))
-    springs.add(ZSpring(x0 + 150f, 0f))
-    plats.add(ZPlat(x0 + 215f, x0 + 460f, 178f, K_LEDGE))
+private fun ZrLevel.mushroom(x0: Float): Float {
+    plats.add(ZrPlat(x0, x0 + 700f, 0f, ZR_K_GROUND))
+    springs.add(ZrSpring(x0 + 150f, 0f))
+    plats.add(ZrPlat(x0 + 215f, x0 + 460f, 178f, ZR_K_LEDGE))
     crystal(x0 + 270f, 220f); crystal(x0 + 340f, 220f); crystal(x0 + 410f, 220f)
     crystal(x0 + 560f, 44f)
     star(x0 + 340f, 330f)
@@ -252,51 +252,51 @@ private fun ZLevel.mushroom(x0: Float): Float {
 }
 
 /** Плоты на воде. */
-private fun ZLevel.rafts(x0: Float, toddler: Boolean): Float {
+private fun ZrLevel.rafts(x0: Float, toddler: Boolean): Float {
     for (k in 0 until 4) {
-        val p = ZPlat(x0 + 70f + k * 160f, x0 + 170f + k * 160f, 0f, K_RAFT)
+        val p = ZrPlat(x0 + 70f + k * 160f, x0 + 170f + k * 160f, 0f, ZR_K_RAFT)
         p.amp = if (toddler) 14f else 24f
         p.phase = k * PI.toFloat()
         p.speed = 1.1f
         plats.add(p)
         crystal(x0 + 120f + k * 160f, 70f)
     }
-    plats.add(ZPlat(x0 + 740f, x0 + 900f, 0f, K_GROUND))
+    plats.add(ZrPlat(x0 + 740f, x0 + 900f, 0f, ZR_K_GROUND))
     star(x0 + 440f, 160f)
     return x0 + 900f
 }
 
 /** Кнопка раскладывает мост через пропасть. */
-private fun ZLevel.bridge(x0: Float): Float {
+private fun ZrLevel.bridge(x0: Float): Float {
     val id = nextBtn++
-    plats.add(ZPlat(x0, x0 + 260f, 0f, K_GROUND))
-    buttons.add(ZButton(id, x0 + 190f))
-    val b = ZPlat(x0 + 260f, x0 + 540f, 0f, K_BRIDGE)
+    plats.add(ZrPlat(x0, x0 + 260f, 0f, ZR_K_GROUND))
+    buttons.add(ZrButton(id, x0 + 190f))
+    val b = ZrPlat(x0 + 260f, x0 + 540f, 0f, ZR_K_BRIDGE)
     b.btn = id; b.ext = 0f
     plats.add(b)
-    plats.add(ZPlat(x0 + 540f, x0 + 800f, 0f, K_GROUND))
+    plats.add(ZrPlat(x0 + 540f, x0 + 800f, 0f, ZR_K_GROUND))
     crystal(x0 + 400f, 44f); crystal(x0 + 480f, 44f)
     star(x0 + 270f, 150f)
     return x0 + 800f
 }
 
 /** Лифт на высокую площадку. */
-private fun ZLevel.lift(x0: Float): Float {
-    plats.add(ZPlat(x0, x0 + 120f, 0f, K_GROUND))
-    val e = ZPlat(x0 + 135f, x0 + 245f, 0f, K_LIFT)
+private fun ZrLevel.lift(x0: Float): Float {
+    plats.add(ZrPlat(x0, x0 + 120f, 0f, ZR_K_GROUND))
+    val e = ZrPlat(x0 + 135f, x0 + 245f, 0f, ZR_K_LIFT)
     e.low = 0f; e.high = 150f; e.speed = 0.85f
     plats.add(e)
-    plats.add(ZPlat(x0 + 262f, x0 + 620f, 150f, K_LEDGE))
-    plats.add(ZPlat(x0 + 620f, x0 + 690f, 75f, K_LEDGE))
-    plats.add(ZPlat(x0 + 690f, x0 + 800f, 0f, K_GROUND))
+    plats.add(ZrPlat(x0 + 262f, x0 + 620f, 150f, ZR_K_LEDGE))
+    plats.add(ZrPlat(x0 + 620f, x0 + 690f, 75f, ZR_K_LEDGE))
+    plats.add(ZrPlat(x0 + 690f, x0 + 800f, 0f, ZR_K_GROUND))
     crystal(x0 + 340f, 192f); crystal(x0 + 430f, 192f); crystal(x0 + 520f, 192f)
     star(x0 + 440f, 300f)
     return x0 + 800f
 }
 
-private fun buildLevel(index: Int, toddler: Boolean): ZLevel {
+private fun buildLevel(index: Int, toddler: Boolean): ZrLevel {
     val (name, emoji, theme) = LEVEL_DEFS[index]
-    val lv = ZLevel(index, name, emoji, theme)
+    val lv = ZrLevel(index, name, emoji, theme)
     var x = 0f
     x = lv.flat(x, 3)
     x = when (index) {
@@ -320,8 +320,8 @@ private fun buildLevel(index: Int, toddler: Boolean): ZLevel {
 
 // ───────────────────────────── Мир ─────────────────────────────
 
-private class ZWorld(val toddler: Boolean) {
-    lateinit var lv: ZLevel
+private class ZrWorld(val toddler: Boolean) {
+    lateinit var lv: ZrLevel
     var vw = 700f
     var vh = 360f
     var time = 0f
@@ -332,7 +332,7 @@ private class ZWorld(val toddler: Boolean) {
     var y = 0f
     var vy = 0f
     var onGround = true
-    var standing: ZPlat? = null
+    var standing: ZrPlat? = null
     var targetX = 80f
     var facing = 1f
     var moving = false
@@ -356,7 +356,7 @@ private class ZWorld(val toddler: Boolean) {
     var shipWiggle = 0f
     private var celebrateT = 0f
     var rocketX = 0f
-    val sparks = ArrayList<ZSpark>()
+    val sparks = ArrayList<ZrSpark>()
 
     var onCollect: (Boolean) -> Unit = {}
     var onJump: () -> Unit = {}
@@ -373,7 +373,7 @@ private class ZWorld(val toddler: Boolean) {
     val spriteW get() = spriteH * 250f / 340f
     val groundY get() = vh * 0.80f
 
-    fun load(level: ZLevel) {
+    fun load(level: ZrLevel) {
         lv = level
         x = 80f; y = 0f; vy = 0f; onGround = true; standing = null
         targetX = x; facing = 1f; moving = false; running = false; waiting = false
@@ -385,7 +385,7 @@ private class ZWorld(val toddler: Boolean) {
         rocketX = level.len - 130f
         sparks.clear()
         camX = 0f
-        for (p in level.plats) { p.curTop = p.top; p.prevTop = p.top; p.dx = 0f; if (p.kind == K_BRIDGE) p.ext = 0f }
+        for (p in level.plats) { p.curTop = p.top; p.prevTop = p.top; p.dx = 0f; if (p.kind == ZR_K_BRIDGE) p.ext = 0f }
         level.buttons.forEach { it.pressed = false }
         level.items.forEach { it.taken = false }
         level.springs.forEach { it.squash = 0f }
@@ -396,7 +396,7 @@ private class ZWorld(val toddler: Boolean) {
         repeat(n) {
             val a = Random.nextFloat() * 6.28f
             val s = Random.nextFloat() * 200f + 60f
-            sparks.add(ZSpark(px, py, cos(a) * s, sin(a) * s + 120f, if (Random.nextBoolean()) color else Color.White, 1f, Random.nextFloat() * 3f + 2.5f))
+            sparks.add(ZrSpark(px, py, cos(a) * s, sin(a) * s + 120f, if (Random.nextBoolean()) color else Color.White, 1f, Random.nextFloat() * 3f + 2.5f))
         }
     }
 
@@ -430,10 +430,10 @@ private class ZWorld(val toddler: Boolean) {
         targetX = wx.coerceIn(20f, lv.len - 20f)
     }
 
-    private fun floorTopAt(px: Float, maxTop: Float): ZPlat? {
-        var best: ZPlat? = null
+    private fun floorTopAt(px: Float, maxTop: Float): ZrPlat? {
+        var best: ZrPlat? = null
         for (p in lv.plats) {
-            if (p.kind == K_BRIDGE && p.ext < 0.02f) continue
+            if (p.kind == ZR_K_BRIDGE && p.ext < 0.02f) continue
             if (px >= p.left() - 4f && px <= p.right() + 4f && p.curTop <= maxTop) {
                 if (best == null || p.curTop > best.curTop) best = p
             }
@@ -446,13 +446,13 @@ private class ZWorld(val toddler: Boolean) {
             p.prevTop = p.curTop
             val oldDx = p.dx
             when (p.kind) {
-                K_RAFT -> p.dx = sin(time * p.speed + p.phase) * p.amp
-                K_LIFT -> {
+                ZR_K_RAFT -> p.dx = sin(time * p.speed + p.phase) * p.amp
+                ZR_K_LIFT -> {
                     val k = (sin(time * p.speed) + 1f) * 0.5f
                     val s = k * k * (3f - 2f * k)
                     p.curTop = p.low + (p.high - p.low) * s
                 }
-                K_BRIDGE -> {
+                ZR_K_BRIDGE -> {
                     val pressed = lv.buttons.any { it.id == p.btn && it.pressed }
                     p.ext = if (pressed) min(1f, p.ext + dt * 0.9f) else p.ext
                 }
@@ -509,7 +509,7 @@ private class ZWorld(val toddler: Boolean) {
 
         // — безопасная точка
         val st = standing
-        if (onGround && st != null && (st.kind == K_GROUND || st.kind == K_LEDGE || (st.kind == K_BRIDGE && st.ext >= 1f))) {
+        if (onGround && st != null && (st.kind == ZR_K_GROUND || st.kind == ZR_K_LEDGE || (st.kind == ZR_K_BRIDGE && st.ext >= 1f))) {
             safeX = x.coerceIn(st.left() + 24f, st.right() - 24f)
             safeY = st.curTop
         }
@@ -583,7 +583,7 @@ private class ZWorld(val toddler: Boolean) {
             if (higher != null) {
                 // ступенька вверх — прыгаем
                 val need = higher.curTop - y
-                val vyJ = sqrt(2f * G * (need + 28f)).coerceIn(420f, 620f)
+                val vyJ = sqrt(2f * ZR_G * (need + 28f)).coerceIn(420f, 620f)
                 jump(vyJ)
                 moving = true
                 return
@@ -608,7 +608,7 @@ private class ZWorld(val toddler: Boolean) {
             } else {
                 // стоим у края и ждём (плот/лифт/мост)
                 val tall = floorTopAt(aheadX, y + 400f)
-                if (tall != null && tall.kind != K_LIFT) { targetX = x; moving = false; running = false; return }
+                if (tall != null && tall.kind != ZR_K_LIFT) { targetX = x; moving = false; running = false; return }
                 moving = false; running = false; waiting = true
                 return
             }
@@ -630,12 +630,12 @@ private class ZWorld(val toddler: Boolean) {
         }
         if (onGround && st == null) { onGround = false }
         val prevY = y
-        vy -= G * dt
+        vy -= ZR_G * dt
         y += vy * dt
         if (vy <= 0f) {
-            var land: ZPlat? = null
+            var land: ZrPlat? = null
             for (p in lv.plats) {
-                if (p.kind == K_BRIDGE && p.ext < 0.02f) continue
+                if (p.kind == ZR_K_BRIDGE && p.ext < 0.02f) continue
                 if (x >= p.left() - 8f && x <= p.right() + 8f) {
                     if (prevY >= p.prevTop - 3f && y <= p.curTop + 0.5f) {
                         if (land == null || p.curTop > land.curTop) land = p
@@ -675,8 +675,8 @@ private class ZWorld(val toddler: Boolean) {
 
 // ───────────────────────────── Экран ─────────────────────────────
 
-private fun zPrefs(ctx: Context) = ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE)
-private fun zStars(ctx: Context, i: Int): Int = try { zPrefs(ctx).getInt("zr_stars_$i", -1) } catch (e: Exception) { -1 }
+private fun zrPrefs(ctx: Context) = ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE)
+private fun zrStars(ctx: Context, i: Int): Int = try { zrPrefs(ctx).getInt("zr_stars_$i", -1) } catch (e: Exception) { -1 }
 
 @Composable
 fun AlienRoomScreen(
@@ -691,7 +691,7 @@ fun AlienRoomScreen(
     val fireB = rememberFireB()
 
     val toddler = ageProfile.isToddler2
-    val world = remember(toddler) { ZWorld(toddler) }
+    val world = remember(toddler) { ZrWorld(toddler) }
     var level by remember { mutableIntStateOf(-1) }       // -1 — карта
     var tick by remember { mutableIntStateOf(0) }
     var gotShown by remember { mutableIntStateOf(0) }
@@ -721,8 +721,8 @@ fun AlienRoomScreen(
         soundPlayer.vibrateMedium()
     }
     world.onWin = { s ->
-        val prev = zStars(context, level)
-        if (s > prev) try { zPrefs(context).edit().putInt("zr_stars_$level", s).apply() } catch (e: Exception) { }
+        val prev = zrStars(context, level)
+        if (s > prev) try { zrPrefs(context).edit().putInt("zr_stars_$level", s).apply() } catch (e: Exception) { }
         winStars = s
         mapRefresh++
     }
@@ -770,8 +770,8 @@ fun AlienRoomScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(LEVEL_DEFS.size) { i ->
-                            val st = zStars(context, i)
-                            val unlocked = i == 0 || zStars(context, i - 1) >= 0
+                            val st = zrStars(context, i)
+                            val unlocked = i == 0 || zrStars(context, i - 1) >= 0
                             @Suppress("UNUSED_VARIABLE") val r2 = rev
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
@@ -812,7 +812,7 @@ fun AlienRoomScreen(
                 world.vw = size.width / dp
                 world.vh = size.height / dp
                 @Suppress("UNUSED_VARIABLE") val redraw = tick
-                zDrawLevel(world, dp, frames, fireB)
+                zrDrawLevel(world, dp, frames, fireB)
             }
 
             // Верхняя панель
@@ -884,19 +884,19 @@ fun AlienRoomScreen(
 
 // ───────────────────────────── Рисование ─────────────────────────────
 
-private class ZTheme(val skyTop: Color, val skyBottom: Color, val hill: Color, val hill2: Color, val grass: Color, val dirt: Color, val water: Color, val stars: Boolean)
+private class ZrTheme(val skyTop: Color, val skyBottom: Color, val hill: Color, val hill2: Color, val grass: Color, val dirt: Color, val water: Color, val stars: Boolean)
 
-private val Z_THEMES = listOf(
-    ZTheme(Color(0xFF4FC3F7), Color(0xFFE1F5FE), Color(0xFF81C784), Color(0xFF66BB6A), Color(0xFF7CB342), Color(0xFF8D6E63), Color(0xFF29B6F6), false),
-    ZTheme(Color(0xFF26C6DA), Color(0xFFB2EBF2), Color(0xFF4DB6AC), Color(0xFF26A69A), Color(0xFF66BB6A), Color(0xFF8D6E63), Color(0xFF0288D1), false),
-    ZTheme(Color(0xFF2E7D32), Color(0xFFC5E1A5), Color(0xFF388E3C), Color(0xFF1B5E20), Color(0xFF558B2F), Color(0xFF5D4037), Color(0xFF00838F), false),
-    ZTheme(Color(0xFF311B92), Color(0xFF7E57C2), Color(0xFF4527A0), Color(0xFF311B92), Color(0xFF7E57C2), Color(0xFF4A148C), Color(0xFF6A1B9A), true),
-    ZTheme(Color(0xFF81D4FA), Color(0xFFF1F8FF), Color(0xFFB3E5FC), Color(0xFF90CAF9), Color(0xFFE3F2FD), Color(0xFF90A4AE), Color(0xFF4FC3F7), false),
-    ZTheme(Color(0xFF1A1446), Color(0xFFB07CC6), Color(0xFF4A3A8C), Color(0xFF35286B), Color(0xFF5FD3B3), Color(0xFF1E6F6A), Color(0xFF3949AB), true)
+private val ZR_THEMES = listOf(
+    ZrTheme(Color(0xFF4FC3F7), Color(0xFFE1F5FE), Color(0xFF81C784), Color(0xFF66BB6A), Color(0xFF7CB342), Color(0xFF8D6E63), Color(0xFF29B6F6), false),
+    ZrTheme(Color(0xFF26C6DA), Color(0xFFB2EBF2), Color(0xFF4DB6AC), Color(0xFF26A69A), Color(0xFF66BB6A), Color(0xFF8D6E63), Color(0xFF0288D1), false),
+    ZrTheme(Color(0xFF2E7D32), Color(0xFFC5E1A5), Color(0xFF388E3C), Color(0xFF1B5E20), Color(0xFF558B2F), Color(0xFF5D4037), Color(0xFF00838F), false),
+    ZrTheme(Color(0xFF311B92), Color(0xFF7E57C2), Color(0xFF4527A0), Color(0xFF311B92), Color(0xFF7E57C2), Color(0xFF4A148C), Color(0xFF6A1B9A), true),
+    ZrTheme(Color(0xFF81D4FA), Color(0xFFF1F8FF), Color(0xFFB3E5FC), Color(0xFF90CAF9), Color(0xFFE3F2FD), Color(0xFF90A4AE), Color(0xFF4FC3F7), false),
+    ZrTheme(Color(0xFF1A1446), Color(0xFFB07CC6), Color(0xFF4A3A8C), Color(0xFF35286B), Color(0xFF5FD3B3), Color(0xFF1E6F6A), Color(0xFF3949AB), true)
 )
 
-private fun DrawScope.zDrawLevel(w: ZWorld, dp: Float, frames: AlienFrames, fireB: FireSheet) {
-    val th = Z_THEMES[w.lv.theme.coerceIn(0, Z_THEMES.size - 1)]
+private fun DrawScope.zrDrawLevel(w: ZrWorld, dp: Float, frames: AlienFrames, fireB: FireSheet) {
+    val th = ZR_THEMES[w.lv.theme.coerceIn(0, ZR_THEMES.size - 1)]
     val vw = w.vw
     val vh = w.vh
     val gy = w.groundY
@@ -952,7 +952,7 @@ private fun DrawScope.zDrawLevel(w: ZWorld, dp: Float, frames: AlienFrames, fire
             if (r < -40f || l > vw + 40f) continue
             val top = gy - p.curTop
             when (p.kind) {
-                K_GROUND -> {
+                ZR_K_GROUND -> {
                     drawRect(th.dirt, Offset(l, top), Size(r - l, vh - top))
                     drawRect(th.grass, Offset(l, top), Size(r - l, 12f))
                     var gx = l + 6f
@@ -960,25 +960,25 @@ private fun DrawScope.zDrawLevel(w: ZWorld, dp: Float, frames: AlienFrames, fire
                     var sx2 = l + 18f
                     while (sx2 < r) { drawCircle(Color.Black.copy(alpha = 0.12f), 5f, Offset(sx2, top + 36f + (sx2 % 30f))); sx2 += 44f }
                 }
-                K_LEDGE -> {
+                ZR_K_LEDGE -> {
                     val thick = if (p.top > 4f) 24f else 18f
                     drawRoundRect(th.dirt, Offset(l, top), Size(r - l, thick), CornerRadius(8f))
                     drawRoundRect(th.grass, Offset(l, top - 2f), Size(r - l, 10f), CornerRadius(6f))
                     if (p.top > 4f) drawRect(Brush.verticalGradient(listOf(th.dirt.copy(alpha = 0.45f), Color.Transparent), startY = top, endY = top + 60f), Offset(l + 4f, top + thick), Size(r - l - 8f, 40f))
                 }
-                K_RAFT -> {
+                ZR_K_RAFT -> {
                     drawRoundRect(Color(0xFF8D6E63), Offset(l, top), Size(r - l, 16f), CornerRadius(6f))
                     var lx = l + 10f
                     while (lx < r - 6f) { drawLine(Color(0xFF5D4037), Offset(lx, top), Offset(lx, top + 16f), 2f); lx += 18f }
                     drawRoundRect(Color(0xFFBCAAA4), Offset(l, top - 3f), Size(r - l, 5f), CornerRadius(3f))
                 }
-                K_LIFT -> {
+                ZR_K_LIFT -> {
                     drawLine(Color(0xFF90A4AE), Offset((l + r) / 2f, gy - p.high - 20f), Offset((l + r) / 2f, top), 4f)
                     drawRoundRect(Color(0xFF607D8B), Offset(l, top), Size(r - l, 16f), CornerRadius(5f))
                     drawRoundRect(Color(0xFFFFC107), Offset(l + 6f, top + 4f), Size(r - l - 12f, 5f), CornerRadius(3f))
                     drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.5f + 0.4f * sin(t * 6f)), 4f, Offset(l + 8f, top - 4f))
                 }
-                K_BRIDGE -> {
+                ZR_K_BRIDGE -> {
                     if (p.ext > 0.02f) {
                         drawRoundRect(Color(0xFFFFB74D), Offset(l, top), Size(r - l, 14f), CornerRadius(5f))
                         var bx = l + 8f
@@ -1037,7 +1037,7 @@ private fun DrawScope.zDrawLevel(w: ZWorld, dp: Float, frames: AlienFrames, fire
         }
 
         // ракета
-        zDrawRocket(w, cam, gy, t, w.lv.index)
+        zrDrawRocket(w, cam, gy, t, w.lv.index)
     }
 
     // — Зелик (в пикселях)
@@ -1099,7 +1099,7 @@ private fun DrawScope.zDrawLevel(w: ZWorld, dp: Float, frames: AlienFrames, fire
     }
 }
 
-private fun DrawScope.zDrawRocket(w: ZWorld, cam: Float, gy: Float, t: Float, levelIndex: Int) {
+private fun DrawScope.zrDrawRocket(w: ZrWorld, cam: Float, gy: Float, t: Float, levelIndex: Int) {
     val sx = w.rocketX - cam
     if (sx < -100f || sx > w.vw + 100f) return
     val lift = w.shipLift()

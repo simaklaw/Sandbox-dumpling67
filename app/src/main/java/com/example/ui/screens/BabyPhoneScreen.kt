@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -13,11 +12,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
@@ -25,14 +22,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,13 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
-import com.example.shared.rememberHaptics
 import com.example.shared.SoundManager
-import androidx.compose.ui.platform.LocalContext
+import com.example.shared.rememberHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
-import kotlin.math.cos
+import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -72,6 +69,13 @@ data class PhoneKey(
     val color: Color
 )
 
+private class PhoneFloat(val id: Long, val emoji: String, val dx: Float)
+
+/**
+ * «Детский телефончик»: нажми кнопку-зверя — он отзовётся, набери четыре кнопки — зазвонит друг.
+ * Иногда телефон звонит сам: нажми «Ответить». Во время разговора можно послать поцелуй, песенку или подарок.
+ * Поговори со всеми 11 друзьями — получишь праздник.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BabyPhoneScreen(
@@ -104,12 +108,14 @@ fun BabyPhoneScreen(
             listOf("animal_dog_1", "animal_dog_2", "animal_cat_1", "animal_cat_2", "animal_duck_1", "animal_duck_2",
                 "animal_cow_1", "animal_cow_2", "animal_frog_1", "animal_frog_2", "animal_pig_1", "animal_pig_2",
                 "animal_horse_1", "animal_horse_2", "animal_sheep_1", "animal_sheep_2", "chick_peep",
-                "animal_rooster_1", "animal_rooster_2", "animal_bunny_1", "animal_bunny_2", "sm_note1", "sm_note2", "sm_pop", "sm_party")
+                "animal_rooster_1", "animal_rooster_2", "animal_bunny_1", "animal_bunny_2", "sm_note1", "sm_note2",
+                "sm_pop", "sm_party", "sm_smooch", "sm_tada")
         )
     }
 
     var callState by remember { mutableStateOf(PhoneCallState.IDLE) }
     var dialedNumber by remember { mutableStateOf("") }
+    var actionTick by remember { mutableIntStateOf(0) }
 
     // Case colors (Sunny Yellow, Bubblegum Pink, Sky Blue, Mint)
     val caseColors = listOf(
@@ -143,12 +149,29 @@ fun BabyPhoneScreen(
     LaunchedEffect(peekCounter) {
         if (peekCounter > 0) { delay(1300); peekIcon = null }
     }
+    val peekScale by animateFloatAsState(
+        targetValue = if (peekIcon != null) 1f else 0.6f,
+        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium),
+        label = "peekScale"
+    )
 
     var activeFriend by remember { mutableStateOf(friends[0]) }
+    val met = remember { mutableStateListOf<String>() }
+    var celebrated by remember { mutableStateOf(false) }
+    var showCelebration by remember { mutableStateOf(false) }
 
     // Character talking animation
     val mouthWiggle = remember { Animatable(0f) }
     val friendHop = remember { Animatable(0f) }
+
+    // Летящие эмодзи (поцелуи, ноты, подарки)
+    val floats = remember { mutableStateListOf<PhoneFloat>() }
+    fun burst(emojis: List<String>, n: Int) {
+        repeat(n) {
+            floats.add(PhoneFloat(Random.nextLong(), emojis.random(), (Random.nextFloat() - 0.5f) * 220f))
+        }
+        if (floats.size > 40) repeat(floats.size - 40) { floats.removeAt(0) }
+    }
 
     // Phone keys (12 large buttons)
     val keys = remember {
@@ -174,211 +197,287 @@ fun BabyPhoneScreen(
         haptics.vibrateDialerHangup()
         callState = PhoneCallState.IDLE
         dialedNumber = ""
+        actionTick++
+    }
+
+    // Разговор с другом (после гудков или сразу при ответе на входящий)
+    fun connect(friend: PhoneFriend) {
+        activeFriend = friend
+        callState = PhoneCallState.CONNECTED
+        haptics.vibratePop()
+        if (friend.soundKey !in met) met.add(friend.soundKey)
+        animalSoundFor(friend.soundKey)?.let { soundManager.play(it) }
+        if (met.size == friends.size && !celebrated) {
+            celebrated = true
+            showCelebration = true
+            soundManager.play("sm_tada")
+            burst(listOf("🎉", "⭐", "🎈", "💖"), 18)
+        }
+        scope.launch {
+            repeat(4) { iteration ->
+                if (callState != PhoneCallState.CONNECTED) return@launch
+                if (iteration == 2) soundManager.play("phone_hi_${friend.soundKey}", volume = 1f)
+                launch { mouthWiggle.animateTo(1f, tween(140)) }
+                launch { friendHop.animateTo(-18f, tween(140)) }
+                delay(160)
+                launch { mouthWiggle.animateTo(0f, tween(140)) }
+                launch { friendHop.animateTo(0f, tween(140)) }
+                delay(160)
+            }
+        }
     }
 
     // Call routine
     fun startCall() {
         if (callState == PhoneCallState.CONNECTED || callState == PhoneCallState.DIALING) return
+        if (callState == PhoneCallState.INCOMING) {
+            soundManager.play("sm_pop", volume = 0.8f)
+            haptics.vibrateDialerCall()
+            connect(activeFriend)
+            return
+        }
         callState = PhoneCallState.DIALING
         soundManager.play("sm_note1", volume = 0.6f)
         haptics.vibrateDialerCall()
 
         // Pick a random friend or based on last digit
         val chosenFriend = (if (dialedNumber.isNotEmpty()) friendByKey[dialedNumber.last().toString()] else null)
-            ?: friends.random()
+            ?: friends.filter { it.soundKey !in met }.ifEmpty { friends }.random()
         activeFriend = chosenFriend
 
         scope.launch {
             delay(600)
             if (callState == PhoneCallState.DIALING) soundManager.play("sm_note2", volume = 0.6f)
             delay(700)
-            if (callState == PhoneCallState.DIALING) {
-                callState = PhoneCallState.CONNECTED
-                haptics.vibratePop()
-                animalSoundFor(chosenFriend.soundKey)?.let { soundManager.play(it) }
-
-                // Animated talking mouth and hop
-                repeat(4) { iteration ->
-                    if (iteration == 2) soundManager.play("phone_hi_${chosenFriend.soundKey}", volume = 1f)
-                    launch { mouthWiggle.animateTo(1f, tween(140)) }
-                    launch { friendHop.animateTo(-18f, tween(140)) }
-                    delay(160)
-                    launch { mouthWiggle.animateTo(0f, tween(140)) }
-                    launch { friendHop.animateTo(0f, tween(140)) }
-                    delay(160)
-                }
-            }
+            if (callState == PhoneCallState.DIALING) connect(chosenFriend)
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Детский телефончик 📱", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                        Text(
-                            when (callState) {
-                                PhoneCallState.IDLE -> "Нажми любую кнопку!"
-                                PhoneCallState.DIALING -> "Идут гудки... 📞"
-                                PhoneCallState.CONNECTED -> "Разговариваем с ${activeFriend.name} 💕"
-                                PhoneCallState.INCOMING -> "Входящий звонок! Возьми трубку! 🔔"
-                            },
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                // Общая кнопка «Домой» (80 dp) рисуется поверх верхнего левого угла — оставляем под неё место
-                navigationIcon = { androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(88.dp)) },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            caseColorIndex = (caseColorIndex + 1) % caseColors.size
-                            soundManager.play("sm_pop", volume = 0.8f, rate = 1.2f)
-                            haptics.vibratePop()
-                        },
-                        modifier = Modifier.testTag("phone_case_color_btn")
-                    ) {
-                        Icon(Icons.Default.Palette, contentDescription = "Цвет корпуса", tint = activeCaseColor)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = activeCaseColor.copy(alpha = 0.35f)
-                )
-            )
+    // Телефон сам звонит, если ребёнок долго ничего не нажимает
+    LaunchedEffect(callState, actionTick) {
+        if (callState == PhoneCallState.IDLE) {
+            delay(22000)
+            if (callState == PhoneCallState.IDLE) {
+                activeFriend = friends.filter { it.soundKey !in met }.ifEmpty { friends }.random()
+                callState = PhoneCallState.INCOMING
+            }
         }
-    ) { innerPadding ->
-        Box(
+    }
+    LaunchedEffect(callState) {
+        if (callState == PhoneCallState.INCOMING) {
+            var n = 0
+            while (callState == PhoneCallState.INCOMING && n < 16) {
+                soundManager.play(if (n % 2 == 0) "sm_note1" else "sm_note2", volume = 0.7f, rate = 1.3f)
+                haptics.vibrateDialerCall()
+                delay(750)
+                n++
+            }
+            if (callState == PhoneCallState.INCOMING) callState = PhoneCallState.IDLE
+        }
+    }
+
+    // Анимации: кольца вызова, эквалайзер голоса, покачивание звонящего зверя
+    val inf = rememberInfiniteTransition(label = "phoneInf")
+    val ringP by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "ring")
+    val eqP by inf.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(900, easing = LinearEasing)), label = "eq")
+    val wobble by inf.animateFloat(-12f, 12f, infiniteRepeatable(tween(180, easing = LinearEasing), RepeatMode.Reverse), label = "wobble")
+    val answerPulse by inf.animateFloat(1f, 1.12f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "answerPulse")
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFFF3E5F5), Color(0xFFE1F5FE))))
+    ) {
+        // Main Toy Smartphone Body — на весь экран
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFFF3E5F5), Color(0xFFE1F5FE))
-                    )
-                ),
-            contentAlignment = Alignment.Center
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .background(activeCaseColor)
+                .border(5.dp, Color.White, RoundedCornerShape(32.dp))
+                .padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Main Toy Smartphone Body
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(36.dp))
-                    .background(activeCaseColor)
-                    .border(6.dp, Color.White, RoundedCornerShape(36.dp))
-                    .padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+            // Верхняя строка: место под кнопку «Домой», заголовок, цвет корпуса
+            Row(
+                modifier = Modifier.fillMaxWidth().height(72.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Top Screen / Video Call Display
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.95f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .testTag("phone_display_card"),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF1A1A24)
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(Color(0xFF2C3440), Color(0xFF14171F))
-                                )
-                            )
-                            .padding(8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                Spacer(modifier = Modifier.width(80.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Детский телефончик 📱", fontWeight = FontWeight.Black, fontSize = 17.sp, color = Color(0xFF263238))
+                    Text(
                         when (callState) {
-                            PhoneCallState.IDLE -> {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center,
-                                    modifier = Modifier
-                                        .clickable(enabled = dialedNumber.isNotEmpty()) {
-                                            soundManager.play("sm_pop", volume = 0.7f)
-                                            haptics.vibrateShort()
-                                            dialedNumber = dialedNumber.dropLast(1)
-                                        }
-                                ) {
-                                    if (peekIcon != null) {
-                                        Text(text = peekIcon!!, fontSize = 54.sp)
+                            PhoneCallState.IDLE -> "Нажми любую кнопку!"
+                            PhoneCallState.DIALING -> "Идут гудки... 📞"
+                            PhoneCallState.CONNECTED -> "Разговариваем с ${activeFriend.name} 💕"
+                            PhoneCallState.INCOMING -> "Входящий звонок! Нажми «Ответить» 🔔"
+                        },
+                        fontSize = 12.sp,
+                        color = Color(0xFF37474F)
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        caseColorIndex = (caseColorIndex + 1) % caseColors.size
+                        soundManager.play("sm_pop", volume = 0.8f, rate = 1.2f)
+                        haptics.vibratePop()
+                    },
+                    modifier = Modifier.size(52.dp).testTag("phone_case_color_btn")
+                ) {
+                    Icon(Icons.Default.Palette, contentDescription = "Цвет корпуса", tint = Color(0xFF263238), modifier = Modifier.size(30.dp))
+                }
+            }
+
+            // Экран телефона
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(24.dp))
+                    .testTag("phone_display_card"),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A24)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.radialGradient(listOf(Color(0xFF2C3440), Color(0xFF14171F))))
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when (callState) {
+                        PhoneCallState.IDLE -> {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable(enabled = dialedNumber.isNotEmpty()) {
+                                        soundManager.play("sm_pop", volume = 0.7f)
+                                        haptics.vibrateShort()
+                                        dialedNumber = dialedNumber.dropLast(1)
                                     }
-                                    Text(
-                                        text = if (dialedNumber.isEmpty()) "Набери номер ☎️" else dialedNumber,
-                                        color = Color.White,
-                                        fontSize = if (dialedNumber.length > 8) 22.sp else 30.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = if (dialedNumber.isNotEmpty()) "Нажми сюда, чтобы стереть ⌫" else "Жми кнопки — звери отвечают! 🐶🐱🐸",
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-
-                            PhoneCallState.DIALING -> {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = activeFriend.icon,
-                                        fontSize = 58.sp,
-                                        modifier = Modifier.scale(1.1f)
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Звоним ${activeFriend.name}...",
-                                        color = Color.White,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Туут... Туут... 📞",
-                                        color = Color(0xFF81D4FA),
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-
-                            PhoneCallState.CONNECTED -> {
+                            ) {
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    text = peekIcon ?: "📱",
+                                    fontSize = 72.sp,
+                                    modifier = Modifier.scale(if (peekIcon != null) peekScale else 1f)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = if (dialedNumber.isEmpty()) "Набери номер ☎️"
+                                    else dialedNumber.map { friendByKey[it.toString()]?.icon ?: "🎉" }.joinToString(" "),
+                                    color = Color.White,
+                                    fontSize = if (dialedNumber.isEmpty()) 26.sp else 34.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (dialedNumber.isNotEmpty()) "Нажми сюда, чтобы стереть ⌫" else "Жми кнопки — звери отвечают!",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 13.sp
+                                )
+                                Spacer(Modifier.weight(1f))
+                                // Книжка друзей: с кем уже поговорили
+                                Text(
+                                    text = "Друзья: ${met.size}/${friends.size}",
+                                    color = Color(0xFFFFE082),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .pointerInput(Unit) {
-                                            detectTapGestures {
-                                                // Tapping the animal friend triggers cute giggle & bounce
-                                                animalSoundFor(activeFriend.soundKey)?.let { soundManager.play(it) }
-                                                haptics.vibratePop()
-                                                scope.launch {
-                                                    friendHop.animateTo(-24f, tween(120))
-                                                    friendHop.animateTo(0f, tween(120))
-                                                }
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    modifier = Modifier.padding(top = 2.dp, bottom = 2.dp)
+                                ) {
+                                    friends.forEach { f ->
+                                        Text(
+                                            f.icon,
+                                            fontSize = 17.sp,
+                                            modifier = Modifier.graphicsLayer { alpha = if (f.soundKey in met) 1f else 0.25f }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        PhoneCallState.DIALING, PhoneCallState.INCOMING -> {
+                            val incoming = callState == PhoneCallState.INCOMING
+                            Canvas(Modifier.fillMaxSize()) {
+                                val c = Offset(size.width / 2f, size.height * 0.42f)
+                                val base = size.minDimension * 0.18f
+                                for (i in 0 until 3) {
+                                    val p = (ringP + i / 3f) % 1f
+                                    drawCircle(
+                                        color = (if (incoming) Color(0xFF76FF03) else Color(0xFF81D4FA)).copy(alpha = (1f - p) * 0.55f),
+                                        radius = base * (0.8f + p * 2.4f),
+                                        center = c,
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx())
+                                    )
+                                }
+                            }
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxSize().clickable(enabled = incoming) { startCall() }
+                            ) {
+                                Text(
+                                    text = activeFriend.icon,
+                                    fontSize = 76.sp,
+                                    modifier = Modifier.graphicsLayer { rotationZ = if (incoming) wobble else 0f }
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = if (incoming) "Входящий вызов!" else "Звоним ${activeFriend.name}...",
+                                    color = if (incoming) Color(0xFF76FF03) else Color.White,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (incoming) "${activeFriend.name} звонит тебе! 📲" else "Туут... Туут... 📞",
+                                    color = if (incoming) Color.White else Color(0xFF81D4FA),
+                                    fontSize = 15.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        PhoneCallState.CONNECTED -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .pointerInput(Unit) {
+                                        detectTapGestures {
+                                            // Tapping the animal friend triggers cute sound & bounce
+                                            animalSoundFor(activeFriend.soundKey)?.let { soundManager.play(it) }
+                                            haptics.vibratePop()
+                                            scope.launch {
+                                                friendHop.animateTo(-24f, tween(120))
+                                                friendHop.animateTo(0f, tween(120))
                                             }
-                                        },
+                                        }
+                                    },
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceEvenly
                                 ) {
-                                    // Animated Talking Friend
+                                    EqualizerBars(eqP, activeFriend.primaryColor, mirrored = false)
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.offset(y = friendHop.value.dp)
                                     ) {
                                         Text(
                                             text = activeFriend.icon,
-                                            fontSize = 68.sp
+                                            fontSize = 78.sp,
+                                            modifier = Modifier.scale(1f + 0.08f * mouthWiggle.value)
                                         )
                                         Text(
                                             text = activeFriend.name,
@@ -387,88 +486,80 @@ fun BabyPhoneScreen(
                                             fontSize = 14.sp
                                         )
                                     }
-
-                                    // Speech Bubble
-                                    Surface(
-                                        shape = RoundedCornerShape(18.dp),
-                                        color = Color.White,
-                                        shadowElevation = 6.dp,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .padding(start = 12.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(10.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                text = activeFriend.phrase,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF263238),
-                                                textAlign = TextAlign.Center
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = "🎵 Разговариваем",
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF4CAF50),
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                        }
-                                    }
+                                    EqualizerBars(eqP, activeFriend.primaryColor, mirrored = true)
                                 }
-                            }
-
-                            PhoneCallState.INCOMING -> {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
+                                // Речевое облачко
+                                Surface(
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = Color.White,
+                                    shadowElevation = 6.dp,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)
                                 ) {
                                     Text(
-                                        text = activeFriend.icon,
-                                        fontSize = 62.sp
+                                        text = if (showCelebration) "Ты поговорил со всеми друзьями! Ура! 🎉" else activeFriend.phrase,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF263238),
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(10.dp)
                                     )
-                                    Text(
-                                        text = "Входящий вызов!",
-                                        color = Color(0xFF76FF03),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 20.sp
-                                    )
-                                    Text(
-                                        text = "${activeFriend.name} звонит тебе! 📲",
-                                        color = Color.White,
-                                        fontSize = 14.sp
-                                    )
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                // Реакции: поцелуй, песенка, подарок
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    PhoneReaction("😘", Color(0xFFFF80AB), "phone_react_kiss") {
+                                        soundManager.play("sm_smooch")
+                                        haptics.vibratePop()
+                                        burst(listOf("💋", "💖", "❤️"), 7)
+                                    }
+                                    PhoneReaction("🎵", Color(0xFF81D4FA), "phone_react_song") {
+                                        scope.launch {
+                                            val rates = listOf(1.0f, 1.26f, 1.5f, 1.26f, 1.0f)
+                                            rates.forEach { r ->
+                                                soundManager.play("sm_note1", volume = 0.85f, rate = r)
+                                                burst(listOf("🎵", "🎶"), 2)
+                                                delay(230)
+                                            }
+                                        }
+                                    }
+                                    PhoneReaction("🎁", Color(0xFFFFD54F), "phone_react_gift") {
+                                        soundManager.play("sm_party")
+                                        haptics.vibratePop()
+                                        burst(listOf("🎁", "🎈", "⭐", "🎉"), 8)
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-                // Keypad: 4 rows x 3 columns with tactile spring physics and punchy haptics
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1.4f),
-                    verticalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    for (row in 0 until 4) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            for (col in 0 until 3) {
-                                val keyIndex = row * 3 + col
-                                val key = keys[keyIndex]
-
+            // Клавиатура 4×3: кнопки заполняют всё свободное место
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1.55f)
+            ) {
+                for (row in 0 until 4) {
+                    Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                        for (col in 0 until 3) {
+                            val key = keys[row * 3 + col]
+                            Box(
+                                modifier = Modifier.weight(1f).fillMaxHeight().padding(3.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 BabyPhoneKeyButton(
                                     key = key,
+                                    modifier = Modifier.aspectRatio(1f),
                                     onClick = {
                                         // Distinct mechanical click haptic feedback
                                         haptics.vibrateDialerKey()
+                                        actionTick++
                                         val kf = friendByKey[key.label]
                                         if (kf != null) {
                                             animalSoundFor(kf.soundKey)?.let { soundManager.play(it, volume = 0.9f) }
@@ -478,13 +569,14 @@ fun BabyPhoneScreen(
                                             soundManager.play("sm_party", volume = 0.8f)
                                             peekIcon = "🎉"
                                             peekCounter++
+                                            burst(listOf("🎉", "🎊", "⭐"), 5)
                                         }
 
                                         if (callState == PhoneCallState.IDLE) {
                                             if (dialedNumber.length < 10) {
                                                 dialedNumber += key.label
                                             }
-                                            // If toddler presses 4 digits, automatically place the call!
+                                            // Четыре нажатия — телефон сам набирает номер
                                             if (dialedNumber.length >= 4) {
                                                 startCall()
                                             }
@@ -492,6 +584,7 @@ fun BabyPhoneScreen(
                                             // Во время разговора кнопка зовёт в трубку другого зверя
                                             if (kf != null) {
                                                 activeFriend = kf
+                                                if (kf.soundKey !in met) met.add(kf.soundKey)
                                                 scope.launch {
                                                     friendHop.animateTo(-24f, tween(120))
                                                     friendHop.animateTo(0f, tween(120))
@@ -504,50 +597,112 @@ fun BabyPhoneScreen(
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Bottom Call / Hang Up Controls with bouncy tactile feedback
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Call Button (Green)
-                    BabyPhoneActionButton(
-                        onClick = {
-                            haptics.vibrateDialerCall()
-                            startCall()
-                        },
-                        icon = Icons.Default.Call,
-                        text = "Позвонить",
-                        containerColor = Color(0xFF4CAF50),
-                        contentDescription = "Позвонить",
-                        testTag = "phone_call_button",
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
-                    )
-
-                    // Hangup Button (Red)
-                    BabyPhoneActionButton(
-                        onClick = {
-                            haptics.vibrateDialerHangup()
-                            hangUp()
-                        },
-                        icon = Icons.Default.CallEnd,
-                        text = "Сбросить",
-                        containerColor = Color(0xFFF44336),
-                        contentDescription = "Сбросить",
-                        testTag = "phone_hangup_button",
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 8.dp)
-                    )
-                }
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Кнопки вызова и сброса
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BabyPhoneActionButton(
+                    onClick = {
+                        haptics.vibrateDialerCall()
+                        startCall()
+                    },
+                    icon = Icons.Default.Call,
+                    text = if (callState == PhoneCallState.INCOMING) "Ответить" else "Позвонить",
+                    containerColor = Color(0xFF4CAF50),
+                    contentDescription = "Позвонить",
+                    testTag = "phone_call_button",
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                        .scale(if (callState == PhoneCallState.INCOMING) answerPulse else 1f)
+                )
+                BabyPhoneActionButton(
+                    onClick = {
+                        haptics.vibrateDialerHangup()
+                        hangUp()
+                    },
+                    icon = Icons.Default.CallEnd,
+                    text = "Сбросить",
+                    containerColor = Color(0xFFF44336),
+                    contentDescription = "Сбросить",
+                    testTag = "phone_hangup_button",
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp)
+                )
+            }
+        }
+
+        // Слой летящих эмодзи (не перехватывает касания)
+        Box(
+            modifier = Modifier.fillMaxSize().padding(top = 120.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            floats.toList().forEach { f ->
+                key(f.id) { FloatingEmoji(f) { floats.remove(f) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloatingEmoji(item: PhoneFloat, onDone: () -> Unit) {
+    val p = remember { Animatable(0f) }
+    LaunchedEffect(item.id) {
+        p.animateTo(1f, tween(1500, easing = LinearEasing))
+        onDone()
+    }
+    Text(
+        item.emoji,
+        fontSize = (30f + 12f * sin(p.value * PI.toFloat())).sp,
+        modifier = Modifier
+            .offset(x = (item.dx + sin(p.value * 6f) * 14f).dp, y = (60f - p.value * 300f).dp)
+            .graphicsLayer { alpha = (1f - p.value * p.value).coerceIn(0f, 1f) }
+    )
+}
+
+@Composable
+private fun EqualizerBars(phase: Float, color: Color, mirrored: Boolean) {
+    Canvas(Modifier.size(width = 44.dp, height = 70.dp)) {
+        val n = 5
+        val gap = size.width / n
+        for (i in 0 until n) {
+            val idx = if (mirrored) n - 1 - i else i
+            val h = size.height * (0.25f + 0.75f * abs(sin(phase * (1f + idx * 0.35f) + idx)))
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(i * gap + gap * 0.15f, (size.height - h) / 2f),
+                size = Size(gap * 0.7f, h),
+                cornerRadius = CornerRadius(gap * 0.35f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhoneReaction(emoji: String, color: Color, tag: String, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val sc by animateFloatAsState(if (pressed) 0.85f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "react")
+    Surface(
+        onClick = onClick,
+        interactionSource = source,
+        shape = CircleShape,
+        color = color,
+        shadowElevation = 4.dp,
+        border = androidx.compose.foundation.BorderStroke(2.dp, Color.White),
+        modifier = Modifier.size(52.dp).scale(sc).testTag(tag)
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Text(emoji, fontSize = 26.sp)
         }
     }
 }
@@ -575,7 +730,7 @@ private fun BabyPhoneKeyButton(
     )
 
     val elevation by animateDpAsState(
-        targetValue = if (isPressed) 1.dp else 5.dp,
+        targetValue = if (isPressed) 1.dp else 6.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
@@ -589,9 +744,8 @@ private fun BabyPhoneKeyButton(
         shape = CircleShape,
         color = if (isPressed) key.color.copy(alpha = 0.85f) else key.color,
         shadowElevation = elevation,
-        border = androidx.compose.foundation.BorderStroke(2.5.dp, Color.White),
+        border = androidx.compose.foundation.BorderStroke(3.dp, Color.White),
         modifier = modifier
-            .size(62.dp)
             .scale(scale)
             .testTag("phone_key_${key.label}")
     ) {
@@ -601,14 +755,14 @@ private fun BabyPhoneKeyButton(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = key.label,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF263238)
+                text = key.subText,
+                fontSize = 34.sp
             )
             Text(
-                text = key.subText,
-                fontSize = 12.sp
+                text = key.label,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color(0xFF263238)
             )
         }
     }
@@ -645,18 +799,18 @@ private fun BabyPhoneActionButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor
         ),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(30.dp),
         elevation = ButtonDefaults.buttonElevation(
             defaultElevation = 5.dp,
             pressedElevation = 1.dp
         ),
         modifier = modifier
-            .height(56.dp)
+            .height(60.dp)
             .scale(scale)
             .testTag(testTag)
     ) {
         Icon(icon, contentDescription = contentDescription, tint = Color.White)
         Spacer(modifier = Modifier.width(6.dp))
-        Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(text, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }

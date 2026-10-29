@@ -575,6 +575,44 @@ private fun BoardButtonsAndLevers(
                 )
             }
 
+            // Средняя полоска: светофор, сирена, звонок
+            var trafficLight by remember { mutableIntStateOf(0) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MiniPad("🚨", Color(0xFFEF5350), haptics, 68.dp) { soundHelper.playTrainToot(); onAction() }
+                // Светофор: тап — следующий свет
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .size(54.dp, 100.dp)
+                        .border(BorderStroke(3.dp, ColorInk), RoundedCornerShape(14.dp))
+                        .background(Color(0xFF37474F), RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .pointerInput(Unit) {
+                            detectTapGestures {
+                                trafficLight = (trafficLight + 1) % 3
+                                soundHelper.playKnobTick()
+                                haptics.vibrateShort()
+                                onAction()
+                            }
+                        }
+                        .padding(vertical = 6.dp)
+                ) {
+                    listOf(Color(0xFFFF5252), Color(0xFFFFEB3B), Color(0xFF69F0AE)).forEachIndexed { i, c ->
+                        Box(
+                            Modifier
+                                .size(26.dp)
+                                .background(if (trafficLight == i) c else c.copy(alpha = 0.22f), CircleShape)
+                        )
+                    }
+                }
+                MiniPad("🔔", Color(0xFFFFD54F), haptics, 68.dp) { soundHelper.playBellDing(); onAction() }
+            }
+
             // Animated Train Crossing Banner
             if (isTrainRunning) {
                 Box(
@@ -710,6 +748,18 @@ private fun BoardButtonsAndLevers(
                     }
                 }
             }
+
+            // Нижний ряд: зверята-кнопки
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MiniPad("🐶", Color(0xFFFFB74D), haptics, 66.dp) { soundHelper.playPeekabooVoice("dog"); onAction() }
+                MiniPad("🐱", Color(0xFFFF8A80), haptics, 66.dp) { soundHelper.playPeekabooVoice("cat"); onAction() }
+                MiniPad("🐮", Color(0xFFCE93D8), haptics, 66.dp) { soundHelper.playPeekabooVoice("cow"); onAction() }
+                MiniPad("🐴", Color(0xFF80CBC4), haptics, 66.dp) { soundHelper.playPeekabooVoice("horse"); onAction() }
+            }
         }
     }
 }
@@ -748,6 +798,13 @@ private fun BoardLightsAndMechanics(
     // Rotary Gear Rotation Angle (changes background hue)
     var knobAngleDeg by remember { mutableFloatStateOf(0f) }
     var lastKnobClickAngle by remember { mutableFloatStateOf(0f) }
+    // Время суток: 0 — ночь, 1 — день, 2 — закат
+    var skyMode by remember { mutableIntStateOf(0) }
+    val skyColors = when (skyMode) {
+        1 -> listOf(Color(0xFF4FC3F7), Color(0xFFE1F5FE))
+        2 -> listOf(Color(0xFFFF7043), Color(0xFFFFCC80))
+        else -> listOf(Color(0xFF1E2A6B), Color(0xFF4F5DB8))
+    }
 
     val board2Decors = remember {
         listOf(
@@ -764,7 +821,7 @@ private fun BoardLightsAndMechanics(
             .fillMaxSize()
             .padding(4.dp)
             .clip(ShapeCard)
-            .background(Brush.verticalGradient(colors = listOf(Color(0xFF1E2A6B), Color(0xFF4F5DB8))))
+            .background(Brush.verticalGradient(colors = skyColors))
             .border(BorderStroke(3.5.dp, ColorInk), ShapeCard)
     ) {
         DecorLayer(items = board2Decors)
@@ -837,6 +894,23 @@ private fun BoardLightsAndMechanics(
                 )
             }
 
+            // Радужная лента: огоньки бегут за поворотом шестерёнки
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val lit = floor(knobAngleDeg / 45f).toInt().mod(8)
+                BUSY_RAINBOW.forEachIndexed { i, c ->
+                    Box(
+                        Modifier
+                            .size(if (i == lit) 30.dp else 22.dp)
+                            .border(BorderStroke(2.dp, ColorInk), CircleShape)
+                            .background(if (i == lit) c else c.copy(alpha = 0.28f), CircleShape)
+                    )
+                }
+            }
+
             // Large Rotary Gear / Knob (130 dp)
             Box(
                 contentAlignment = Alignment.Center,
@@ -907,6 +981,21 @@ private fun BoardLightsAndMechanics(
                             strokeWidth = 2.5.dp.toPx(),
                             cap = StrokeCap.Round
                         )
+                    }
+                }
+            }
+
+            // Время суток: ночь, день, закат
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("🌙" to 0, "☀️" to 1, "🌅" to 2).forEach { (em, mode) ->
+                    MiniPad(em, if (skyMode == mode) ColorYellow else ColorWhite, haptics, 64.dp) {
+                        skyMode = mode
+                        soundHelper.playSwitchOn()
+                        onAction()
                     }
                 }
             }
@@ -1078,6 +1167,53 @@ private fun BoardPeekabooAndBell(
                         }
                     }
                 )
+            }
+
+            // Окошки с шторками: за каждым прячется букашка
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(Color(0xFFFF8A80), Color(0xFFFFD54F), Color(0xFF81C784), Color(0xFF64B5F6)).forEachIndexed { wi, curtain ->
+                    var critter by remember { mutableStateOf<String?>(null) }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(68.dp, 78.dp)
+                            .border(BorderStroke(3.dp, ColorInk), RoundedCornerShape(12.dp))
+                            .background(if (critter != null) Color(0xFFFFF9C4) else curtain, RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(12.dp))
+                            .pointerInput(Unit) {
+                                detectTapGestures {
+                                    if (critter == null) {
+                                        critter = listOf("🦋", "🐞", "🐝", "🐛", "🐌", "🦎").random()
+                                        soundHelper.playPop()
+                                        haptics.vibrateShort()
+                                        onAction()
+                                        coroutineScope.launch {
+                                            delay(2200)
+                                            critter = null
+                                        }
+                                    } else {
+                                        critter = null
+                                        soundHelper.playDoorClose()
+                                    }
+                                }
+                            }
+                    ) {
+                        if (critter != null) {
+                            Text(critter!!, fontSize = 38.sp)
+                        } else {
+                            // шторка со складками
+                            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                repeat(3) {
+                                    Box(Modifier.width(3.dp).fillMaxHeight().background(ColorInk.copy(alpha = 0.18f)))
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Large Hanging Bell (Swinging pendulum with pure ding)
@@ -1426,6 +1562,45 @@ private val BUSY_RAINBOW = listOf(
 )
 private val BUSY_SCALE = listOf(1.0f, 1.122f, 1.26f, 1.335f, 1.498f, 1.682f, 1.888f, 2.0f)
 
+/** Небольшая круглая кнопка с пружинкой (для добавочных элементов досок). */
+@Composable
+private fun MiniPad(
+    emoji: String,
+    color: Color,
+    haptics: Haptics,
+    size: androidx.compose.ui.unit.Dp,
+    onClick: () -> Unit
+) {
+    var pressed by remember { mutableStateOf(false) }
+    val sc by animateFloatAsState(
+        targetValue = if (pressed) 0.84f else 1f,
+        animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium),
+        label = "miniPad"
+    )
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(size)
+            .scale(sc)
+            .border(BorderStroke(3.dp, ColorInk), CircleShape)
+            .background(color, CircleShape)
+            .clip(CircleShape)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        haptics.vibrateShort()
+                        onClick()
+                        tryAwaitRelease()
+                        pressed = false
+                    }
+                )
+            }
+    ) {
+        Text(text = emoji, fontSize = (size.value * 0.5f).sp)
+    }
+}
+
 /** Большая нажимаемая плитка: реагирует сразу при касании, с пружинкой и брызгами. */
 @Composable
 private fun BusyPad(
@@ -1543,6 +1718,24 @@ private fun BoardMusic(
                 }
                 BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFAED581), haptics, particles, topInset, "🐸") {
                     soundManager.play("animal_frog"); onAction()
+                }
+            }
+            // Транспорт
+            Row(
+                modifier = Modifier.weight(0.9f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFF90CAF9), haptics, particles, topInset, "🚗") {
+                    soundManager.play("sm_honk", rate = 1.0f); onAction()
+                }
+                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFA5D6A7), haptics, particles, topInset, "🚂") {
+                    soundManager.play("sm_honk", rate = 0.6f); onAction()
+                }
+                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFEF9A9A), haptics, particles, topInset, "🚒") {
+                    soundManager.play("sm_honk", rate = 1.5f); onAction()
+                }
+                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFCE93D8), haptics, particles, topInset, "🚀") {
+                    soundManager.play("whoosh"); onAction()
                 }
             }
         }
@@ -1720,6 +1913,44 @@ private fun BoardToys(
                                             for (k in popped.indices) popped[k] = false
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Счёты: три проволоки по шесть бусин, нажми на бусину — она (и соседи) скатятся
+            Column(
+                modifier = Modifier
+                    .weight(1.0f)
+                    .fillMaxWidth()
+                    .border(BorderStroke(3.dp, ColorInk), ShapeButton)
+                    .background(Color(0xFFFFF8E1), ShapeButton)
+                    .clip(ShapeButton)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.SpaceEvenly
+            ) {
+                val rowColors = listOf(Color(0xFFEF5350), Color(0xFF42A5F5), Color(0xFF66BB6A))
+                val counts = remember { mutableStateListOf(0, 0, 0) }
+                for (wire in 0 until 3) {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Box(Modifier.fillMaxWidth().height(3.dp).background(ColorInk.copy(alpha = 0.5f)))
+                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            for (slot in 0 until 6) {
+                                val isOn = slot >= 6 - counts[wire]
+                                BusyPad(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .padding(vertical = 2.dp),
+                                    color = if (isOn) rowColors[wire] else rowColors[wire].copy(alpha = 0.45f),
+                                    haptics = haptics, particles = particles, topInset = topInset,
+                                    shape = CircleShape
+                                ) {
+                                    counts[wire] = if (isOn) 6 - (slot + 1) else 6 - slot
+                                    soundManager.play("sm_pop", volume = 0.8f, rate = 0.8f + slot * 0.12f + wire * 0.05f)
+                                    onAction()
                                 }
                             }
                         }

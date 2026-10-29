@@ -1097,5 +1097,10 @@
  "Счёт: {}": "Score: {}",
  "Игра окончена": "Game over",
  "Режимы": "Modes",
- "🏆 Новый рекорд!": "🏆 New record!"
+ "🏆 Новый рекорд!": "🏆 New record!",
+ "Входящий звонок! Нажми «Ответить» 🔔": "Incoming call! Press “Answer” 🔔",
+ "Жми кнопки — звери отвечают!": "Press the buttons — the animals answer!",
+ "Друзья: {}/{}": "Friends: {}/{}",
+ "Ты поговорил со всеми друзьями! Ура! 🎉": "You talked to all your friends! Hooray! 🎉",
+ "Ответить": "Answer"
 }

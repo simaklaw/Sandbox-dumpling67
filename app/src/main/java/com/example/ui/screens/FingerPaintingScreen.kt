@@ -499,7 +499,6 @@ fun FingerPaintingScreen(
                     colors.forEach { color ->
                         val isSelected = selectedColor == color && !isRainbowActive
                         Box(
-                            contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .size(swatch)
                                 .border(BorderStroke(if (isSelected) 4.dp else 2.dp, if (isSelected) ColorInk else Color.White), CircleShape)

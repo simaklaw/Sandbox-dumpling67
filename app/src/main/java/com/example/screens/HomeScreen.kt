@@ -205,7 +205,7 @@ fun HomeScreen(
                     // ==========================================
                     // 🧸 3-5 YEARS OLD LAYOUT (With Folders)
                     // ==========================================
-                    // Row 1: Кормление, Мялка
+                    // Row 1: Кормление, Аквариум
                     Row(
                         modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -228,13 +228,13 @@ fun HomeScreen(
                         )
                         HomeScreenCard(
                             modifier = Modifier.weight(1f),
-                            title = "Мялка",
-                            icon = "🥟",
+                            title = "Аквариум",
+                            icon = "🐠",
                             cardColor = ColorYellow,
                             phaseOffset = 400,
                             soundManager = soundManager,
                             haptics = haptics,
-                            onClick = { onNavigateToGame(2, "Мялка") }
+                            onClick = { onNavigateToGame(30, "Аквариум") }
                         )
                     }
 

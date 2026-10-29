@@ -199,7 +199,7 @@ fun BabyPhoneScreen(
 
                 // Animated talking mouth and hop
                 repeat(4) { iteration ->
-                    if (iteration == 2) animalSoundFor(chosenFriend.soundKey)?.let { soundManager.play(it) }
+                    if (iteration == 2) soundManager.play("phone_hi_${chosenFriend.soundKey}", volume = 1f)
                     launch { mouthWiggle.animateTo(1f, tween(140)) }
                     launch { friendHop.animateTo(-18f, tween(140)) }
                     delay(160)

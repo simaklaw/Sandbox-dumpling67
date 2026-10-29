@@ -237,6 +237,7 @@ fun MainAppScreen(
     var activeScreenState by rememberSaveable(stateSaver = AppScreenStateSaver) {
         mutableStateOf<AppScreenState>(AppScreenState.Home)
     }
+    LaunchedEffect(Unit) { soundManager.preloadSpeech() }
     var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
     var showExitProtectionDialog by remember { mutableStateOf(false) }

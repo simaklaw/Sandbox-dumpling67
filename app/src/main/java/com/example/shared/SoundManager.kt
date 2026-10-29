@@ -257,6 +257,24 @@ class SoundManager(
         for (n in names) { try { loadRawSoundFile(n) } catch (_: Throwable) {} }
     }
 
+    private val noEnglishVariant: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Все озвученные фразы (русские и английские) — загружаются заранее, чтобы звучали с первого нажатия. */
+    fun preloadSpeech() {
+        val base = listOf(
+            "praise_1", "praise_2", "praise_3", "peekaboo_1", "peekaboo_2", "yum_voice",
+            "voice_hint_tap", "voice_hint_drag", "voice_hint_look",
+            "voice_arrow_normal", "voice_arrow_carrot", "voice_arrow_star",
+            "voice_name_cat", "voice_name_cow", "voice_name_dog", "voice_name_duck", "voice_name_frog", "voice_name_pig",
+            "voice_name_horse", "voice_name_sheep", "voice_name_piglet", "voice_name_bear", "voice_name_chick",
+            "voice_name_elephant", "voice_name_robot", "voice_name_dino",
+            "voice_shape_circle", "voice_shape_square", "voice_shape_triangle", "voice_shape_star", "voice_shape_heart", "voice_shape_oval",
+            "phone_hi_dog", "phone_hi_cat", "phone_hi_duck", "phone_hi_cow", "phone_hi_frog", "phone_hi_pig",
+            "phone_hi_horse", "phone_hi_sheep", "phone_hi_chick", "phone_hi_rooster", "phone_hi_bunny"
+        )
+        preloadRaw(if (com.example.shared.i18n.I18n.isEnglish) base.map { it + "_en" } + base else base)
+    }
+
     private fun loadRawSoundFile(fileName: String): Int? {
         if (!isSoundPoolSupported) return null
 
@@ -300,7 +318,8 @@ class SoundManager(
         if (isMuted || masterVolume <= 0.001f) return false
 
         val entry = SoundCatalog.find(name)
-        val category = entry?.category ?: SoundCategory.SFX
+        val category = entry?.category
+            ?: if (name.startsWith("voice_") || name.startsWith("phone_hi_")) SoundCategory.VOICE else SoundCategory.SFX
 
         // 1. Check category enablement
         if (!isCategoryEnabled(category)) return false
@@ -362,9 +381,15 @@ class SoundManager(
         val finalVol = (volume * baseEntryVolume * masterVolume * duckingFactor).coerceIn(0f, 1f)
 
         // 7. Try playing from SoundPool
-        var soundId = soundIdMap[fileName]
+        // Английская озвучка: файл с суффиксом _en, если включён английский и такой файл есть
+        var playFile = fileName
+        if (com.example.shared.i18n.I18n.isEnglish && !noEnglishVariant.contains(fileName)) {
+            val en = fileName + "_en"
+            if (soundIdMap[en] != null || loadRawSoundFile(en) != null) playFile = en else noEnglishVariant.add(fileName)
+        }
+        var soundId = soundIdMap[playFile]
         if (soundId == null) {
-            soundId = loadRawSoundFile(fileName)
+            soundId = loadRawSoundFile(playFile)
         }
 
         if (soundId != null && loadedSoundIds.contains(soundId)) {

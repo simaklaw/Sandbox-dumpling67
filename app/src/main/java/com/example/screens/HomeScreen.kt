@@ -156,6 +156,7 @@ fun HomeScreen(
                             .background(Color(0xFFE3F2FD))
                             .clickable {
                                 com.example.shared.i18n.I18n.setLang(context, if (com.example.shared.i18n.I18n.isEnglish) "ru" else "en")
+                                soundManager.preloadSpeech()
                                 soundManager.play("pop")
                             },
                         contentAlignment = Alignment.Center

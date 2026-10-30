@@ -157,7 +157,7 @@ private class AquariumWorld(val density: Float) {
         val hasPuffer = fish.any { kinds[it.kind].puffer }
         val kind = if (!hasPuffer && pufferCd <= 0f && Random.nextFloat() < 0.35f) 6
         else {
-            val opts = kinds.indices.filter { !kinds[it].puffer }
+            val opts = kinds.indices.filter { !kinds[it].puffer && it != 5 } // 5 — серая рыба, убрана
             opts.random()
         }
         if (kind == 6) pufferCd = 25f

@@ -971,13 +971,6 @@ private fun MonsterPartyView(
         lottieTick++
     }
 
-    fun tapFood(food: Int) {
-        // кормим того гостя, кто просит именно это угощение
-        val gi = (0 until guests.size).firstOrNull { wants.getOrNull(it) == food }
-        if (gi != null) feedGuest(gi, food)
-        else { for (a in 0 until guests.size) anims[a].squash = 0.75f; soundPlayer.playPop(0.5f) }
-    }
-
     fun feedGuest(i: Int, food: Int) {
         if (wants[i] == food) {
             wants[i] = -1
@@ -996,6 +989,13 @@ private fun MonsterPartyView(
             anims[i].squash = 0.7f
             soundPlayer.playPop(0.5f)
         }
+    }
+
+    fun tapFood(food: Int) {
+        // кормим того гостя, кто просит именно это угощение
+        val gi = (0 until guests.size).firstOrNull { wants.getOrNull(it) == food }
+        if (gi != null) feedGuest(gi, food)
+        else { for (a in 0 until guests.size) anims[a].squash = 0.75f; soundPlayer.playPop(0.5f) }
     }
 
     Box(

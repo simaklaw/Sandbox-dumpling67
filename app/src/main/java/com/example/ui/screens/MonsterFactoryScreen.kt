@@ -1,6 +1,11 @@
 package com.example.ui.screens
 
 import android.content.Context
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.width
@@ -342,6 +347,17 @@ private fun MonBtn(res: Int, emoji: String, size: Int = 54, onClick: () -> Unit)
 }
 
 @Composable
+private fun MonPill(text: String, color: Color, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .background(Color.White.copy(alpha = 0.92f), androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+            .border(2.dp, color, androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) { Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color) }
+}
+
+@Composable
 fun MonsterFactoryScreen(
     repository: GameRepository,
     soundPlayer: SoundEffectPlayer
@@ -364,10 +380,7 @@ fun MonsterFactoryScreen(
     var party by remember { mutableStateOf(false) }
     var house by remember { mutableStateOf(loadHouse(context)) }
     var feedCount by remember { mutableIntStateOf(0) }
-    val foods = remember { mutableStateOf(MON_FOODS.shuffled().take(3)) }
-    var dragFood by remember { mutableIntStateOf(-1) }
-    var dragX by remember { mutableFloatStateOf(0f) }
-    var dragY by remember { mutableFloatStateOf(0f) }
+    var tab by remember { mutableIntStateOf(0) }
     var lookX by remember { mutableFloatStateOf(0f) }
     var toast by remember { mutableStateOf("") }
     val houseAnims = remember { List(MON_MAX_HOUSE) { MonAnim() } }
@@ -376,9 +389,10 @@ fun MonsterFactoryScreen(
     val w = size.width.toFloat()
     val h = size.height.toFloat()
     val cx = w / 2f
-    val ground = h * 0.70f
-    val layout = if (w > 0f) monLayout(imgs, cx, ground, w * 0.78f, h * 0.50f) else null
-    fun foodPos(i: Int) = Offset(w / 4f * (i + 1), h * 0.89f)
+    val panelPx = 206f * density
+    val freeH = (h - panelPx).coerceAtLeast(1f)
+    val ground = freeH * 0.86f
+    val layout = if (w > 0f) monLayout(imgs, cx, ground, w * 0.74f, freeH * 0.56f) else null
 
     fun confetti(x: Float, y: Float, n: Int) {
         repeat(n) {
@@ -388,44 +402,72 @@ fun MonsterFactoryScreen(
         }
     }
 
-    fun changePart(zone: MonZone) {
-        spec = when (zone) {
-            MonZone.EYES -> spec.copy(eyes = nextFree("eyes", spec.eyes, MonsterArt.EYES.size, unlocked))
-            MonZone.MOUTH -> spec.copy(mouth = nextFree("mouth", spec.mouth, MonsterArt.MOUTHS.size, unlocked))
-            MonZone.NOSE -> spec.copy(nose = nextFree("nose", spec.nose, MON_NOSES, unlocked))
-            MonZone.TOP -> spec.copy(detail = nextFree("detail", spec.detail, MON_DETAIL, unlocked))
-            MonZone.ARMS -> spec.copy(arm = nextFree("arm", spec.arm, MON_ARMS, unlocked))
-            MonZone.LEGS -> spec.copy(leg = nextFree("leg", spec.leg, MON_LEGS, unlocked))
-            MonZone.BODY -> spec.copy(body = nextFree("body", spec.body, MON_BODIES, unlocked))
+    fun choose(kind: String, idx: Int) {
+        if (!isFree(kind, idx, unlocked)) {
+            toast = "🔒"; showShop = true; soundPlayer.playPop(0.5f); return
+        }
+        val zone = when (kind) {
+            "eyes", "eyecount" -> MonZone.EYES
+            "mouth" -> MonZone.MOUTH
+            "nose" -> MonZone.NOSE
+            "detail" -> MonZone.TOP
+            "arm" -> MonZone.ARMS
+            "leg" -> MonZone.LEGS
+            else -> MonZone.BODY
+        }
+        spec = when (kind) {
+            "body" -> spec.copy(body = idx)
+            "color" -> spec.copy(color = idx)
+            "eyes" -> spec.copy(eyes = idx)
+            "eyecount" -> spec.copy(eyeCount = idx)
+            "mouth" -> spec.copy(mouth = idx)
+            "nose" -> spec.copy(nose = idx)
+            "detail" -> spec.copy(detail = idx)
+            "arm" -> spec.copy(arm = idx)
+            else -> spec.copy(leg = idx)
         }
         anim.pop[zone.ordinal] = 1f
         anim.squash = 0.6f
-        when (zone) {
-            MonZone.EYES -> soundManager.play("giggle", volume = 0.7f)
-            MonZone.MOUTH -> soundPlayer.playCartoonYelp(0.8f + (spec.mouth % 5) * 0.12f)
-            MonZone.NOSE -> soundPlayer.playPop(1.6f)
-            MonZone.TOP -> soundPlayer.playChime(1.0f + (spec.detail % 4) * 0.2f)
-            MonZone.ARMS -> soundPlayer.playPop(1.0f)
-            MonZone.LEGS -> soundPlayer.playPop(0.7f)
-            MonZone.BODY -> soundManager.play("boing", volume = 0.7f)
+        when (kind) {
+            "color" -> soundPlayer.playSparkleChime()
+            "eyes", "eyecount" -> soundManager.play("giggle", volume = 0.7f)
+            "mouth" -> soundPlayer.playCartoonYelp(0.8f + (idx % 5) * 0.12f)
+            "nose" -> soundPlayer.playPop(1.6f)
+            "detail" -> soundPlayer.playChime(1.0f + (idx % 4) * 0.2f)
+            "body" -> soundManager.play("boing", volume = 0.7f)
+            else -> soundPlayer.playPop(if (kind == "arm") 1.0f else 0.7f)
         }
         soundPlayer.vibrateSquishDeform()
     }
 
-    fun feed() {
+    fun poke(zone: MonZone?) {
+        anim.pop[(zone ?: MonZone.BODY).ordinal] = 1f
+        anim.jump(); anim.squash = 0.45f
+        when (zone) {
+            MonZone.EYES -> soundManager.play("giggle", volume = 0.7f)
+            MonZone.MOUTH -> soundPlayer.playCartoonYelp(0.9f)
+            MonZone.NOSE -> soundPlayer.playPop(1.6f)
+            MonZone.TOP -> soundPlayer.playChime(1.2f)
+            MonZone.ARMS, MonZone.LEGS -> soundPlayer.playPop(0.9f)
+            else -> soundManager.play("boing", volume = 0.7f)
+        }
+        soundPlayer.vibrateSquishDeform()
+    }
+
+    fun feed(food: String) {
         anim.chomp = 1f
         anim.squash = 0.5f
         anim.jump(260f)
         soundPlayer.playPop(0.8f)
         soundPlayer.playCartoonYelp(0.6f)
         feedCount++
+        toast = food
         if (feedCount % 5 == 0) {
             anim.danceUntil = clock + 4f
             soundPlayer.playFanfare()
-            confetti(cx, ground - h * 0.25f, 30)
+            confetti(cx, ground - freeH * 0.25f, 30)
             toast = "💖"
         }
-        foods.value = MON_FOODS.shuffled().take(3)
     }
 
     Box(
@@ -439,6 +481,7 @@ fun MonsterFactoryScreen(
                     val down = awaitFirstDown(requireUnconsumed = false)
                     if (showShop) return@awaitEachGesture
                     val p0 = down.position
+                    if (!showHouse && p0.y > h - panelPx) return@awaitEachGesture
                     if (showHouse) {
                         // тап по ячейке дома
                         var up = false
@@ -470,26 +513,6 @@ fun MonsterFactoryScreen(
                         }
                         return@awaitEachGesture
                     }
-                    // еда?
-                    var fi = -1
-                    for (i in 0 until 3) {
-                        if (hypot(p0.x - foodPos(i).x, p0.y - foodPos(i).y) < 60f * density) fi = i
-                    }
-                    if (fi >= 0) {
-                        dragFood = fi; dragX = p0.x; dragY = p0.y
-                        do {
-                            val e = awaitPointerEvent()
-                            val c = e.changes.firstOrNull { it.id == down.id } ?: break
-                            dragX = c.position.x; dragY = c.position.y
-                            c.consume()
-                        } while (c.pressed)
-                        val lay = layout
-                        val onMonster = lay != null && (lay.body.inflate(30f * density).contains(Offset(dragX, dragY)) ||
-                            lay.mouthRect.inflate(40f * density).contains(Offset(dragX, dragY)))
-                        dragFood = -1
-                        if (onMonster) feed()
-                        return@awaitEachGesture
-                    }
                     // тап (или движение — глазки следят)
                     var moved = false
                     do {
@@ -502,10 +525,7 @@ fun MonsterFactoryScreen(
                     if (!moved) {
                         val lay = layout
                         val z = if (lay != null) hitZone(lay, imgs, p0.x, p0.y) else null
-                        if (z != null) changePart(z) else {
-                            anim.jump(); anim.squash = 0.4f
-                            soundManager.play("giggle", volume = 0.6f)
-                        }
+                        poke(z)
                     }
                 }
             }
@@ -525,90 +545,119 @@ fun MonsterFactoryScreen(
                     }
                 }
             }
-            if (size != IntSize.Zero) {
-                // тарелка с угощениями
-                Box(
-                    Modifier
-                        .padding(top = 0.dp)
-                        .fillMaxSize()
-                ) {
-                    for (i in 0 until 3) {
-                        val dragging = dragFood == i
-                        val pos = if (dragging) Offset(dragX, dragY) else foodPos(i)
-                        Text(
-                            foods.value[i],
-                            fontSize = if (dragging) 66.sp else 52.sp,
-                            modifier = Modifier.padding(
-                                start = ((pos.x - 36f * density) / density).coerceAtLeast(0f).dp,
-                                top = ((pos.y - 44f * density) / density).coerceAtLeast(0f).dp
-                            )
-                        )
-                    }
-                }
-            }
-            // кнопки сбоку
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp, end = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // ---- верхняя полоса: подписанные кнопки действий ----
+            Row(
+                Modifier.align(Alignment.TopStart).statusBarsPadding().padding(top = 10.dp, start = 88.dp)
+                    .fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                MonBtn(R.drawable.ui_btn_sq_blue, "🎨") {
-                    spec = spec.copy(color = nextFree("color", spec.color, 6, unlocked))
-                    anim.squash = 0.5f; anim.jump(300f)
-                    soundPlayer.playSparkleChime()
+                MonPill("🪙 $wallet  🛒 Магазин", Color(0xFFEF6C00)) { showShop = true; soundPlayer.playPop(1.2f) }
+                MonPill("🎲 Случайный", Color(0xFFD81B60)) {
+                    spec = randomFree(unlocked); anim.squash = 0.8f; anim.jump(560f); soundPlayer.playMagicSparkle()
                 }
-                MonBtn(R.drawable.ui_btn_sq_green, "👀") {
-                    spec = spec.copy(eyeCount = spec.eyeCount % 3 + 1)
-                    anim.pop[MonZone.EYES.ordinal] = 1f
-                    soundManager.play("giggle", volume = 0.7f)
+                MonPill("💃 Танец", Color(0xFF3949AB)) {
+                    anim.danceUntil = clock + 6f; anim.nextBeat = clock; soundPlayer.playFanfare()
                 }
-                MonBtn(R.drawable.ui_btn_sq_red, "🎲") {
-                    spec = randomFree(unlocked)
-                    anim.squash = 0.8f; anim.jump(560f)
-                    soundPlayer.playMagicSparkle()
-                }
-                MonBtn(R.drawable.ui_btn_sq_blue, "🎵") {
-                    anim.danceUntil = clock + 6f
-                    anim.nextBeat = clock
-                    soundPlayer.playFanfare()
-                }
-                MonBtn(R.drawable.ui_btn_sq_green, "⭐") {
+                MonPill("⭐ Сохранить", Color(0xFF2E7D32)) {
                     if (house.size < MON_MAX_HOUSE && spec !in house) {
-                        house = house + spec
-                        saveHouse(context, house)
-                        confetti(cx, ground - h * 0.2f, 24)
-                        soundPlayer.playChime(1.6f)
-                        toast = "🏠 ✔"
+                        house = house + spec; saveHouse(context, house)
+                        confetti(cx, ground - freeH * 0.2f, 24); soundPlayer.playChime(1.6f); toast = "🏠 ✔"
                     } else if (house.size >= MON_MAX_HOUSE) {
-                        soundPlayer.playPop(0.6f)
-                        toast = "🏠 полон"
-                    } else {
-                        soundPlayer.playPop(0.9f)
+                        soundPlayer.playPop(0.6f); toast = "🏠 полон"
+                    } else soundPlayer.playPop(0.9f)
+                }
+                MonPill("🏠 Мой дом", Color(0xFF6D4C41)) { showHouse = true; party = false; soundPlayer.playPop(1.2f) }
+                MonPill("🎪 Вечеринка", Color(0xFF8E24AA)) { showParty = true; soundPlayer.playFanfare() }
+            }
+            // ---- нижняя панель конструктора ----
+            val tabs = listOf(
+                Triple("Тело", "🟢", "body"), Triple("Цвет", "🎨", "color"), Triple("Глаза", "👁", "eyes"),
+                Triple("Сколько глаз", "👀", "eyecount"), Triple("Рот", "👄", "mouth"), Triple("Нос", "👃", "nose"),
+                Triple("Руки", "🙌", "arm"), Triple("Ноги", "🦶", "leg"), Triple("Рожки", "🦄", "detail"),
+                Triple("Еда", "🍎", "food")
+            )
+            Column(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()
+                    .background(Color.White.copy(alpha = 0.92f), androidx.compose.foundation.shape.RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                    .padding(top = 8.dp, bottom = 8.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    tabs.forEachIndexed { ti, t ->
+                        val sel = tab == ti
+                        Column(
+                            Modifier.width(66.dp)
+                                .background(if (sel) Color(0xFFFFD54F) else Color(0xFFEDE7F6), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                                .clickable { tab = ti; soundPlayer.playPop(1.3f) }
+                                .padding(vertical = 5.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(t.second, fontSize = 22.sp)
+                            Text(t.first, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A148C), textAlign = TextAlign.Center)
+                        }
                     }
                 }
-                MonBtn(R.drawable.ui_btn_sq_green, "🎪") {
-                    showParty = true
-                    soundPlayer.playFanfare()
-                }
-                MonBtn(R.drawable.ui_btn_sq_red, "🏠") {
-                    showHouse = true
-                    party = false
-                    soundPlayer.playPop(1.2f)
+                Spacer(Modifier.height(8.dp))
+                val kind = tabs[tab].third
+                if (kind == "food") {
+                    Row(
+                        Modifier.fillMaxWidth().height(96.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MON_FOODS.forEach { f ->
+                            Box(
+                                Modifier.size(84.dp).background(Color(0xFFFFF3E0), androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+                                    .clickable { feed(f) },
+                                contentAlignment = Alignment.Center
+                            ) { Text(f, fontSize = 44.sp) }
+                        }
+                    }
+                } else {
+                    val opts: List<Pair<Int?, Int>> = when (kind) {
+                        "body" -> (0 until MON_BODIES).map { MonsterArt.BODY[spec.color][it] to it }
+                        "color" -> (0 until 6).map { MonsterArt.BODY[it][spec.body] to it }
+                        "eyes" -> (0 until MonsterArt.EYES.size).map { MonsterArt.EYES[it] to it }
+                        "eyecount" -> (1..3).map { null to it }
+                        "mouth" -> (0 until MonsterArt.MOUTHS.size).map { MonsterArt.MOUTHS[it] to it }
+                        "nose" -> (0 until MON_NOSES).map { (if (it == 0) null else MonsterArt.NOSES[it - 1]) to it }
+                        "arm" -> (0 until MON_ARMS).map { MonsterArt.ARM[spec.color][it] to it }
+                        "leg" -> (0 until MON_LEGS).map { MonsterArt.LEG[spec.color][it] to it }
+                        else -> (0 until MON_DETAIL).map { (if (it == 0) null else MonsterArt.DETAIL[it - 1][spec.color]) to it }
+                    }
+                    val curIdx = when (kind) {
+                        "body" -> spec.body; "color" -> spec.color; "eyes" -> spec.eyes; "eyecount" -> spec.eyeCount
+                        "mouth" -> spec.mouth; "nose" -> spec.nose; "arm" -> spec.arm; "leg" -> spec.leg; else -> spec.detail
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().height(96.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        opts.forEach { (res, idx) ->
+                            val sel = idx == curIdx
+                            val locked = !isFree(kind, idx, unlocked)
+                            Box(
+                                Modifier.size(84.dp)
+                                    .background(if (sel) Color(0xFFC8E6C9) else Color(0xFFF3E5F5), androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+                                    .border(if (sel) 3.dp else 0.dp, if (sel) Color(0xFF43A047) else Color.Transparent, androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+                                    .clickable { choose(kind, idx) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (res != null) {
+                                    Image(painterResource(res), null, Modifier.size(62.dp).alpha(if (locked) 0.4f else 1f), contentScale = ContentScale.Fit)
+                                } else Text(if (kind == "eyecount") "$idx" else "🚫", fontSize = 34.sp, fontWeight = FontWeight.Black, color = Color(0xFF6A1B9A))
+                                if (locked) Text("🔒", fontSize = 22.sp)
+                            }
+                        }
+                    }
                 }
             }
-            Box(
-                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 10.dp)
-                    .background(Color.White.copy(alpha = 0.85f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-                    .clickable { showShop = true; soundPlayer.playPop(1.2f) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) { Text("🪙 $wallet  🛒", fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color(0xFFEF6C00)) }
             if (toast.isNotEmpty()) {
                 Text(
                     toast, fontSize = 34.sp, fontWeight = FontWeight.Black, color = Color(0xFF6A1B9A),
-                    modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 20.dp)
+                    modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 80.dp)
                 )
             }
         } else {
@@ -883,14 +932,10 @@ private fun MonsterPartyView(
     var level by remember { mutableIntStateOf(1) }
     var banner by remember { mutableStateOf("") }
     var lottieTick by remember { mutableIntStateOf(0) }
-    var dragFood by remember { mutableIntStateOf(-1) }
-    var dragX by remember { mutableFloatStateOf(0f) }
-    var dragY by remember { mutableFloatStateOf(0f) }
     val imgs = guests.map { rememberMonImgs(it) }
 
     val w = size.width.toFloat()
     val h = size.height.toFloat()
-    fun foodPos(i: Int) = Offset(w / 5f * (i + 1), h * 0.88f)
     fun need() = 2 + guests.size
 
     fun cell(i: Int): Rect {
@@ -926,6 +971,13 @@ private fun MonsterPartyView(
         lottieTick++
     }
 
+    fun tapFood(food: Int) {
+        // кормим того гостя, кто просит именно это угощение
+        val gi = (0 until guests.size).firstOrNull { wants.getOrNull(it) == food }
+        if (gi != null) feedGuest(gi, food)
+        else { for (a in 0 until guests.size) anims[a].squash = 0.75f; soundPlayer.playPop(0.5f) }
+    }
+
     fun feedGuest(i: Int, food: Int) {
         if (wants[i] == food) {
             wants[i] = -1
@@ -955,28 +1007,13 @@ private fun MonsterPartyView(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val p0 = down.position
-                    var fi = -1
-                    for (i in PARTY_FOODS.indices) if (hypot(p0.x - foodPos(i).x, p0.y - foodPos(i).y) < 60f * density) fi = i
-                    if (fi >= 0) {
-                        dragFood = fi; dragX = p0.x; dragY = p0.y
-                        do {
-                            val e = awaitPointerEvent()
-                            val c = e.changes.firstOrNull { it.id == down.id } ?: break
-                            dragX = c.position.x; dragY = c.position.y
-                            c.consume()
-                        } while (c.pressed)
-                        val gi = (0 until guests.size).firstOrNull { cell(it).contains(Offset(dragX, dragY)) }
-                        dragFood = -1
-                        if (gi != null) feedGuest(gi, fi)
-                    } else {
-                        do {
-                            val e = awaitPointerEvent()
-                        } while (e.changes.any { it.pressed })
-                        val gi = (0 until guests.size).firstOrNull { cell(it).contains(p0) }
-                        if (gi != null) {
-                            anims[gi].jump(320f); anims[gi].squash = 0.5f
-                            soundManager.play("giggle", volume = 0.7f)
-                        }
+                    do {
+                        val e = awaitPointerEvent()
+                    } while (e.changes.any { it.pressed })
+                    val gi = (0 until guests.size).firstOrNull { cell(it).contains(p0) }
+                    if (gi != null) {
+                        anims[gi].jump(320f); anims[gi].squash = 0.5f
+                        soundManager.play("giggle", volume = 0.7f)
                     }
                 }
             }
@@ -1027,15 +1064,6 @@ private fun MonsterPartyView(
                     contentAlignment = Alignment.Center
                 ) { Text(if (wf < 0) "❤️" else PARTY_FOODS[wf], fontSize = 28.sp) }
             }
-            // угощения
-            for (i in PARTY_FOODS.indices) {
-                val dragging = dragFood == i
-                val pos = if (dragging) Offset(dragX, dragY) else foodPos(i)
-                Text(
-                    PARTY_FOODS[i], fontSize = if (dragging) 66.sp else 52.sp,
-                    modifier = Modifier.offset { IntOffset((pos.x - 36f * density).roundToInt(), (pos.y - 44f * density).roundToInt()) }
-                )
-            }
         }
         // шкала веселья
         Row(
@@ -1056,6 +1084,23 @@ private fun MonsterPartyView(
                         .fillMaxWidth(fed / need().toFloat())
                         .background(Color(0xFFFFD54F), androidx.compose.foundation.shape.RoundedCornerShape(7.dp))
                 )
+            }
+        }
+        // поднос с угощениями: нажми на то, что просит гость
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Нажми на то, что просит гость 👆", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PARTY_FOODS.forEachIndexed { fi, f ->
+                    Box(
+                        Modifier.size(76.dp).background(Color.White.copy(alpha = 0.92f), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                            .clickable { tapFood(fi) },
+                        contentAlignment = Alignment.Center
+                    ) { Text(f, fontSize = 42.sp) }
+                }
             }
         }
         LottieConfetti(lottieTick, Modifier.fillMaxSize())

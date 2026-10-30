@@ -53,43 +53,51 @@ class ArcherySoundHelper(
         }
     }
 
-    fun playBowPull() {
+    private var lastDraw = 0L
+    private var lastShot = 0L
+    private var lastHit = 0L
+    private var lastWobble = 0L
+    private var lastGiggle = 0L
+
+    init {
         try {
-            soundEffectPlayer.playBowstringTension()
-        } catch (_: Exception) {
-            soundManager.play("tap")
-        }
+            soundManager.preloadRaw(listOf("arch_draw", "arch_release", "arch_hit_straw", "arch_hit_carrot", "arch_wobble"))
+        } catch (_: Exception) {}
+    }
+
+    // Все звуки — короткие готовые ogg через SoundPool: стартуют мгновенно и не копятся в очереди.
+    fun playBowPull() {
+        val now = System.currentTimeMillis()
+        if (now - lastDraw < 150) return
+        lastDraw = now
+        soundManager.play("arch_draw", volume = 0.6f)
     }
 
     fun playShoot() {
-        try {
-            soundEffectPlayer.playBowShot()
-        } catch (_: Exception) {
-            soundManager.play("whoosh")
-        }
+        val now = System.currentTimeMillis()
+        if (now - lastShot < 90) return
+        lastShot = now
+        soundManager.play("arch_release", volume = 1f, rate = 0.97f + kotlin.random.Random.nextFloat() * 0.07f)
     }
 
     fun playHit(type: ArrowType) {
-        try {
-            when (type) {
-                ArrowType.NORMAL -> {
-                    soundEffectPlayer.playDullHeavyArrowImpact("WOODEN")
-                    soundEffectPlayer.playArrowVibrationBuzz()
-                }
-                ArrowType.CARROT -> {
-                    soundEffectPlayer.playDullHeavyArrowImpact("CARROT")
-                }
-                ArrowType.STAR -> {
-                    soundEffectPlayer.playDullHeavyArrowImpact("STAR")
-                    soundEffectPlayer.playMagicSparkle()
-                }
+        val now = System.currentTimeMillis()
+        if (now - lastHit < 60) return
+        lastHit = now
+        when (type) {
+            ArrowType.NORMAL -> soundManager.play("arch_hit_straw", volume = 1f, rate = 0.95f + kotlin.random.Random.nextFloat() * 0.1f)
+            ArrowType.CARROT -> soundManager.play("arch_hit_carrot", volume = 1f, rate = 0.95f + kotlin.random.Random.nextFloat() * 0.1f)
+            ArrowType.STAR -> {
+                soundManager.play("arch_hit_straw", volume = 0.8f, rate = 1.25f)
+                try { soundEffectPlayer.playMagicSparkle() } catch (_: Exception) {}
             }
-        } catch (_: Exception) {
-            soundManager.play("pop")
         }
     }
 
     fun playScarecrowGiggle() {
+        val nowG = System.currentTimeMillis()
+        if (nowG - lastGiggle < 700) return
+        lastGiggle = nowG
         scope.launch {
             try {
                 // Friendly high-pitched giggling chirp
@@ -101,19 +109,14 @@ class ArcherySoundHelper(
     }
 
     fun playWobble() {
-        try {
-            soundEffectPlayer.playScarecrowRecoilSpring(1.0f)
-        } catch (_: Exception) {
-            soundManager.play("boing")
-        }
+        val now = System.currentTimeMillis()
+        if (now - lastWobble < 200) return
+        lastWobble = now
+        soundManager.play("arch_wobble", volume = 0.7f)
     }
 
     fun playThud() {
-        try {
-            soundEffectPlayer.playDullHeavyArrowImpact("WOODEN", isBullseye = false)
-        } catch (_: Exception) {
-            soundManager.play("tap")
-        }
+        playHit(ArrowType.NORMAL)
     }
 
     fun playWhoosh() {

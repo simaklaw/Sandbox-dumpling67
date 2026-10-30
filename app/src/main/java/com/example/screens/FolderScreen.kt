@@ -61,6 +61,7 @@ val FOLDER_ITEMS: Map<FolderType, List<FolderItem>> = mapOf(
         FolderItem("Зверята", "🐮", 0, ColorPurple)
     ),
     FolderType.KITCHEN to listOf(
+        FolderItem("Нарезка овощей", "🔪", 36, ColorGreen),
         FolderItem("Сыпучести", "🌾", 6, ColorYellow)
     )
 )

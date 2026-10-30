@@ -1102,5 +1102,8 @@
  "Жми кнопки — звери отвечают!": "Press the buttons — the animals answer!",
  "Друзья: {}/{}": "Friends: {}/{}",
  "Ты поговорил со всеми друзьями! Ура! 🎉": "You talked to all your friends! Hooray! 🎉",
- "Ответить": "Answer"
+ "Ответить": "Answer",
+ "Уровень {}": "Level {}",
+ "Уровень {}! 🌟": "Level {}! 🌟",
+ "Все фигурки одного цвета — смотри на форму!": "All shapes are the same color — look at the shape!"
 }

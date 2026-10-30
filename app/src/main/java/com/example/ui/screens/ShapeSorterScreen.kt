@@ -9,7 +9,14 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -133,6 +140,7 @@ fun ShapeSorterScreen(
     val haptics = rememberHaptics()
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { soundManager.preloadRaw(listOf("fx_popper", "fx_rocket", "fx_boom")) }
 
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
     var round by remember { mutableIntStateOf(0) }
@@ -140,12 +148,21 @@ fun ShapeSorterScreen(
     var activity by remember { mutableIntStateOf(0) }
     var celebrating by remember { mutableStateOf(false) }
 
-    // В 2 года берём 3 случайные формы из 6, в 3–5 — все шесть
-    val kinds = remember(round, age.id) {
-        val all = SorterShapeKind.values().toList().shuffled()
-        if (age.isToddler2) all.take(3) else all
+    // Ступенчатая сложность: чем выше уровень, тем больше фигурок; последний уровень — все одного цвета (только форма)
+    val counts = if (age.isToddler2) intArrayOf(2, 3, 3, 4) else intArrayOf(3, 4, 5, 6, 6)
+    val maxLevel = counts.size - 1
+    val prefs = remember { context.getSharedPreferences("playground_prefs", android.content.Context.MODE_PRIVATE) }
+    val levelKey = "sorter_level_${age.id}"
+    var level by remember(age.id) { mutableIntStateOf(try { prefs.getInt(levelKey, 0).coerceIn(0, maxLevel) } catch (e: Exception) { 0 }) }
+    var levelUpBanner by remember { mutableStateOf(false) }
+    val neutral = !age.isToddler2 && level >= 4
+    val fx = remember { SorterFx() }
+    var fxTick by remember { mutableIntStateOf(0) }
+
+    val kinds = remember(round, level, age.id) {
+        SorterShapeKind.values().toList().shuffled().take(counts[level])
     }
-    val layout = remember(kinds, sizePx, round) {
+    val layout = remember(kinds, sizePx, round, level) {
         if (sizePx.width == 0 || sizePx.height == 0) null else buildSorterLayout(kinds, sizePx, dens)
     }
 
@@ -177,11 +194,35 @@ fun ShapeSorterScreen(
             fun checkComplete() {
                 if (!celebrating && pieces.all { it.isSnapped }) {
                     celebrating = true
-                    soundManager.play("rainbow_chime")
                     haptics.vibratePop()
                     scope.launch {
-                        delay(2600)
+                        // хлопушки с двух сторон
+                        soundManager.play("fx_popper", volume = 1f)
+                        fx.popper(sizePx.width.toFloat(), sizePx.height.toFloat(), left = true)
+                        fx.popper(sizePx.width.toFloat(), sizePx.height.toFloat(), left = false)
+                        haptics.vibratePop()
+                        delay(450)
+                        // три залпа салюта
+                        for (k in 0 until 3) {
+                            soundManager.play("fx_rocket", volume = 0.8f)
+                            val bx = sizePx.width * (0.2f + 0.3f * k + (Math.random().toFloat() - 0.5f) * 0.1f)
+                            val by = sizePx.height * (0.22f + Math.random().toFloat() * 0.16f)
+                            fx.rocket(bx, sizePx.height.toFloat(), by)
+                            delay(520)
+                            soundManager.play("fx_boom", volume = 0.9f)
+                            fx.burst(bx, by)
+                            haptics.vibratePop()
+                            delay(380)
+                        }
+                        delay(900)
                         celebrating = false
+                        if (level < maxLevel) {
+                            level++
+                            try { prefs.edit().putInt(levelKey, level).apply() } catch (e: Exception) { }
+                            levelUpBanner = true
+                            delay(1600)
+                            levelUpBanner = false
+                        }
                         round++ // новый набор фигурок
                     }
                 }
@@ -352,7 +393,7 @@ fun ShapeSorterScreen(
                             }
                     ) {
                         val path = sorterShapePath(p.kind, size.width / 2f, size.height / 2f, size.width * 0.44f)
-                        drawPath(path, p.kind.color)
+                        drawPath(path, if (neutral) Color(0xFF90A4AE) else p.kind.color)
                         drawPath(path, ColorInk, style = Stroke(width = 4.dp.toPx()))
                         // блик
                         drawCircle(
@@ -378,21 +419,129 @@ fun ShapeSorterScreen(
                 }
             }
 
-            // 🎉 Салют
-            if (celebrating) {
-                val pulse = rememberInfiniteTransition(label = "sorter_party")
-                val s by pulse.animateFloat(
-                    initialValue = 0.9f, targetValue = 1.15f,
-                    animationSpec = infiniteRepeatable(tween(400), RepeatMode.Reverse),
-                    label = "party_scale"
+            // Частицы салюта и хлопушек
+            LaunchedEffect(celebrating) {
+                var last = 0L
+                while (celebrating || fx.alive()) {
+                    withFrameNanos { now ->
+                        val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
+                        last = now
+                        fx.step(dt)
+                        fxTick++
+                    }
+                }
+            }
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                @Suppress("UNUSED_VARIABLE") val t = fxTick
+                fx.draw(this)
+            }
+
+            // Плашка уровня
+            Row(
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 10.dp, end = 12.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                androidx.compose.material3.Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                    color = Color.White.copy(alpha = 0.9f),
+                    shadowElevation = 4.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("Уровень ${level + 1}", fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = Color(0xFF5D3A1A))
+                        for (i in 0..maxLevel) {
+                            Box(
+                                Modifier
+                                    .size(if (i == level) 14.dp else 10.dp)
+                                    .background(if (i <= level) Color(0xFFFFB300) else Color(0xFFD7CCC8), androidx.compose.foundation.shape.CircleShape)
+                            )
+                        }
+                    }
+                }
+            }
+            if (neutral && !celebrating) {
+                Text(
+                    "Все фигурки одного цвета — смотри на форму!",
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+                    fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Color(0xFF5D3A1A)
                 )
+            }
+            if (levelUpBanner) {
+                val pulse = rememberInfiniteTransition(label = "sorter_lvl")
+                val sc by pulse.animateFloat(0.92f, 1.1f, infiniteRepeatable(tween(350), RepeatMode.Reverse), label = "lvlScale")
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "🎉⭐🎈",
-                        fontSize = 72.sp,
-                        modifier = Modifier.graphicsLayer { scaleX = s; scaleY = s }
+                        text = "Уровень ${level + 1}! 🌟",
+                        fontSize = 40.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                        color = Color(0xFFFF6F00),
+                        modifier = Modifier.graphicsLayer { scaleX = sc; scaleY = sc }
                     )
                 }
+            }
+        }
+    }
+}
+
+/** Частицы: конфетти из хлопушек, ракеты и взрывы салюта. */
+private class SorterFx {
+    private class P(var x: Float, var y: Float, var vx: Float, var vy: Float, val color: Color, var life: Float, val size: Float, val strip: Boolean, val g: Float)
+    private class R(var x: Float, var y: Float, val topY: Float, val vy: Float)
+    private val ps = ArrayList<P>()
+    private val rockets = ArrayList<R>()
+    private val cols = listOf(Color(0xFFFF5252), Color(0xFFFFD740), Color(0xFF40C4FF), Color(0xFF69F0AE), Color(0xFFE040FB), Color(0xFFFF9100), Color.White)
+    fun alive() = ps.isNotEmpty() || rockets.isNotEmpty()
+
+    fun popper(w: Float, h: Float, left: Boolean) {
+        val ox = if (left) w * 0.04f else w * 0.96f
+        val oy = h * 0.96f
+        val dir = if (left) 1f else -1f
+        repeat(70) {
+            val a = (-60f + Math.random().toFloat() * 45f) * Math.PI.toFloat() / 180f
+            val sp = (500f + Math.random().toFloat() * 900f)
+            ps.add(P(ox, oy, dir * kotlin.math.cos(a) * sp * 0.8f, kotlin.math.sin(a) * sp * 1.25f,
+                cols.random(), 1.9f + Math.random().toFloat(), 8f + Math.random().toFloat() * 10f, Math.random() < 0.5, 700f))
+        }
+    }
+    fun rocket(x: Float, fromY: Float, topY: Float) { rockets.add(R(x, fromY, topY, -(fromY - topY) / 0.52f)) }
+    fun burst(x: Float, y: Float) {
+        val c1 = cols.random(); val c2 = cols.random()
+        repeat(80) {
+            val a = it / 80f * 6.2832f
+            val sp = 220f + Math.random().toFloat() * 360f
+            ps.add(P(x, y, kotlin.math.cos(a) * sp, kotlin.math.sin(a) * sp, if (it % 2 == 0) c1 else c2, 1.3f + Math.random().toFloat() * 0.5f, 7f, false, 260f))
+        }
+        repeat(25) {
+            val a = Math.random().toFloat() * 6.2832f
+            val sp = Math.random().toFloat() * 140f
+            ps.add(P(x, y, kotlin.math.cos(a) * sp, kotlin.math.sin(a) * sp, Color.White, 1f, 5f, false, 200f))
+        }
+    }
+    fun step(dt: Float) {
+        val ri = rockets.iterator()
+        while (ri.hasNext()) {
+            val r = ri.next(); r.y += r.vy * dt
+            ps.add(P(r.x, r.y, (Math.random().toFloat() - 0.5f) * 40f, 60f, Color(0xFFFFE082), 0.35f, 5f, false, 0f))
+            if (r.y <= r.topY) ri.remove()
+        }
+        val it = ps.iterator()
+        while (it.hasNext()) {
+            val p = it.next()
+            p.vy += p.g * dt; p.vx *= (1f - 0.9f * dt); p.x += p.vx * dt; p.y += p.vy * dt
+            p.life -= dt
+            if (p.life <= 0f) it.remove()
+        }
+    }
+    fun draw(d: androidx.compose.ui.graphics.drawscope.DrawScope) {
+        for (p in ps) {
+            val a = p.life.coerceIn(0f, 1f)
+            if (p.strip) {
+                d.drawLine(p.color.copy(alpha = a), Offset(p.x, p.y), Offset(p.x - p.vx * 0.03f, p.y - p.vy * 0.03f), p.size * 0.5f)
+            } else {
+                d.drawCircle(p.color.copy(alpha = a), p.size * (0.5f + 0.5f * a), Offset(p.x, p.y))
             }
         }
     }

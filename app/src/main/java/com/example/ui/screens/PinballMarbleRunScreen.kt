@@ -720,18 +720,18 @@ fun PinballCanvas(
 
         // 4. Draw Slingshots (Triangles above flippers)
         val leftSlingshot = Path().apply {
-            moveTo(toPxX(1.2f), toPxY(10.0f))
-            lineTo(toPxX(2.2f), toPxY(11.8f))
-            lineTo(toPxX(1.2f), toPxY(12.0f))
+            moveTo(toPxX(1.1f), toPxY(9.6f))
+            lineTo(toPxX(2.0f), toPxY(11.2f))
+            lineTo(toPxX(1.1f), toPxY(11.4f))
             close()
         }
         drawPath(leftSlingshot, color = Color(0xFFFFCC80))
         drawPath(leftSlingshot, color = wallColor, style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
 
         val rightSlingshot = Path().apply {
-            moveTo(toPxX(7.8f), toPxY(10.0f))
-            lineTo(toPxX(7.8f), toPxY(12.0f))
-            lineTo(toPxX(6.8f), toPxY(11.8f))
+            moveTo(toPxX(7.9f), toPxY(9.6f))
+            lineTo(toPxX(7.9f), toPxY(11.4f))
+            lineTo(toPxX(7.0f), toPxY(11.2f))
             close()
         }
         drawPath(rightSlingshot, color = Color(0xFFFFCC80))
@@ -766,12 +766,7 @@ fun PinballCanvas(
 
         // 6. Draw Bumpers with Friendly Faces (4 round bumpers: (3, 5.5), (6, 5.5), (4.5, 7.5), (4.5, 4))
         val bumperColors = listOf(ColorPink, ColorYellow, ColorPurple, ColorGreen)
-        val bumperCenters = listOf(
-            Offset(toPxX(3.0f), toPxY(5.5f)),
-            Offset(toPxX(6.0f), toPxY(5.5f)),
-            Offset(toPxX(4.5f), toPxY(7.5f)),
-            Offset(toPxX(4.5f), toPxY(4.0f))
-        )
+        val bumperCenters = engine.bumperPositions.map { Offset(toPxX(it.x), toPxY(it.y)) }
         val bumperR = toPxDist(0.7f)
 
         bumperCenters.forEachIndexed { idx, center ->
@@ -838,8 +833,8 @@ fun PinballCanvas(
 
         // 7. Draw Flippers with Pivots
         val (leftAngle, rightAngle) = engine.getFlipperAngles()
-        val flipLength = toPxDist(1.9f)
-        val flipThick = toPxDist(0.44f)
+        val flipLength = toPxDist(2.0f)
+        val flipThick = toPxDist(0.46f)
 
         // Left flipper
         val lPivot = Offset(toPxX(2.2f), toPxY(14.0f))

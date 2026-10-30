@@ -4,6 +4,7 @@ import com.example.screens.Pinball.PinballPhysicsEngine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.hypot
 import kotlin.random.Random
 
 class PinballPhysicsEngineTest {
@@ -57,5 +58,49 @@ class PinballPhysicsEngineTest {
         assertEquals("Out of bounds must be 0", 0, engine.unstuckOutOfBoundsCount)
         assertEquals("NaN occurrences must be 0", 0, engine.unstuckNaNCount)
         assertTrue("Max speed must be bounded <= 16.5", engine.maxRecordedSpeed <= 16.5f)
+    }
+
+    private fun newEngine() = PinballPhysicsEngine({}, {}, {}, {}, {})
+
+    /** Шарик, лежащий на опущенной левой лапке, после удара должен взлететь вверх. */
+    @Test
+    fun flipperLaunchesBallUp() {
+        val e = newEngine()
+        e.autoPawsEnabled = false
+        e.clearAllAndReset()
+        val b = e.getBalls().first()
+        b.px = 3.2f; b.py = 13.3f; b.vx = 0f; b.vy = 0f
+        var t = 100_000_000L
+        e.step(t)
+        // дать шарику лечь на лапку
+        repeat(30) { t += 16_666_666L; e.step(t) }
+        e.holdLeft(true)
+        var minVy = 0f
+        repeat(20) { t += 16_666_666L; e.step(t); minVy = minOf(minVy, b.vy) }
+        println("minVy after flip = $minVy")
+        assertTrue("flipper must throw ball up, minVy=$minVy", minVy < -4f)
+    }
+
+    /** Шарик не должен надолго замирать в верхней части поля (симуляция в виртуальном времени). */
+    @Test
+    fun ballNeverStaysStuckUpTop() {
+        val e = newEngine()
+        var t = 100_000_000L
+        e.step(t)
+        var stillTop = 0f
+        var maxStill = 0f
+        var lx = 0f; var ly = 0f
+        var drained = 0
+        val total = 60 * 60 * 10
+        for (i in 0 until total) {
+            t += 16_666_666L
+            e.step(t)
+            val b = e.getBalls().first()
+            if (hypot(b.px - lx, b.py - ly) < 0.05f && b.py < 12.5f) stillTop += 1f / 60f else stillTop = 0f
+            lx = b.px; ly = b.py
+            if (stillTop > maxStill) maxStill = stillTop
+        }
+        println("max still time on top = $maxStill s; nudges=${e.unstuckLowSpeedCount + e.unstuckNoDisplacementCount}")
+        assertTrue("ball stuck on top for $maxStill s", maxStill < 1.5f)
     }
 }

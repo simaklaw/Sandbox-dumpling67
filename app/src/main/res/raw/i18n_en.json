@@ -1105,5 +1105,12 @@
  "Ответить": "Answer",
  "Уровень {}": "Level {}",
  "Уровень {}! 🌟": "Level {}! 🌟",
- "Все фигурки одного цвета — смотри на форму!": "All shapes are the same color — look at the shape!"
+ "Все фигурки одного цвета — смотри на форму!": "All shapes are the same color — look at the shape!",
+ "Цветок": "Flower",
+ "Нож": "Knife",
+ "Пальчик": "Finger",
+ "Грабельки": "Rake",
+ "Гладилка": "Smoother",
+ "Нажми на песок — останется отпечаток!": "Press the sand — it leaves a print!",
+ "Нажми — отпечаток, води пальцем — след": "Tap for a print, drag your finger for a trail"
 }

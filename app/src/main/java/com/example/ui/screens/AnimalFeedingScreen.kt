@@ -53,6 +53,7 @@ fun getFeedingPlateColor(type: String): Color = when (type) {
     "icecream" -> Color(0xFFFFC1DC)
     "banana" -> Color(0xFFFFF59D)
     "cookie" -> Color(0xFFFFCC80)
+    "cheese" -> Color(0xFFFFF176)
     else -> Color(0xFFFFE082)
 }
 
@@ -72,7 +73,8 @@ private val FOOD_ICONS = mapOf(
     "🍎" to com.example.R.drawable.food_apple,
     "🍦" to com.example.R.drawable.food_icecream,
     "🍌" to com.example.R.drawable.food_banana,
-    "🍪" to com.example.R.drawable.food_cookie
+    "🍪" to com.example.R.drawable.food_cookie,
+    "🧀" to com.example.R.drawable.food_cheese
 )
 
 @Composable
@@ -96,7 +98,8 @@ val FEEDING_FOODS = listOf(
     FoodData("🍎", "apple"),
     FoodData("🍦", "icecream"),
     FoodData("🍌", "banana"),
-    FoodData("🍪", "cookie")
+    FoodData("🍪", "cookie"),
+    FoodData("🧀", "cheese")
 )
 
 // Active states of pet
@@ -126,11 +129,11 @@ fun AnimalFeedingScreen(
     val ageProfile = LocalAgeProfile.current
 
     // 1. App State for Pets & Satiety
-    val pets = remember { listOf("dog" to "🐶", "cat" to "🐱", "pig" to "🐷") }
+    val pets = remember { listOf("dog" to "🐶", "cat" to "🐱", "mouse" to "🐭") }
     var selectedPetId by remember { mutableStateOf("dog") }
 
     // Satiety map for puppy, kitty, piglet (0 to 3)
-    val satietyMap = remember { mutableStateMapOf("dog" to 0, "cat" to 0, "pig" to 0) }
+    val satietyMap = remember { mutableStateMapOf("dog" to 0, "cat" to 0, "mouse" to 0) }
 
     // Active state machine for the selected pet
     var petState by remember { mutableStateOf(PetState.IDLE) }
@@ -143,7 +146,7 @@ fun AnimalFeedingScreen(
         val favorites = when (petId) {
             "dog" -> listOf(FEEDING_FOODS[0], FEEDING_FOODS[1], FEEDING_FOODS[8]) // bone, meat, cookie
             "cat" -> listOf(FEEDING_FOODS[2], FEEDING_FOODS[3], FEEDING_FOODS[6]) // fish, milk, ice cream
-            else -> listOf(FEEDING_FOODS[4], FEEDING_FOODS[5], FEEDING_FOODS[7])  // carrot, apple, banana
+            else -> listOf(FEEDING_FOODS[9], FEEDING_FOODS[4], FEEDING_FOODS[5])  // cheese, carrot, apple
         }
         return favorites.random()
     }
@@ -196,10 +199,10 @@ fun AnimalFeedingScreen(
     val onReset = {
         satietyMap["dog"] = 0
         satietyMap["cat"] = 0
-        satietyMap["pig"] = 0
+        satietyMap["mouse"] = 0
         wantFoodMap["dog"] = getFavoriteFoodForPet("dog")
         wantFoodMap["cat"] = getFavoriteFoodForPet("cat")
-        wantFoodMap["pig"] = getFavoriteFoodForPet("pig")
+        wantFoodMap["mouse"] = getFavoriteFoodForPet("mouse")
         petState = PetState.IDLE
         consecutiveDeclines = 0
         showTutorialHint = false
@@ -235,7 +238,7 @@ fun AnimalFeedingScreen(
         return when (petId) {
             "dog" -> foodType == "bone" || foodType == "meat" || foodType == "cookie"
             "cat" -> foodType == "fish" || foodType == "milk" || foodType == "icecream"
-            else -> foodType == "carrot" || foodType == "apple" || foodType == "banana"
+            else -> foodType == "cheese" || foodType == "carrot" || foodType == "apple"
         }
     }
 
@@ -248,33 +251,28 @@ fun AnimalFeedingScreen(
             consecutiveDeclines = 0
             showTutorialHint = false
             coroutineScope.launch {
-                // Phase 1: Eat in
+                // Фаза 1: рот открывается
                 petState = PetState.MOUTH_OPEN
-                soundManager.play("eat_in")
-                delay(250)
+                delay(260)
 
-                // Phase 2: Chewing
+                // Фаза 2: жуём — звук зависит от еды
                 petState = PetState.CHEWING
-                for (i in 1..3) {
-                    soundManager.play("chew")
-                    delay(200)
+                val chewMs: Long
+                when (foodType) {
+                    "milk", "icecream" -> { soundManager.play("pet_lap", volume = 0.9f); chewMs = 880 }
+                    "bone", "carrot", "apple", "cookie" -> { soundManager.play("pet_crunch_${Random.nextInt(1, 4)}", volume = 1f); chewMs = 620 }
+                    else -> { soundManager.play("pet_munch_${Random.nextInt(1, 3)}", volume = 1f); chewMs = 640 }
                 }
+                delay(chewMs)
+                soundManager.play("pet_gulp", volume = 0.8f)
+                delay(180)
 
-                // Phase 3: Happy and hearts reward
+                // Фаза 3: довольное животное отвечает голосом
                 petState = PetState.HAPPY
                 val currentSatiety = satietyMap[selectedPetId] ?: 0
                 val nextSatiety = (currentSatiety + 1).coerceAtMost(3)
                 satietyMap[selectedPetId] = nextSatiety
-
-                // Emit happy reward particles
-                soundManager.play("yum")
-                // у поросёнка есть только записи «хрю» (animal_pig), у собаки и кошки — ещё и «радостные»
-                if (selectedPetId == "pig") {
-                    soundManager.play("animal_pig")
-                } else {
-                    val playedHappy = soundManager.play("animal_${selectedPetId}_happy")
-                    if (!playedHappy) soundManager.play("animal_${selectedPetId}")
-                }
+                playPetVoice(soundManager, selectedPetId)
                 haptics.vibrate(30)
 
                 repeat(15) {
@@ -430,14 +428,20 @@ fun AnimalFeedingScreen(
                                         if (selectedPetId != id) {
                                             selectedPetId = id
                                             soundManager.play("pop")
-                                            soundManager.play("animal_$id")
+                                            playPetVoice(soundManager, id)
                                             petState = PetState.IDLE
                                             consecutiveDeclines = 0
                                             showTutorialHint = false
                                         }
                                     }
                             ) {
-                                Text(text = emoji, fontSize = 38.sp)
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(petRes(id)),
+                                    contentDescription = null,
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    alignment = Alignment.TopCenter,
+                                    modifier = Modifier.fillMaxSize().padding(6.dp).clip(CircleShape)
+                                )
                             }
                         }
                     }
@@ -477,67 +481,33 @@ fun AnimalFeedingScreen(
                 }
             }
 
-            // Interactive Morphing Pet Face with Polka-Dot Rug & Toys (takes 45-50% height)
-            Box(
+            // Питомец (картинка) на коврике; рот и анимации рисуются поверх
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .onGloballyPositioned { layoutCoordinates ->
-                        val bounds = layoutCoordinates.localToWindow(Offset.Zero)
-                        mouthCenterScreen = Offset(
-                            bounds.x + layoutCoordinates.size.width / 2f,
-                            bounds.y + layoutCoordinates.size.height / 1.7f
-                        )
-                    },
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.BottomCenter
             ) {
-                // Round Polka Dot Rug under the pet (Pink with white dots)
                 Canvas(
                     modifier = Modifier
-                        .size(width = 280.dp, height = 150.dp)
-                        .align(Alignment.Center)
+                        .size(width = 300.dp, height = 110.dp)
+                        .align(Alignment.BottomCenter)
                 ) {
                     val rugW = size.width
                     val rugH = size.height
-                    // Soft shadow
-                    drawOval(
-                        color = Color(0x33000000),
-                        topLeft = Offset(8.dp.toPx(), 14.dp.toPx()),
-                        size = Size(rugW - 16.dp.toPx(), rugH - 16.dp.toPx())
-                    )
-                    // Pink base
-                    drawOval(
-                        color = Color(0xFFFFB6C9),
-                        topLeft = Offset(0f, 0f),
-                        size = Size(rugW, rugH)
-                    )
-                    drawOval(
-                        color = ColorInk,
-                        topLeft = Offset(0f, 0f),
-                        size = Size(rugW, rugH),
-                        style = Stroke(width = 3.dp.toPx())
-                    )
-                    // White polka dots
-                    val dotR = 6.dp.toPx()
-                    val dots = listOf(
-                        Offset(rugW * 0.18f, rugH * 0.35f),
-                        Offset(rugW * 0.82f, rugH * 0.35f),
-                        Offset(rugW * 0.15f, rugH * 0.65f),
-                        Offset(rugW * 0.85f, rugH * 0.65f),
-                        Offset(rugW * 0.32f, rugH * 0.82f),
-                        Offset(rugW * 0.68f, rugH * 0.82f),
-                        Offset(rugW * 0.50f, rugH * 0.88f)
-                    )
-                    dots.forEach { dotPos ->
-                        drawCircle(color = Color.White, radius = dotR, center = dotPos)
-                    }
+                    drawOval(color = Color(0x33000000), topLeft = Offset(8.dp.toPx(), 12.dp.toPx()), size = Size(rugW - 16.dp.toPx(), rugH - 14.dp.toPx()))
+                    drawOval(color = Color(0xFFFFB6C9), topLeft = Offset(0f, 0f), size = Size(rugW, rugH - 8.dp.toPx()))
+                    drawOval(color = ColorInk, topLeft = Offset(0f, 0f), size = Size(rugW, rugH - 8.dp.toPx()), style = Stroke(width = 3.dp.toPx()))
+                    listOf(0.18f to 0.35f, 0.82f to 0.35f, 0.15f to 0.65f, 0.85f to 0.65f, 0.32f to 0.82f, 0.68f to 0.82f)
+                        .forEach { (fx, fy) -> drawCircle(Color.White, 6.dp.toPx(), Offset(rugW * fx, rugH * fy)) }
                 }
-
-                // Interactive visual representation of Morphing Pet faces (Dog, Cat, Pig)
-                InteractivePetFace(
+                PetPortrait(
                     petId = selectedPetId,
                     state = petState,
-                    isFoodOverMouth = isDragging && hypot(dragOffset.x - mouthCenterScreen.x, dragOffset.y - mouthCenterScreen.y) < 180f
+                    modifier = Modifier
+                        .padding(bottom = 26.dp)
+                        .height(minOf(maxHeight - 30.dp, 400.dp)),
+                    onMouthPos = { mouthCenterScreen = it }
                 )
             }
 
@@ -592,7 +562,7 @@ fun AnimalFeedingScreen(
                     val favs = when (selectedPetId) {
                         "dog" -> listOf(FEEDING_FOODS[0], FEEDING_FOODS[1], FEEDING_FOODS[8]) // bone, meat, cookie
                         "cat" -> listOf(FEEDING_FOODS[2], FEEDING_FOODS[3], FEEDING_FOODS[6]) // fish, milk, ice cream
-                        else -> listOf(FEEDING_FOODS[4], FEEDING_FOODS[5], FEEDING_FOODS[7])  // carrot, apple, banana
+                        else -> listOf(FEEDING_FOODS[9], FEEDING_FOODS[4], FEEDING_FOODS[5])  // cheese, carrot, apple
                     }
                     val others = FEEDING_FOODS.filter { it !in favs }
                     val displayedFoods = remember(selectedPetId, ageProfile.isToddler2) {
@@ -1073,6 +1043,112 @@ fun ConfettiSplashLayer() {
                 radius = 12f,
                 center = Offset(x, y)
             )
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// Питомцы-картинки: анимация дыхания, жевания, прыжков и открывающийся рот поверх рисунка.
+// ---------------------------------------------------------------------------------------------
+private fun petRes(id: String): Int = when (id) {
+    "cat" -> com.example.R.drawable.feed_cat
+    "dog" -> com.example.R.drawable.feed_dog
+    else -> com.example.R.drawable.feed_mouse
+}
+
+/** Голос животного: кошка мяукает, собака лает, мышь пищит. */
+private fun playPetVoice(sm: SoundManager, id: String) {
+    when (id) {
+        "mouse" -> sm.play("pet_mouse_${Random.nextInt(1, 4)}", volume = 1f)
+        else -> {
+            val ok = sm.play("animal_${id}_happy")
+            if (!ok) sm.play("animal_$id")
+        }
+    }
+}
+
+// доля положения рта и ширины рта (в долях ширины картинки) для каждой картинки
+private fun mouthSpec(id: String): FloatArray = when (id) {
+    "cat" -> floatArrayOf(0.457f, 0.468f, 0.085f)
+    "dog" -> floatArrayOf(0.420f, 0.478f, 0.115f)
+    else -> floatArrayOf(0.461f, 0.546f, 0.062f)
+}
+
+@Composable
+fun PetPortrait(
+    petId: String,
+    state: PetState,
+    modifier: Modifier = Modifier,
+    onMouthPos: (Offset) -> Unit = {}
+) {
+    val inf = rememberInfiniteTransition(label = "pet")
+    val phase by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = LinearEasing)), label = "phase")
+    val chew by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(310, easing = LinearEasing)), label = "chew")
+    val hop by animateFloatAsState(
+        if (state == PetState.HAPPY || state == PetState.FULL) 1f else 0f,
+        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow), label = "hop"
+    )
+    val lean by animateFloatAsState(if (state == PetState.MOUTH_OPEN) 1f else 0f, spring(Spring.DampingRatioMediumBouncy), label = "lean")
+    val openBase by animateFloatAsState(
+        when (state) { PetState.MOUTH_OPEN -> 1f; PetState.HAPPY, PetState.FULL -> 0.55f; else -> 0f },
+        tween(140), label = "open"
+    )
+    val spec = mouthSpec(petId)
+    val twoPi = (2.0 * Math.PI).toFloat()
+    val open = if (state == PetState.CHEWING) 0.22f + 0.6f * kotlin.math.abs(kotlin.math.sin(chew * Math.PI.toFloat())) else openBase
+    val chewing = state == PetState.CHEWING
+
+    Box(
+        modifier = modifier
+            .aspectRatio(0.87f)
+            .onGloballyPositioned { c ->
+                val p = c.localToWindow(Offset.Zero)
+                onMouthPos(Offset(p.x + c.size.width * spec[0], p.y + c.size.height * spec[1]))
+            }
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.96f)
+                    val breath = kotlin.math.sin(phase * twoPi)
+                    var sy = 1f + 0.014f * breath
+                    var sx = 1f - 0.008f * breath
+                    if (chewing) {
+                        val c = kotlin.math.sin(chew * twoPi)
+                        sy = 1f - 0.035f * c; sx = 1f + 0.025f * c
+                    }
+                    sx += 0.04f * lean; sy += 0.04f * lean
+                    scaleX = sx; scaleY = sy
+                    translationY = -hop * size.height * 0.07f * kotlin.math.abs(kotlin.math.sin(phase * twoPi * 2f))
+                    rotationZ = when {
+                        state == PetState.REFUSE -> 7f * kotlin.math.sin(phase * twoPi * 5f)
+                        hop > 0f -> hop * 4f * kotlin.math.sin(phase * twoPi * 2f)
+                        else -> 0.8f * kotlin.math.sin(phase * twoPi)
+                    }
+                }
+        ) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(petRes(petId)),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+            Canvas(Modifier.fillMaxSize()) {
+                if (open > 0.03f) {
+                    val cx = size.width * spec[0]
+                    val cy = size.height * spec[1]
+                    val mw = size.width * spec[2]
+                    val w = mw * (0.55f + 0.45f * open)
+                    val h = mw * 0.95f * open
+                    val top = cy - h * 0.25f
+                    drawOval(Color(0xFF5A0F1E), Offset(cx - w / 2f, top), Size(w, h))
+                    // язычок
+                    drawOval(Color(0xFFFF8A80), Offset(cx - w * 0.3f, top + h * 0.5f), Size(w * 0.6f, h * 0.5f))
+                    drawOval(Color.Black, Offset(cx - w / 2f, top), Size(w, h), style = Stroke(width = size.width * 0.007f))
+                }
+            }
         }
     }
 }

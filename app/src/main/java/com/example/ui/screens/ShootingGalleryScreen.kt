@@ -97,7 +97,7 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
     var time = 0f
     var score = 0
     var level = 0
-    /** -1 — выбор режима, 0 — свободный, 1 — разгон, 2 — выживание. */
+    /** -1 — выбор режима, 0 — свободный, 1 — разгон, 2 — выживание (промах = −жизнь), 3 — охотник (упущенная мишень = −жизнь). */
     var mode = 0
     var lives = 3
     var over = false
@@ -145,9 +145,10 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
 
     val objW get() = 80f * density * (if (toddler) 1.15f else 1f)
     fun laneTop(i: Int) = h * (0.36f + 0.145f * i)
-    private val perLane get() = if (toddler) 1 else 2
+    private val perLane get() = if (toddler) 1 else if (mode == 3) 3 else 2
     private fun speedMul(): Float {
         val base = if (toddler) 0.65f else 1f
+        if (mode == 3) return base * min(3.4f, 1.25f + 0.04f * score)
         return if (mode <= 0) base * (1f + 0.08f * min(level, 5)) else base * min(3.2f, 1f + 0.045f * score)
     }
 
@@ -277,7 +278,7 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
             if (y < laneTop(0) - 20f * density) holes.add(GalShot(x, y, false))
             if (holes.size > 14) holes.removeAt(0)
             onEvent("miss", score)
-            if (mode == 2) {
+            if (mode == 2) { // в режиме 3 промах ничего не стоит
                 lives--; lifeFlash = 1f
                 if (lives <= 0) { over = true; onEvent("gameOver", score) } else onEvent("lifeLost", lives)
             }
@@ -347,8 +348,15 @@ private class GalleryWorld(val density: Float, val toddler: Boolean) {
                     if (o.hitT > 1.4f) respawn(o, li)
                 } else {
                     o.x += laneDir[li] * laneSpeed[li] * o.sp * speedMul() * density * dt
-                    if (laneDir[li] > 0f && o.x > w + objW) respawn(o, li)
-                    if (laneDir[li] < 0f && o.x < -objW) respawn(o, li)
+                    val gone = (laneDir[li] > 0f && o.x > w + objW) || (laneDir[li] < 0f && o.x < -objW)
+                    if (gone) {
+                        // «Охотник»: не отстрелил мишень — сгорает жизнь
+                        if (mode == 3 && !over) {
+                            lives--; lifeFlash = 1f
+                            if (lives <= 0) { over = true; onEvent("gameOver", score) } else onEvent("lifeLost", lives)
+                        }
+                        respawn(o, li)
+                    }
                 }
             }
         }
@@ -517,7 +525,8 @@ fun ShootingGalleryScreen(
         val modes = listOf(
             Triple("🦆", "Свободный", "Стреляй сколько хочешь — без проигрыша"),
             Triple("⚡", "Разгон", "Чем больше попаданий — тем быстрее мишени"),
-            Triple("❤️", "Выживание", "Мишени ускоряются. 3 жизни: промах — минус одна")
+            Triple("❤️", "Выживание", "Мишени ускоряются. 3 жизни: промах — минус одна"),
+            Triple("🎯", "Охотник", "Самый сложный: промахи прощаются, но каждая упущенная мишень — минус жизнь")
         )
         Box(
             Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
@@ -747,7 +756,7 @@ private fun DrawScope.drawGallery(
 
     // стойка и пистолет
     drawCounter(sw, sh, d)
-    drawRifle(w, if (w.mode == 2) art.rifleRed else art.rifle)
+    drawRifle(w, if (w.mode >= 2) art.rifleRed else art.rifle)
 
     // свет: прожекторы, вспышка выстрела и виньетка
     drawLights(w, sw, sh, d)
@@ -777,7 +786,7 @@ private fun DrawScope.drawGallery(
         cx += dw * 0.9f
     }
 
-    if (w.mode == 2) {
+    if (w.mode >= 2) {
         val bh = 40f * d
         val bw = bh * 21f / 36f
         var bx = sw - 62f * d - 14f * d - 3 * (bw + 6f * d)

@@ -700,7 +700,6 @@
   "Разговариваем с {} 💕": "Talking with {} 💕",
   "Раздавить 5 врагов в раннере": "Squash 5 enemies in the runner",
   "Размер персонажа в раннере увеличен на 25%.": "Character size in the runner increased by 25%.",
-  "Раннер 67": "Runner 67",
   "Раскатаю под ноль!": "I'll roll you flat!",
   "Раскатывает любое тесто и любых врагов в тончайший блинчик.": "Rolls out any dough and any enemies into the thinnest pancake.",
   "Рассчитал идеальную формулу 6 + 7 = 67 пельменей на порцию.": "Calculated the perfect formula: 6 + 7 = 67 dumplings per serving.",
@@ -1038,8 +1037,6 @@
   "🎵 Здорово звучит!": "🎵 Sounds great!",
   "🎵 Разговариваем": "🎵 Chatting",
   "🏃‍♂️ Бегун": "🏃‍♂️ Runner",
-  "🏃‍♂️ В Раннер 67": "🏃‍♂️ To Runner 67",
-  "🏃‍♂️ Раннер 67\n(JBox2D)": "🏃‍♂️ Runner 67\n(JBox2D)",
   "🏆 рекорд: {} м": "🏆 record: {} m",
   "🏠 полон": "🏠 full",
   "🏰 Замок": "🏰 Castle",
@@ -1127,5 +1124,13 @@
   "Огурец": "Cucumber",
   "Помидор": "Tomato",
   "Редиска": "Radish",
-  "Картошка": "Potato"
+  "Картошка": "Potato",
+  "Бешеный Дамплинг 67": "Crazy Dumpling 67",
+  "🥟 В Бешеный Дамплинг 67": "🥟 To Crazy Dumpling 67",
+  "🥟 Бешеный Дамплинг 67\n(JBox2D)": "🥟 Crazy Dumpling 67\n(JBox2D)",
+  "Бегалки и приключения": "Runs & Adventures",
+  "Меткость и аркады": "Aiming & Arcade",
+  "Кнопочки, поп-иты, бизиборд": "Buttons, Pop-its, Busyboard",
+  "Зверята и природа": "Animals & Nature",
+  "Творчество и забавы": "Creative & Fun"
 }

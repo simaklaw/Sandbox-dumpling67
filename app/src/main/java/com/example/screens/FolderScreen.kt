@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import com.example.shared.i18n.Text
@@ -13,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -28,43 +31,68 @@ data class FolderItem(
     val title: String,
     val icon: String,
     val pageIndex: Int,
-    val color: Color
+    val color: Color,
+    val iconRes: Int? = null
 )
 
+/** Раздел внутри папки: игры одного жанра лежат рядом под общим заголовком. */
+data class FolderSection(
+    val title: String,
+    val icon: String,
+    val color: Color,
+    val items: List<FolderItem>
+)
+
+private val DUMPLING_ICON = com.example.R.drawable.pelmen_icon
+
 /**
- * Единый источник правды: какие игры лежат в каких папках.
- * Используется и экраном папки, и навигацией «Назад/Домой» (см. [folderTypeForPage]).
+ * Единый источник правды: какие игры лежат в каких папках и в каких разделах.
+ * «Кто в коробке?» живёт только на главном экране, поэтому в папках его нет.
  */
-val FOLDER_ITEMS: Map<FolderType, List<FolderItem>> = mapOf(
+val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
     FolderType.GAMES to listOf(
-        FolderItem("Комната Зелика", "👽", 27, ColorGreen),
-        FolderItem("Зелик: Приключение", "🔫", 28, ColorGreen),
-        FolderItem("Аквариум", "🐠", 30, ColorBlue),
-        FolderItem("Дождик", "🌧️", 24, ColorBlue),
-        FolderItem("Кто в коробке?", "🎁", 25, ColorPink),
-        FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
-        FolderItem("Детский телефончик", "📱", 23, ColorPink),
-        FolderItem("Кинетический песок", "🏖️", 22, ColorOrange),
-        FolderItem("Смешинки", "😜", 21, ColorYellow),
-        FolderItem("Пузырчатая пленка", "📦", 20, ColorPurple),
-        FolderItem("Пиньята с Конфетами", "🪅", 17, ColorPink),
-        FolderItem("Поп-ит Антистресс", "🟣", 16, ColorPurple),
-        FolderItem("Лук", "🏹", 4, ColorPink),
-        FolderItem("Тир", "🦆", 31, ColorOrange),
-        FolderItem("Монстрики", "👾", 32, ColorOrange),
-        FolderItem("Забег монстрика", "🏃", 33, ColorGreen),
-        FolderItem("Пинбол", "🔮", 12, ColorYellow),
-        FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
-        FolderItem("Жадная акула", "🦈", 35, ColorBlue),
-        FolderItem("Бизиборд", "🎛️", 10, ColorGreen),
-        FolderItem("Раннер 67", "🏃‍♂️", 5, ColorBlue),
-        FolderItem("Зверята", "🐮", 0, ColorPurple)
+        FolderSection("Бегалки и приключения", "🏃", ColorGreen, listOf(
+            FolderItem("Зелик: Приключение", "🔫", 28, ColorGreen),
+            FolderItem("Комната Зелика", "👽", 27, ColorGreen),
+            FolderItem("Забег монстрика", "🏃", 33, ColorOrange),
+            FolderItem("Бешеный Дамплинг 67", "🥟", 5, ColorYellow, DUMPLING_ICON),
+            FolderItem("Жадная акула", "🦈", 35, ColorBlue)
+        )),
+        FolderSection("Меткость и аркады", "🎯", ColorOrange, listOf(
+            FolderItem("Тир", "🦆", 31, ColorOrange),
+            FolderItem("Лук", "🏹", 4, ColorPink),
+            FolderItem("Пинбол", "🔮", 12, ColorYellow),
+            FolderItem("Пиньята с Конфетами", "🪅", 17, ColorPink)
+        )),
+        FolderSection("Кнопочки, поп-иты, бизиборд", "🔴", ColorPink, listOf(
+            FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
+            FolderItem("Поп-ит Антистресс", "🟣", 16, ColorPurple),
+            FolderItem("Пузырчатая пленка", "📦", 20, ColorBlue),
+            FolderItem("Бизиборд", "🎛️", 10, ColorGreen),
+            FolderItem("Детский телефончик", "📱", 23, ColorPink)
+        )),
+        FolderSection("Зверята и природа", "🐾", ColorBlue, listOf(
+            FolderItem("Зверята", "🐮", 0, ColorPurple),
+            FolderItem("Аквариум", "🐠", 30, ColorBlue),
+            FolderItem("Дождик", "🌧️", 24, ColorBlue)
+        )),
+        FolderSection("Творчество и забавы", "🎨", ColorPurple, listOf(
+            FolderItem("Монстрики", "👾", 32, ColorOrange),
+            FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
+            FolderItem("Кинетический песок", "🏖️", 22, ColorOrange),
+            FolderItem("Смешинки", "😜", 21, ColorYellow)
+        ))
     ),
     FolderType.KITCHEN to listOf(
-        FolderItem("Нарезка овощей", "🔪", 36, ColorGreen),
-        FolderItem("Сыпучести", "🌾", 6, ColorYellow)
+        FolderSection("Кухня", "🍳", ColorPurple, listOf(
+            FolderItem("Нарезка овощей", "🔪", 36, ColorGreen),
+            FolderItem("Сыпучести", "🌾", 6, ColorYellow)
+        ))
     )
 )
+
+val FOLDER_ITEMS: Map<FolderType, List<FolderItem>> =
+    FOLDER_SECTIONS.mapValues { (_, secs) -> secs.flatMap { it.items } }
 
 /** В какой папке лежит игра с этим индексом (null — игра открывается прямо с главного экрана). */
 fun folderTypeForPage(pageIndex: Int): FolderType? =
@@ -80,12 +108,12 @@ fun FolderScreen(
     soundManager: SoundManager,
     haptics: Haptics = rememberHaptics()
 ) {
-    val items = remember(folderType) { FOLDER_ITEMS.getValue(folderType) }
+    val sections = remember(folderType) { FOLDER_SECTIONS.getValue(folderType) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ColorBg)
+            .background(Brush.verticalGradient(listOf(Color(0xFFFFFBF1), ColorBg, ColorBgSoft)))
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
@@ -121,28 +149,64 @@ fun FolderScreen(
                 )
             }
 
-            // Grid of sub-games: 2 columns of 140dp square cards
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                itemsIndexed(items) { index, item ->
-                    FolderGameCard(
-                        item = item,
-                        phaseOffset = index * 200,
-                        soundManager = soundManager,
-                        haptics = haptics,
-                        onClick = {
-                            onNavigateToGame(item.pageIndex, item.title)
+                sections.forEachIndexed { si, sec ->
+                    val base = sections.take(si).sumOf { it.items.size }
+                    if (sections.size > 1) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            SectionHeader(sec)
                         }
-                    )
+                    }
+                    itemsIndexed(sec.items) { i, item ->
+                        val idx = base + i
+                        FolderGameCard(
+                            item = item,
+                            phaseOffset = idx * 200,
+                            soundManager = soundManager,
+                            haptics = haptics,
+                            onClick = { onNavigateToGame(item.pageIndex, item.title) }
+                        )
+                    }
                 }
+                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(12.dp)) }
             }
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(sec: FolderSection) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .background(sec.color, RoundedCornerShape(20.dp))
+                .border(BorderStroke(2.5.dp, ColorInk), RoundedCornerShape(20.dp))
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+        ) {
+            Text(sec.icon, fontSize = 22.sp)
+            Spacer(Modifier.width(8.dp))
+            Text(sec.title, fontSize = 17.sp, fontWeight = FontWeight.Black, color = ColorInk)
+        }
+        Spacer(Modifier.width(10.dp))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(4.dp)
+                .background(sec.color.copy(alpha = 0.55f), RoundedCornerShape(2.dp))
+        )
     }
 }
 
@@ -154,52 +218,19 @@ fun FolderGameCard(
     haptics: Haptics,
     onClick: () -> Unit
 ) {
-    val transition = rememberInfiniteTransition(label = "folderGameBreath")
-    val scaleAnim by transition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.04f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, delayMillis = phaseOffset, easing = EaseInOutQuad),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "breath"
-    )
-
-    Box(
-        contentAlignment = Alignment.Center,
+    CandyCard(
         modifier = Modifier
-            .size(140.dp)
-            .graphicsLayer {
-                scaleX = scaleAnim
-                scaleY = scaleAnim
-            }
-            .border(BorderStroke(4.dp, ColorInk), ShapeCard)
-            .background(item.color, ShapeCard)
-            .padding(bottom = 6.dp) // Depth shadow effect
-            .border(BorderStroke(1.5.dp, Color.White.copy(alpha = 0.5f)), ShapeCard)
-            .clip(ShapeCard)
-            .plasticineClickable(haptics = haptics) {
-                soundManager.play("pop")
-                onClick()
-            }
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(8.dp)
-        ) {
-            Text(
-                text = item.icon,
-                fontSize = 48.sp,
-                modifier = Modifier.padding(bottom = 2.dp)
-            )
-            Text(
-                text = item.title,
-                style = PlayTypography.bodyLarge,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black,
-                color = ColorInk
-            )
-        }
-    }
+            .fillMaxWidth()
+            .height(158.dp),
+        title = item.title,
+        icon = item.icon,
+        iconRes = item.iconRes,
+        cardColor = item.color,
+        phaseOffset = phaseOffset,
+        iconSize = 46.dp,
+        titleSize = 16,
+        soundManager = soundManager,
+        haptics = haptics,
+        onClick = onClick
+    )
 }

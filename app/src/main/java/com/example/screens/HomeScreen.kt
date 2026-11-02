@@ -90,7 +90,7 @@ fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ColorBg)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFFFFFBF1), ColorBg, ColorBgSoft)))
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
@@ -205,7 +205,7 @@ fun HomeScreen(
                     // ==========================================
                     // 🧸 3-5 YEARS OLD LAYOUT (With Folders)
                     // ==========================================
-                    // Row 1: Кормление, Аквариум
+                    // Row 1: Кормление, Кто в коробке?
                     Row(
                         modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -228,13 +228,13 @@ fun HomeScreen(
                         )
                         HomeScreenCard(
                             modifier = Modifier.weight(1f),
-                            title = "Аквариум",
-                            icon = "🐠",
+                            title = "Кто в коробке?",
+                            icon = "🎁",
                             cardColor = ColorYellow,
                             phaseOffset = 400,
                             soundManager = soundManager,
                             haptics = haptics,
-                            onClick = { onNavigateToGame(30, "Аквариум") }
+                            onClick = { onNavigateToGame(25, "Кто в коробке?") }
                         )
                     }
 
@@ -273,7 +273,7 @@ fun HomeScreen(
                         HomeScreenCard(
                             modifier = Modifier.weight(1f),
                             title = "Игры",
-                            icon = "🏹",
+                            icon = "🎪",
                             cardColor = ColorOrange,
                             phaseOffset = 1600,
                             soundManager = soundManager,
@@ -472,56 +472,16 @@ fun HomeScreenCard(
     haptics: Haptics,
     onClick: () -> Unit
 ) {
-    // Breathing idle animation (Scale oscillates 1.0 <-> 1.04 every 2.4s, phase shifted)
-    val transition = rememberInfiniteTransition(label = "cardBreath")
-    val scaleAnim by transition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.04f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, delayMillis = phaseOffset, easing = EaseInOutQuad),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "breath"
+    CandyCard(
+        modifier = modifier.fillMaxSize(),
+        title = title,
+        icon = icon,
+        cardColor = cardColor,
+        phaseOffset = phaseOffset,
+        iconSize = 58.dp,
+        titleSize = 20,
+        soundManager = soundManager,
+        haptics = haptics,
+        onClick = onClick
     )
-
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                scaleX = scaleAnim
-                scaleY = scaleAnim
-            }
-            .border(BorderStroke(4.dp, ColorInk), ShapeCard)
-            .background(cardColor, ShapeCard)
-            .padding(bottom = 6.dp) // Depth effect
-            .border(BorderStroke(1.5.dp, Color.White.copy(alpha = 0.5f)), ShapeCard)
-            .clip(ShapeCard)
-            .plasticineClickable(haptics = haptics) {
-                soundManager.play("pop")
-                onClick()
-            }
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(12.dp)
-        ) {
-            // Adorable icon
-            Text(
-                text = icon,
-                fontSize = 56.sp,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-
-            // 1 Word label
-            Text(
-                text = title,
-                style = PlayTypography.bodyLarge,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
-                color = ColorInk
-            )
-        }
-    }
 }

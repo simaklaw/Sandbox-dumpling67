@@ -580,7 +580,7 @@ fun FunnyRunningBoobaScreen(
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                         Text(
-                            text = "🏃‍♂️ Раннер 67\n(JBox2D)",
+                            text = "🥟 Бешеный Дамплинг 67\n(JBox2D)",
                             color = ColorWhite,
                             fontWeight = FontWeight.Black,
                             fontSize = 13.sp,
@@ -966,7 +966,7 @@ fun FunnyRunningBoobaScreen(
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     Text(
-                        text = "🏃‍♂️ В Раннер 67",
+                        text = "🥟 В Бешеный Дамплинг 67",
                         color = ColorWhite,
                         fontWeight = FontWeight.Black,
                         fontSize = 13.sp

@@ -288,7 +288,8 @@ private fun rememberZFrames(): ZFrames {
         ImageBitmap.imageResource(R.drawable.sun_fade_3)
     )
     val sunCured = ImageBitmap.imageResource(R.drawable.sun_cured)
-    return remember { ZFrames(idle, walk, run, jump, hurt, dead, fire, attack, sunWalk, sunFade, sunCured, ImageBitmap.imageResource(R.drawable.zelik_sheep)) }
+    val sheep = ImageBitmap.imageResource(R.drawable.zelik_sheep)
+    return remember { ZFrames(idle, walk, run, jump, hurt, dead, fire, attack, sunWalk, sunFade, sunCured, sheep) }
 }
 
 // ---------- Игровой мир ----------

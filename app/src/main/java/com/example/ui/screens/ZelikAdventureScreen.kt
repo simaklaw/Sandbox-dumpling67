@@ -113,7 +113,11 @@ private val MOB_HP = intArrayOf(10, 20, 30)
 private val MOB_DMG = intArrayOf(2, 3, 5)
 
 // ---------- Модели ----------
-private class ZPlat(val x: Float, val y: Float, val w: Float, val h: Float)
+/** oneWay — тонкая площадка: можно запрыгнуть снизу, встать сверху и спрыгнуть вниз (присесть + прыжок). Остальные — сплошные блоки (ступени). */
+private class ZPlat(val x: Float, val y: Float, val w: Float, val h: Float, val oneWay: Boolean = false)
+
+/** Пружина-батут: подбрасывает героя на высокие площадки. */
+private class ZSpring(val x: Float, val y: Float) { var comp = 0 }
 
 private class ZEnemy(
     var x: Float, var y: Float, val r: Float, val tier: Int, var hp: Int, val maxHp: Int,
@@ -309,6 +313,9 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     var mobsTotal = 0
 
     val platforms = ArrayList<ZPlat>()
+    val springs = ArrayList<ZSpring>()
+    var coyote = 0
+    var dropT = 0
     val enemies = ArrayList<ZEnemy>()
     val coins = ArrayList<ZCoin>()
     val cured = ArrayList<ZCured>()
@@ -389,29 +396,56 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
                 gx += 900f + rng.nextFloat() * 700f
             }
         }
-        val platCount = 20 + n * 3
-        val occupied = ArrayList<Pair<Float, Float>>()
-        val heights = floatArrayOf(240f, 260f, 280f, 300f, 320f, 340f, 360f, 380f, 400f, 420f)
-        repeat(platCount) {
-            var x: Float
-            var y: Float
-            var w: Float
-            var tries = 0
-            do {
-                x = 300f + rng.nextFloat() * (levelLength - 500f)
-                y = heights[rng.nextInt(heights.size)]
-                w = 120f + rng.nextInt(120)
-                tries++
-                if (tries > 30) break
-            } while (
-                occupied.any { abs(it.first - x) < 180f && abs(it.second - y) < 80f } ||
-                (x + w > arenaLeft - 100f && x < arenaRight + 100f)
-            )
-            occupied.add(Pair(x, y))
-            platforms.add(ZPlat(x, y, w, 18f))
+        springs.clear()
+        val structCoins = ArrayList<ZCoin>()
+        fun sc(x: Float, y: Float) { structCoins.add(ZCoin(x, y, rng.nextFloat() * 6.28f)) }
+        var gx = 450f
+        val endX = arenaLeft - 350f
+        while (gx < endX) {
+            when (rng.nextInt(4)) {
+                0 -> { // лестница вверх и вниз: герой поднимается пешком
+                    val steps = 3 + rng.nextInt(3)
+                    val sw = 64f; val sh = 26f
+                    for (k in 1..steps) platforms.add(ZPlat(gx + (k - 1) * sw, GROUND_Y - k * sh, sw, k * sh))
+                    val px0 = gx + steps * sw
+                    val topY = GROUND_Y - steps * sh
+                    platforms.add(ZPlat(px0, topY, 120f, steps * sh))
+                    for (j in 1 until steps) platforms.add(ZPlat(px0 + 120f + (j - 1) * sw, GROUND_Y - (steps - j) * sh, sw, (steps - j) * sh))
+                    for (k in 1..steps) sc(gx + (k - 0.5f) * sw, GROUND_Y - k * sh - 32f)
+                    for (q in 0..2) sc(px0 + 20f + q * 40f, topY - 34f)
+                    gx = px0 + 120f + (steps - 1) * sw + 260f
+                }
+                1 -> { // цепочка парящих площадок — запрыгиваем снизу
+                    val cnt = 3 + rng.nextInt(3)
+                    var cx = gx
+                    var cy = GROUND_Y - 85f - rng.nextFloat() * 20f
+                    for (i in 0 until cnt) {
+                        val w = 140f + rng.nextInt(50)
+                        platforms.add(ZPlat(cx, cy, w, 18f, true))
+                        for (q in 0..2) sc(cx + w * (0.25f + 0.25f * q), cy - 34f)
+                        cx += w + 60f + rng.nextFloat() * 40f
+                        val dy = 70f + rng.nextFloat() * 25f
+                        cy = if (i < cnt / 2) max(190f, cy - dy) else min(GROUND_Y - 80f, cy + dy)
+                    }
+                    gx = cx + 240f
+                }
+                2 -> { // пружина к высокой площадке
+                    springs.add(ZSpring(gx + 40f, GROUND_Y))
+                    val ty = GROUND_Y - 290f - rng.nextFloat() * 25f
+                    platforms.add(ZPlat(gx + 110f, ty, 180f, 18f, true))
+                    for (q in 0..5) sc(gx + 40f, GROUND_Y - 80f - q * 45f)
+                    for (q in 0..3) sc(gx + 140f + q * 40f, ty - 34f)
+                    gx += 480f
+                }
+                else -> { // дуга монет — собираем в прыжке
+                    for (i in 0..6) sc(gx + i * 38f, GROUND_Y - 34f - sin(i / 6f * Math.PI.toFloat()) * 120f)
+                    gx += 420f
+                }
+            }
         }
-        platforms.add(ZPlat(arenaLeft + 30f, 380f, 140f, 18f))
-        platforms.add(ZPlat(arenaRight - 160f, 380f, 140f, 18f))
+        platforms.add(ZPlat(arenaLeft + 30f, 380f, 140f, 18f, true))
+        platforms.add(ZPlat(arenaRight - 160f, 380f, 140f, 18f, true))
+        platforms.add(ZPlat(arenaLeft + 260f, 300f, 150f, 18f, true))
 
         enemies.clear()
         val base = 18 + n * 3
@@ -432,8 +466,8 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             val r = (16f + rng.nextInt(10)) * 1.25f
             val ex: Float
             val ey: Float
-            val onPlatform = rng.nextFloat() < 0.5f && platforms.size > 1
-            val p = if (onPlatform) platforms[1 + rng.nextInt(platforms.size - 1)] else null
+            val flo = platforms.filter { it.oneWay && !(it.x + it.w > arenaLeft - 100f && it.x < arenaRight + 100f) }
+            val p = if (rng.nextFloat() < 0.5f && flo.isNotEmpty()) flo[rng.nextInt(flo.size)] else null
             if (p != null && !(p.x + p.w > arenaLeft - 100f && p.x < arenaRight + 100f)) {
                 ex = p.x + 20f + rng.nextFloat() * (p.w - 40f)
                 ey = p.y - r - 4f
@@ -454,17 +488,11 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
         coins.clear()
         cured.clear()
-        val coinTarget = 40 + n * 5
-        for (i in 0 until coinTarget) {
-            val cx = 250f + rng.nextFloat() * (levelLength - 500f)
-            val cy: Float
-            if (rng.nextFloat() < 0.5f) {
-                cy = GROUND_Y - 30f - rng.nextFloat() * 40f
-            } else {
-                val near = platforms.firstOrNull { it.h == 18f && abs((it.x + it.w / 2f) - cx) < 120f }
-                cy = if (near != null) near.y - 30f - rng.nextFloat() * 40f else 200f + rng.nextFloat() * 250f
-            }
-            coins.add(ZCoin(cx, cy, rng.nextFloat() * 6.28f))
+        coins.addAll(structCoins)
+        val coinTarget = 20 + n * 3
+        for (i in 0 until coinTarget) { // россыпь на земле — всегда достаётся
+            val cx = 250f + rng.nextFloat() * (arenaLeft - 450f)
+            coins.add(ZCoin(cx, GROUND_Y - 30f - rng.nextFloat() * 30f, rng.nextFloat() * 6.28f))
         }
 
         meds.clear()
@@ -608,10 +636,14 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             val speedMul = if (crouching) 0.5f else 1f
             pvx = moveX * MOVE_SPEED * speedMul
 
-            if (onGround) airJumps = 1
-            if (input.jump && onGround && !crouching) {
+            if (onGround) { airJumps = 1; coyote = 7 } else if (coyote > 0) coyote--
+            val standingOnOneWay = onGround && platforms.any { it.oneWay && px < it.x + it.w && px + pw > it.x && abs(py + ph - it.y) < 1.5f }
+            if (input.jump && !jumpPrev && crouching && standingOnOneWay) {
+                dropT = 14; py += 3f; onGround = false; coyote = 0 // спрыгнуть вниз сквозь площадку
+            } else if (input.jump && (onGround || coyote > 0) && !crouching) {
                 pvy = JUMP_POWER
                 onGround = false
+                coyote = 0
                 onEvent("jump")
             } else if (input.jump && !jumpPrev && !onGround && airJumps > 0 && !crouching) {
                 // второй прыжок — на крыльях
@@ -655,16 +687,35 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         if (px < 20f) px = 20f
         if (boss.active && !boss.dead && px + pw > arenaRight) px = arenaRight - pw
         for (p in platforms) {
+            if (p.oneWay) continue
             if (overlapsPlat(p)) {
-                if (pvx > 0f) px = p.x - pw else if (pvx < 0f) px = p.x + p.w
+                val rise = py + ph - p.y
+                if (rise in 0f..34f && pvy >= 0f) py = p.y - ph // ступенька: поднимаемся пешком
+                else if (pvx > 0f) px = p.x - pw else if (pvx < 0f) px = p.x + p.w
             }
         }
+        val prevBottom = py + ph
         py += pvy
         onGround = false
         for (p in platforms) {
-            if (overlapsPlat(p)) {
+            if (p.oneWay) {
+                if (dropT <= 0 && pvy >= 0f && px < p.x + p.w && px + pw > p.x && prevBottom <= p.y + 1f && py + ph >= p.y) {
+                    py = p.y - ph; pvy = 0f; onGround = true
+                }
+            } else if (overlapsPlat(p)) {
                 if (pvy > 0f) { py = p.y - ph; pvy = 0f; onGround = true }
                 else if (pvy < 0f) { py = p.y + p.h; pvy = 0f }
+            }
+        }
+        if (dropT > 0) dropT--
+        if (!dead) {
+            for (sp in springs) {
+                val feet = py + ph
+                if (pvy >= 0f && feet >= sp.y - 30f && feet <= sp.y + 6f && abs(px + pw / 2f - sp.x) < 30f) {
+                    pvy = -19.5f; onGround = false; airJumps = 1; sp.comp = 12
+                    onEvent("jump")
+                    repeat(8) { val a = Random.nextFloat() * 6.28f; parts.add(ZPart(sp.x, sp.y - 10f, cos(a) * 2.5f, -abs(sin(a)) * 3f, 1f, 0.05f, 2.5f, Color(0xFFFF8A80))) }
+                }
             }
         }
 
@@ -1362,6 +1413,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
     fun stepFrame() {
         animTime++
+        for (sp in springs) if (sp.comp > 0) sp.comp--
         updateSheep()
         updatePlayer()
         updateHelper()
@@ -1632,6 +1684,15 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
                 drawRoundRect(Color(0xFF8D6E63), Offset(p.x, p.y), Size(p.w, p.h), CornerRadius(8f))
                 drawRoundRect(Color(0xFF66BB6A), Offset(p.x, p.y), Size(p.w, 9f), CornerRadius(5f))
             }
+        }
+        // пружины-батуты
+        for (sp in w.springs) {
+            if (sp.x < left - 60f || sp.x > right + 60f) continue
+            val k = sp.comp / 12f
+            val hgt = 30f * (1f - 0.6f * k)
+            for (i in 0..3) drawLine(Color(0xFFB0BEC5), Offset(sp.x - 18f, sp.y - 8f - hgt * i / 4f), Offset(sp.x + 18f, sp.y - 8f - hgt * (i + 0.5f) / 4f), 4f)
+            drawRoundRect(Color(0xFF455A64), Offset(sp.x - 26f, sp.y - 8f), Size(52f, 8f), CornerRadius(4f))
+            drawRoundRect(Color(0xFFFF5252), Offset(sp.x - 30f, sp.y - 8f - hgt - 9f), Size(60f, 10f), CornerRadius(5f))
         }
         // барашки-декорация (позади монет, монстров и героя)
         for (sh in w.sheep) {

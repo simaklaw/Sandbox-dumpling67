@@ -38,6 +38,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -215,6 +216,17 @@ private data class ZHud(
 
 private class ZHelperGfx(val imgs: MonImgs, val spec: MonSpec, val anim: MonAnim)
 
+/** Барашек-декорация: пасётся, иногда неспешно прогуливается; ни с чем не взаимодействует. */
+private class ZSheep(val homeX: Float, var dir: Float, val seed: Int) {
+    var x = homeX
+    var walking = false
+    var timer = 60 + (seed * 37) % 200
+    var clock = seed * 13
+}
+
+private const val SHEEP_W = 62
+private const val SHEEP_H = 39
+
 private enum class ZScreen { MENU, PLAY, PAUSED, LEVEL_DONE, GAME_OVER }
 
 private class ZFrames(
@@ -228,7 +240,8 @@ private class ZFrames(
     val attack: List<ImageBitmap>, // 0 — «заряд в глазах», 1 — бросок рукой
     val sunWalk: List<ImageBitmap>,
     val sunFade: List<ImageBitmap>,
-    val sunCured: ImageBitmap
+    val sunCured: ImageBitmap,
+    val sheep: ImageBitmap // атлас барашков: 4 ряда (пасётся →, ←; идёт →, ←) × 4 кадра
 )
 
 @Composable
@@ -275,7 +288,7 @@ private fun rememberZFrames(): ZFrames {
         ImageBitmap.imageResource(R.drawable.sun_fade_3)
     )
     val sunCured = ImageBitmap.imageResource(R.drawable.sun_cured)
-    return remember { ZFrames(idle, walk, run, jump, hurt, dead, fire, attack, sunWalk, sunFade, sunCured) }
+    return remember { ZFrames(idle, walk, run, jump, hurt, dead, fire, attack, sunWalk, sunFade, sunCured, ImageBitmap.imageResource(R.drawable.zelik_sheep)) }
 }
 
 // ---------- Игровой мир ----------
@@ -298,6 +311,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     val enemies = ArrayList<ZEnemy>()
     val coins = ArrayList<ZCoin>()
     val cured = ArrayList<ZCured>()
+    val sheep = ArrayList<ZSheep>()
     val meds = ArrayList<ZMed>()
     var boss = ZBoss(0f, 0f, 70f, 110f, 1, 1, 200)
 
@@ -364,6 +378,16 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
         platforms.clear()
         platforms.add(ZPlat(-200f, GROUND_Y, levelLength + 500f, 300f))
+        sheep.clear()
+        if (biomeOfLevel(n) <= 1) { // барашки только на полях и в лесу
+            var gx = 500f + rng.nextFloat() * 300f
+            while (gx < arenaLeft - 400f) {
+                repeat(1 + rng.nextInt(3)) { k ->
+                    sheep.add(ZSheep(gx + k * (90f + rng.nextFloat() * 50f), if (rng.nextBoolean()) 1f else -1f, sheep.size + 1))
+                }
+                gx += 900f + rng.nextFloat() * 700f
+            }
+        }
         val platCount = 20 + n * 3
         val occupied = ArrayList<Pair<Float, Float>>()
         val heights = floatArrayOf(240f, 260f, 280f, 300f, 320f, 340f, 360f, 380f, 400f, 420f)
@@ -1319,8 +1343,25 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         }
     }
 
+    private fun updateSheep() {
+        for (sh in sheep) {
+            sh.clock++
+            if (--sh.timer <= 0) {
+                sh.walking = !sh.walking
+                sh.timer = if (sh.walking) 90 + (sh.clock * 7) % 120 else 240 + (sh.clock * 11) % 360
+                if (sh.walking && Random.nextInt(3) == 0) sh.dir = -sh.dir
+            }
+            if (sh.walking) {
+                sh.x += sh.dir * 0.35f
+                if (sh.x > sh.homeX + 70f) sh.dir = -1f
+                if (sh.x < sh.homeX - 70f) sh.dir = 1f
+            }
+        }
+    }
+
     fun stepFrame() {
         animTime++
+        updateSheep()
         updatePlayer()
         updateHelper()
         updateBolts()
@@ -1590,6 +1631,18 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
                 drawRoundRect(Color(0xFF8D6E63), Offset(p.x, p.y), Size(p.w, p.h), CornerRadius(8f))
                 drawRoundRect(Color(0xFF66BB6A), Offset(p.x, p.y), Size(p.w, 9f), CornerRadius(5f))
             }
+        }
+        // барашки-декорация (позади монет, монстров и героя)
+        for (sh in w.sheep) {
+            if (sh.x < left - 80f || sh.x > right + 80f) continue
+            val right1 = sh.dir > 0f
+            val row = if (sh.walking) (if (right1) 2 else 3) else (if (right1) 0 else 1)
+            val fr = if (sh.walking) (sh.clock / 8) % 4
+                else intArrayOf(0, 1, 2, 3, 3, 3, 2, 1)[(sh.clock / 18) % 8]
+            val dw = (SHEEP_W * 1.35f).toInt(); val dh = (SHEEP_H * 1.35f).toInt()
+            drawImage(f.sheep, srcOffset = IntOffset(fr * SHEEP_W, row * SHEEP_H), srcSize = IntSize(SHEEP_W, SHEEP_H),
+                dstOffset = IntOffset((sh.x - dw / 2f).toInt(), GROUND_Y.toInt() + 6 - dh), dstSize = IntSize(dw, dh),
+                filterQuality = FilterQuality.None)
         }
         // арена босса: флажки
         run {

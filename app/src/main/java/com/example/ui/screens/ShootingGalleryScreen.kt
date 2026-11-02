@@ -433,6 +433,7 @@ fun ShootingGalleryScreen(
     var best by remember { mutableIntStateOf(0) }
     var newRecord by remember { mutableStateOf(false) }
     var overFlag by remember { mutableStateOf(false) }
+    var confTick by remember { mutableStateOf(0) }
     var overShown by remember { mutableStateOf(false) }
     val prefs = remember { context.getSharedPreferences("playground_prefs", android.content.Context.MODE_PRIVATE) }
     fun bestOf(m: Int): Int = try { prefs.getInt("sg_best_$m", 0) } catch (e: Exception) { 0 }
@@ -463,7 +464,7 @@ fun ShootingGalleryScreen(
                 noteScore(score)
             }
             "miss" -> soundPlayer.playPop(0.55f)
-            "level" -> soundPlayer.playFanfare()
+            "level" -> { soundPlayer.playFanfare(); confTick++ }
             "goldenSpawn" -> soundPlayer.playSparkleChime()
             "golden" -> {
                 soundPlayer.playLegendaryFanfare()
@@ -567,6 +568,8 @@ fun ShootingGalleryScreen(
             }
         }
     }
+        // конфетти за новый уровень (каждые 10 попаданий)
+        LottieConfetti(confTick, Modifier.fillMaxSize())
     }
 
     LaunchedEffect(Unit) { soundManager.preloadRaw(listOf("sg_shot")) }

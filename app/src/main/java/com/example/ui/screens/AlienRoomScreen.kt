@@ -700,6 +700,7 @@ fun AlienRoomScreen(
     var totalShown by remember { mutableIntStateOf(0) }
     var hint by remember { mutableStateOf("") }
     var winStars by remember { mutableIntStateOf(-1) }
+    var winConfetti by remember { mutableIntStateOf(0) }
     var mapRefresh by remember { mutableIntStateOf(0) }
     var tappedOnce by remember { mutableIntStateOf(0) }
     var starPulse by remember { mutableFloatStateOf(0f) }
@@ -724,6 +725,7 @@ fun AlienRoomScreen(
         val prev = zrStars(context, level)
         if (s > prev) try { zrPrefs(context).edit().putInt("zr_stars_$level", s).apply() } catch (e: Exception) { }
         winStars = s
+        winConfetti++
         mapRefresh++
     }
 
@@ -867,6 +869,8 @@ fun AlienRoomScreen(
                     }
                 }
             }
+            // выброс конфетти при прохождении уровня
+            LottieConfetti(winConfetti, Modifier.fillMaxSize())
         }
     }
 

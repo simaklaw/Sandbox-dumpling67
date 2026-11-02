@@ -13,19 +13,28 @@ enum class EntityType { WALL, BUMPER, SLINGSHOT, STAR, DRAIN, FLIPPER_LEFT, FLIP
 
 class PinVec(val x: Float, val y: Float)
 
-/** Шарик. Координаты — в «мировых» единицах поля 9×16, ось Y вниз. */
+/** Шарик. Координаты — в «мировых» единицах поля 9×18, ось Y вниз. */
 class PinBall(var px: Float, var py: Float, var vx: Float, var vy: Float) {
     val position: PinVec get() = PinVec(px, py)
     internal var anchorX = px
     internal var anchorY = py
     internal var anchorT = 0f
+    /** Оставшееся время «плена» в воронке (0 — шарик свободен). */
+    var captured = 0f
+        internal set
+    /** Поворот для рисования блика (катится по полю). */
+    var roll = 0f
+        internal set
+    internal var restT = 0f
 }
 
 /**
- * Собственная лёгкая физика пинбола (круг против отрезков и кругов) вместо jbox2d.
- * Лапки — вращающиеся «капсулы», которые передают шарику свою скорость, поэтому удар получается
- * настоящим. Шаг 1/240 с исключает проскакивание сквозь стенки, а все «липкие» места исключены
- * активными отбойниками и защитой от застревания.
+ * Собственная физика пинбола (круг против «толстых» отрезков и кругов), без внешних библиотек.
+ *
+ * — Шаг 1/480 с, шарик не может проскочить сквозь стенку или лапку.
+ * — Лапки вращаются и передают шарику скорость поверхности (настоящий удар, «пушечный» бросок у кончика).
+ * — Рогатки, 4 бамперa, 6 кристаллов-мишеней, 3 ролловера, спиннер, воронка-«чёрная дыра», множитель и мультибол.
+ * — Все зазоры на поле шире шарика минимум в 1.5 раза, а антизастревание срабатывает только как страховка.
  */
 class PinballPhysicsEngine(
     val onScoreAdded: (Int) -> Unit,
@@ -35,34 +44,65 @@ class PinballPhysicsEngine(
     val onAllStarsLit: () -> Unit
 ) {
     val worldWidth = 9.0f
-    val worldHeight = 16.0f
+    val worldHeight = 18.0f
+
+    // дополнительные события (необязательные)
+    var onGemHit: (Int) -> Unit = {}
+    var onAllGemsLit: () -> Unit = {}
+    var onSaucer: (Boolean) -> Unit = {}   // true — захват, false — выстрел
+    var onMultiplier: (Int) -> Unit = {}
 
     private class Seg(
         val ax: Float, val ay: Float, val bx: Float, val by: Float,
         val half: Float, val rest: Float, val kind: EntityType, val id: Int = 0
     )
 
+    // ---------- устройство поля ----------
+    val ballR = 0.36f
+    val bumperR = 0.62f
     val bumperPositions = listOf(
-        PinVec(2.8f, 5.0f), PinVec(6.2f, 5.0f), PinVec(4.5f, 6.8f), PinVec(4.5f, 8.9f)
+        PinVec(3.1f, 5.4f), PinVec(5.9f, 5.4f), PinVec(4.5f, 7.3f), PinVec(4.5f, 3.3f)
     )
-    private val bumperR = 0.7f
-    private val starPositions = listOf(PinVec(3.0f, 2.0f), PinVec(4.5f, 1.2f), PinVec(6.0f, 2.0f))
-    private val ballR = 0.4f
+    val starPositions = listOf(PinVec(3.2f, 1.9f), PinVec(4.5f, 1.2f), PinVec(5.8f, 1.9f))
+    val gemR = 0.30f
+    val gemPositions = listOf(
+        PinVec(0.62f, 7.2f), PinVec(0.62f, 8.3f), PinVec(0.62f, 9.4f),
+        PinVec(8.38f, 7.2f), PinVec(8.38f, 8.3f), PinVec(8.38f, 9.4f)
+    )
+    val saucerPos = PinVec(4.5f, 10.6f)
+    val saucerR = 0.42f
+    val spinnerPos = PinVec(7.3f, 8.5f)
+    val spinnerR = 0.55f
+
+    val starLitStates = booleanArrayOf(false, false, false)
+    val gemLit = BooleanArray(6)
+    var multiplier = 1
+        private set
+    var spinAngle = 0f
+        private set
+    private var spinVel = 0f
+    private var spinScoreT = 0f
+
+    /** Вспышки для отрисовки: 1 → 0. */
+    val bumperFlash = FloatArray(4)
+    val slingFlash = FloatArray(2)
+    val gemFlash = FloatArray(6)
+    var saucerFlash = 0f
+        private set
 
     private val segs = ArrayList<Seg>()
     private val balls = ArrayList<PinBall>()
 
     var currentSpeedMode: SpeedMode = SpeedMode.BUNNY
     var autoPawsEnabled: Boolean = true
-    val starLitStates = booleanArrayOf(false, false, false)
 
     // ---- лапки ----
-    private val leftPivot = PinVec(2.2f, 14.0f)
-    private val rightPivot = PinVec(6.8f, 14.0f)
-    private val flipLen = 2.0f
-    private val flipHalf = 0.23f
-    private val restAngle = 0.52f   // конец лапки смотрит вниз к центру
-    private val upAngle = -0.50f    // поднятая лапка
+    val leftPivot = PinVec(2.4f, 16.1f)
+    val rightPivot = PinVec(6.6f, 16.1f)
+    val flipLen = 1.95f
+    val flipHalf = 0.21f
+    private val restAngle = 0.46f
+    private val upAngle = -0.55f
     private var leftA = restAngle
     private var rightA = -restAngle
     private var leftW = 0f
@@ -80,6 +120,8 @@ class PinballPhysicsEngine(
     private val coolSling = FloatArray(2)
     private var coolWall = 0f
     private var lastUnstuck = 0f
+    private var saucerCool = 0f
+    private var bumperHits = 0
 
     var unstuckLowSpeedCount = 0
     var unstuckNoDisplacementCount = 0
@@ -99,30 +141,31 @@ class PinballPhysicsEngine(
 
     private fun buildField() {
         val t = 0.2f
-        // боковые стенки (чуть за пределами поля, чтобы шарик не выпал)
-        addSeg(-t, 2.0f, -t, 12.0f, t, 0.35f)
-        addSeg(9f + t, 2.0f, 9f + t, 12.0f, t, 0.35f)
-        // верхняя арка: полуокружность радиуса 4.5 с центром (4.5, 3.0)
-        val n = 24
+        // боковые стенки
+        addSeg(-t, 4.5f, -t, 13.0f, t, 0.35f)
+        addSeg(9f + t, 4.5f, 9f + t, 13.0f, t, 0.35f)
+        // верхняя арка (внутренний радиус 4.5, центр (4.5, 4.5))
+        val n = 32
+        val rc = 4.5f + t
         for (i in 0 until n) {
             val a1 = Math.PI - i * Math.PI / n
             val a2 = Math.PI - (i + 1) * Math.PI / n
             addSeg(
-                (4.5 + 4.5 * cos(a1)).toFloat(), (3.0 - 4.5 * sin(a1)).toFloat(),
-                (4.5 + 4.5 * cos(a2)).toFloat(), (3.0 - 4.5 * sin(a2)).toFloat(),
+                (4.5 + rc * cos(a1)).toFloat(), (4.5 - rc * sin(a1)).toFloat(),
+                (4.5 + rc * cos(a2)).toFloat(), (4.5 - rc * sin(a2)).toFloat(),
                 t, 0.4f
             )
         }
         // скаты к лапкам
-        addSeg(-t, 12.0f, 2.2f, 14.0f, t, 0.3f)
-        addSeg(9f + t, 12.0f, 6.8f, 14.0f, t, 0.3f)
-        // рогатки (треугольники над лапками) — активно подбрасывают шарик
-        addSeg(1.1f, 9.6f, 2.0f, 11.2f, 0.06f, 0.6f, EntityType.SLINGSHOT, 0)
-        addSeg(2.0f, 11.2f, 1.1f, 11.4f, 0.06f, 0.6f, EntityType.SLINGSHOT, 0)
-        addSeg(1.1f, 11.4f, 1.1f, 9.6f, 0.06f, 0.6f, EntityType.WALL)
-        addSeg(7.9f, 9.6f, 7.0f, 11.2f, 0.06f, 0.6f, EntityType.SLINGSHOT, 1)
-        addSeg(7.0f, 11.2f, 7.9f, 11.4f, 0.06f, 0.6f, EntityType.SLINGSHOT, 1)
-        addSeg(7.9f, 11.4f, 7.9f, 9.6f, 0.06f, 0.6f, EntityType.WALL)
+        addSeg(0f, 13.0f, leftPivot.x, leftPivot.y, t, 0.3f)
+        addSeg(9f, 13.0f, rightPivot.x, rightPivot.y, t, 0.3f)
+        // рогатки: наклонная грань «бьёт», остальные — стенки
+        addSeg(1.15f, 10.6f, 2.25f, 13.35f, 0.07f, 0.55f, EntityType.SLINGSHOT, 0)
+        addSeg(2.25f, 13.35f, 1.15f, 12.6f, 0.07f, 0.4f)
+        addSeg(1.15f, 12.6f, 1.15f, 10.6f, 0.07f, 0.4f)
+        addSeg(7.85f, 10.6f, 6.75f, 13.35f, 0.07f, 0.55f, EntityType.SLINGSHOT, 1)
+        addSeg(6.75f, 13.35f, 7.85f, 12.6f, 0.07f, 0.4f)
+        addSeg(7.85f, 12.6f, 7.85f, 10.6f, 0.07f, 0.4f)
     }
 
     fun getBalls(): List<PinBall> = balls.toList()
@@ -136,9 +179,11 @@ class PinballPhysicsEngine(
     fun setLeftFlipperEngaged(engaged: Boolean) { autoLeftUntil = if (engaged) simT + 0.25f else 0f }
     fun setRightFlipperEngaged(engaged: Boolean) { autoRightUntil = if (engaged) simT + 0.25f else 0f }
 
-    fun spawnBall(initialPos: PinVec = PinVec(4.5f + (Random.nextFloat() - 0.5f) * 3f, 3.2f)) {
+    private fun startPos(): PinVec = PinVec(if (Random.nextBoolean()) 2.7f else 6.3f, 2.6f)
+
+    fun spawnBall(initialPos: PinVec = startPos()) {
         if (balls.size >= 3) balls.removeAt(0)
-        val b = PinBall(initialPos.x, initialPos.y, (Random.nextFloat() - 0.5f) * 3f, 0.5f + Random.nextFloat())
+        val b = PinBall(initialPos.x, initialPos.y, (Random.nextFloat() - 0.5f) * 2f, 0.5f + Random.nextFloat())
         b.anchorT = simT
         balls.add(b)
         onSoundTriggered("spawn")
@@ -147,17 +192,24 @@ class PinballPhysicsEngine(
     fun clearAllAndReset() {
         balls.clear()
         starLitStates.fill(false)
+        gemLit.fill(false)
+        multiplier = 1
+        bumperHits = 0
         spawnBall()
     }
 
     private fun respawn(b: PinBall) {
-        b.px = 4.5f + (Random.nextFloat() - 0.5f) * 3f; b.py = 3.2f
-        b.vx = (Random.nextFloat() - 0.5f) * 3f; b.vy = 1f
+        val p = startPos()
+        b.px = p.x; b.py = p.y
+        b.vx = (Random.nextFloat() - 0.5f) * 2f; b.vy = 1f
+        b.captured = 0f
         b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT
     }
 
+    private fun addScore(base: Int) { onScoreAdded(base * multiplier) }
+
     // ---------------- шаг симуляции ----------------
-    private val subDt = 1f / 240f
+    private val subDt = 1f / 480f
     private var acc = 0f
     private var lastNanos = 0L
 
@@ -167,11 +219,12 @@ class PinballPhysicsEngine(
         lastNanos = currentTimeNanos
         acc += min(frame, 0.05f)
         var guard = 0
-        while (acc >= subDt && guard < 14) {
+        while (acc >= subDt && guard < 26) {
             substep(subDt)
             acc -= subDt
             guard++
         }
+        if (guard >= 26) acc = 0f
     }
 
     private fun substep(dt: Float) {
@@ -179,9 +232,19 @@ class PinballPhysicsEngine(
         updateFlippers(dt)
         val g = currentSpeedMode.gravity
         for (b in balls.toList()) {
+            if (b.captured > 0f) {
+                b.captured -= dt
+                b.px += (saucerPos.x - b.px) * 0.2f; b.py += (saucerPos.y - b.py) * 0.2f
+                b.vx = 0f; b.vy = 0f
+                if (b.captured <= 0f) ejectFromSaucer(b)
+                continue
+            }
             b.vy += g * dt
+            val drag = 1f - 0.05f * dt
+            b.vx *= drag; b.vy *= drag
             b.px += b.vx * dt
             b.py += b.vy * dt
+            collide(b)
             collide(b)
             val sp = hypot(b.vx, b.vy)
             if (sp.isNaN() || b.px.isNaN() || b.py.isNaN()) {
@@ -189,22 +252,23 @@ class PinballPhysicsEngine(
             }
             if (sp > 15f) { b.vx *= 15f / sp; b.vy *= 15f / sp }
             if (sp > maxRecordedSpeed) maxRecordedSpeed = min(sp, 15f)
-            // звёзды
-            for (i in starPositions.indices) {
-                if (!starLitStates[i] && hypot(b.px - starPositions[i].x, b.py - starPositions[i].y) < 0.8f) {
-                    starLitStates[i] = true
-                    onScoreAdded(20); onSoundTriggered("chime"); onStarHit(i)
-                    if (starLitStates.all { it }) {
-                        onSoundTriggered("fanfare_short"); onAllStarsLit(); starLitStates.fill(false)
-                    }
-                }
-            }
-            // слив
-            if (b.py > 15.6f) { onSoundTriggered("blub"); respawn(b) }
+            b.roll += (b.vx * dt) / ballR
+            sensors(b, sp)
+            if (b.py > 17.7f) { onSoundTriggered("blub"); respawn(b) }
         }
+        ballBall()
         for (i in coolBumper.indices) coolBumper[i] -= dt
         for (i in coolSling.indices) coolSling[i] -= dt
+        for (i in bumperFlash.indices) bumperFlash[i] = max(0f, bumperFlash[i] - dt * 4f)
+        for (i in slingFlash.indices) slingFlash[i] = max(0f, slingFlash[i] - dt * 5f)
+        for (i in gemFlash.indices) gemFlash[i] = max(0f, gemFlash[i] - dt * 3f)
+        saucerFlash = max(0f, saucerFlash - dt * 2f)
         coolWall -= dt
+        saucerCool -= dt
+        // спиннер крутится по инерции
+        spinAngle += spinVel * dt
+        spinVel *= (1f - 1.6f * dt)
+        spinScoreT -= dt
         if (autoPawsEnabled) autoPaws()
         if (simT - lastUnstuck >= 0.1f) { lastUnstuck = simT; antiStuck() }
     }
@@ -216,44 +280,58 @@ class PinballPhysicsEngine(
         if (wantL && !leftOn) onSoundTriggered("flip")
         if (wantR && !rightOn) onSoundTriggered("flip")
         leftOn = wantL; rightOn = wantR
-        val up = 17f * m
-        val down = 9f * m
-        // лева: угол уменьшается при подъёме; права: увеличивается
+        val up = 15f * m
+        val down = 8f * m
         val prevL = leftA
         val tgtL = if (wantL) upAngle else restAngle
         val stepL = (if (wantL) up else down) * dt
-        leftA = when {
-            leftA < tgtL -> min(tgtL, leftA + stepL)
-            else -> max(tgtL, leftA - stepL)
-        }
+        leftA = if (leftA < tgtL) min(tgtL, leftA + stepL) else max(tgtL, leftA - stepL)
         leftW = (leftA - prevL) / dt
         val prevR = rightA
         val tgtR = if (wantR) -upAngle else -restAngle
         val stepR = (if (wantR) up else down) * dt
-        rightA = when {
-            rightA < tgtR -> min(tgtR, rightA + stepR)
-            else -> max(tgtR, rightA - stepR)
-        }
+        rightA = if (rightA < tgtR) min(tgtR, rightA + stepR) else max(tgtR, rightA - stepR)
         rightW = (rightA - prevR) / dt
     }
 
+    private fun flipperTip(left: Boolean): PinVec =
+        if (left) PinVec(leftPivot.x + flipLen * cos(leftA), leftPivot.y + flipLen * sin(leftA))
+        else PinVec(rightPivot.x - flipLen * cos(rightA), rightPivot.y - flipLen * sin(rightA))
+
+    private fun distToSeg(px: Float, py: Float, ax: Float, ay: Float, bx: Float, by: Float): Float {
+        val dx = bx - ax; val dy = by - ay
+        val l2 = dx * dx + dy * dy
+        val t = if (l2 > 0f) (((px - ax) * dx + (py - ay) * dy) / l2).coerceIn(0f, 1f) else 0f
+        return hypot(px - (ax + t * dx), py - (ay + t * dy))
+    }
+
     private fun autoPaws() {
+        val lt = flipperTip(true); val rt = flipperTip(false)
         for (b in balls) {
-            if (b.vy > 0.3f && b.py in 12.2f..14.9f) {
-                if (b.px in 1.4f..4.5f) autoLeftUntil = max(autoLeftUntil, simT + 0.22f)
-                if (b.px in 4.5f..7.6f) autoRightUntil = max(autoRightUntil, simT + 0.22f)
-            }
+            if (b.captured > 0f || b.vy < -1.0f) { b.restT = 0f; continue }
+            if (b.py < 13.8f) { b.restT = 0f; continue }
+            val dl = distToSeg(b.px, b.py, leftPivot.x, leftPivot.y, lt.x, lt.y)
+            val dr = distToSeg(b.px, b.py, rightPivot.x, rightPivot.y, rt.x, rt.y)
+            if (b.px < 4.5f && dl < 1.0f) autoLeftUntil = max(autoLeftUntil, simT + 0.22f)
+            if (b.px >= 4.5f && dr < 1.0f) autoRightUntil = max(autoRightUntil, simT + 0.22f)
+            // лежит на лапке без движения — подкинуть
+            if (hypot(b.vx, b.vy) < 1.0f) {
+                b.restT += subDt
+                if (b.restT > 0.5f) {
+                    if (b.px < 4.5f) autoLeftUntil = simT + 0.25f else autoRightUntil = simT + 0.25f
+                    b.restT = 0f
+                }
+            } else b.restT = 0f
         }
     }
 
     // ---------------- столкновения ----------------
     private fun collide(b: PinBall) {
         for (s in segs) hitSeg(b, s.ax, s.ay, s.bx, s.by, s.half, s.rest, s, 0f, 0f, 0f)
-        // лапки
-        val lTip = PinVec(leftPivot.x + flipLen * cos(leftA), leftPivot.y + flipLen * sin(leftA))
-        hitSeg(b, leftPivot.x, leftPivot.y, lTip.x, lTip.y, flipHalf, 0.3f, null, leftW, leftPivot.x, leftPivot.y)
-        val rTip = PinVec(rightPivot.x - flipLen * cos(rightA), rightPivot.y - flipLen * sin(rightA))
-        hitSeg(b, rightPivot.x, rightPivot.y, rTip.x, rTip.y, flipHalf, 0.3f, null, rightW, rightPivot.x, rightPivot.y)
+        val lTip = flipperTip(true)
+        hitSeg(b, leftPivot.x, leftPivot.y, lTip.x, lTip.y, flipHalf, 0.25f, null, leftW, leftPivot.x, leftPivot.y)
+        val rTip = flipperTip(false)
+        hitSeg(b, rightPivot.x, rightPivot.y, rTip.x, rTip.y, flipHalf, 0.25f, null, rightW, rightPivot.x, rightPivot.y)
         // отбойники
         for (i in bumperPositions.indices) {
             val c = bumperPositions[i]
@@ -262,22 +340,48 @@ class PinballPhysicsEngine(
             val R = bumperR + ballR
             if (d < R) {
                 if (d < 1e-4f) { nx = 0f; ny = -1f } else { nx /= d; ny /= d }
-                // небольшой случайный разворот нормали — шарик не может «усидеть» точно на макушке
-                val j = (Random.nextFloat() - 0.5f) * 0.5f
+                val j = (Random.nextFloat() - 0.5f) * 0.4f
                 val cj = cos(j); val sj = sin(j)
                 val kx = nx * cj - ny * sj; val ky = nx * sj + ny * cj
                 b.px = c.x + nx * R; b.py = c.y + ny * R
-                val out = max(7.0f, b.vx * kx + b.vy * ky)
+                val out = max(7.5f, b.vx * kx + b.vy * ky)
                 b.vx = kx * out; b.vy = ky * out
                 if (coolBumper[i] <= 0f) {
                     coolBumper[i] = 0.12f
-                    onScoreAdded(10); onSoundTriggered("bumper"); onBumperHit(i)
+                    bumperFlash[i] = 1f
+                    addScore(10); onSoundTriggered("bumper"); onBumperHit(i)
+                    bumperHits++
+                    if (bumperHits % 8 == 0 && multiplier < 5) { multiplier++; onMultiplier(multiplier) }
                 }
+            }
+        }
+        // кристаллы-мишени на стенках
+        for (i in gemPositions.indices) {
+            val c = gemPositions[i]
+            var nx = b.px - c.x; var ny = b.py - c.y
+            val d = hypot(nx, ny)
+            val R = gemR + ballR
+            if (d < R) {
+                if (d < 1e-4f) { nx = 1f; ny = 0f } else { nx /= d; ny /= d }
+                b.px = c.x + nx * R; b.py = c.y + ny * R
+                val vn = b.vx * nx + b.vy * ny
+                if (vn < 0f) { b.vx -= 1.5f * vn * nx; b.vy -= 1.5f * vn * ny }
+                if (!gemLit[i]) {
+                    gemLit[i] = true
+                    gemFlash[i] = 1f
+                    addScore(15); onSoundTriggered("bell_ding"); onGemHit(i)
+                    if (gemLit.all { it }) {
+                        gemLit.fill(false)
+                        addScore(100)
+                        onSoundTriggered("fanfare_short"); onAllGemsLit()
+                        if (balls.size < 3) spawnBall() // мультибол!
+                    }
+                } else if (vn < -1f) { gemFlash[i] = 0.6f; onSoundTriggered("tap") }
             }
         }
     }
 
-    /** Круг (шарик) против «толстого» отрезка. w — угловая скорость, если отрезок — лапка с осью (pxv, pyv). */
+    /** Круг (шарик) против «толстого» отрезка. w — угловая скорость, если отрезок — лапка с осью (pvx, pvy). */
     private fun hitSeg(b: PinBall, ax: Float, ay: Float, bx: Float, by: Float, half: Float, e: Float, s: Seg?, w: Float, pvx: Float, pvy: Float) {
         val dx = bx - ax; val dy = by - ay
         val l2 = dx * dx + dy * dy
@@ -298,28 +402,83 @@ class PinballPhysicsEngine(
         val rvx = b.vx - vsx; val rvy = b.vy - vsy
         val vn = rvx * nx + rvy * ny
         if (vn >= 0f) return
-        val bounce = if (abs(vn) < 0.8f) 0f else e   // тихо лежащий шарик не дрожит
+        val bounce = if (abs(vn) < 0.9f) 0f else e   // тихо лежащий шарик не дрожит
         b.vx -= (1f + bounce) * vn * nx
         b.vy -= (1f + bounce) * vn * ny
-        // лёгкое трение вдоль поверхности
         if (s != null && s.kind == EntityType.SLINGSHOT) {
             val id = s.id
             if (coolSling[id] <= 0f) {
                 coolSling[id] = 0.15f
-                val kick = 6.5f
+                slingFlash[id] = 1f
+                val kick = 7.0f
                 val on = b.vx * nx + b.vy * ny
                 if (on < kick) { b.vx += nx * (kick - on); b.vy += ny * (kick - on) }
-                onScoreAdded(5); onSoundTriggered("sling")
+                addScore(5); onSoundTriggered("sling")
             }
-        } else if (s != null && coolWall <= 0f && abs(vn) > 1.5f) {
+        } else if (s != null && coolWall <= 0f && abs(vn) > 1.8f) {
             coolWall = 0.1f
             onSoundTriggered("wall")
         }
     }
 
-    // ---------------- защита от застревания ----------------
+    /** Простое упругое столкновение шариков между собой (мультибол). */
+    private fun ballBall() {
+        if (balls.size < 2) return
+        for (i in 0 until balls.size) for (j in i + 1 until balls.size) {
+            val a = balls[i]; val c = balls[j]
+            if (a.captured > 0f || c.captured > 0f) continue
+            var nx = c.px - a.px; var ny = c.py - a.py
+            val d = hypot(nx, ny)
+            val R = ballR * 2f
+            if (d >= R) continue
+            if (d < 1e-5f) { nx = 1f; ny = 0f } else { nx /= d; ny /= d }
+            val push = (R - d) / 2f
+            a.px -= nx * push; a.py -= ny * push; c.px += nx * push; c.py += ny * push
+            val rv = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny
+            if (rv < 0f) {
+                val imp = -rv * 0.95f
+                a.vx -= imp * nx; a.vy -= imp * ny; c.vx += imp * nx; c.vy += imp * ny
+            }
+        }
+    }
+
+    // ---------------- датчики: ролловеры, спиннер, воронка ----------------
+    private fun sensors(b: PinBall, sp: Float) {
+        for (i in starPositions.indices) {
+            if (!starLitStates[i] && hypot(b.px - starPositions[i].x, b.py - starPositions[i].y) < 0.8f) {
+                starLitStates[i] = true
+                addScore(20); onSoundTriggered("chime"); onStarHit(i)
+                if (starLitStates.all { it }) {
+                    onSoundTriggered("fanfare_short"); onAllStarsLit(); starLitStates.fill(false)
+                    if (multiplier < 5) { multiplier++; onMultiplier(multiplier) }
+                }
+            }
+        }
+        if (hypot(b.px - spinnerPos.x, b.py - spinnerPos.y) < spinnerR) {
+            spinVel = min(40f, max(spinVel, sp * 4f))
+            if (spinScoreT <= 0f) { spinScoreT = 0.12f; addScore(2); onSoundTriggered("tap") }
+        }
+        if (saucerCool <= 0f && sp < 10f && hypot(b.px - saucerPos.x, b.py - saucerPos.y) < saucerR) {
+            b.captured = 0.9f
+            saucerFlash = 1f
+            addScore(50); onSoundTriggered("whoosh"); onSaucer(true)
+        }
+    }
+
+    private fun ejectFromSaucer(b: PinBall) {
+        val a = (-Math.PI / 2.0 + (Random.nextFloat() - 0.5f) * 0.9).toFloat()
+        b.vx = cos(a) * 12.5f; b.vy = sin(a) * 12.5f
+        b.px = saucerPos.x; b.py = saucerPos.y - saucerR
+        saucerCool = 1.2f
+        saucerFlash = 1f
+        b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT
+        onSoundTriggered("boing"); onSaucer(false)
+    }
+
+    // ---------------- защита от застревания (страховка) ----------------
     private fun antiStuck() {
         for (b in balls.toList()) {
+            if (b.captured > 0f) { b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT; continue }
             if (b.px < -1f || b.px > worldWidth + 1f || b.py < -1.5f || b.py > worldHeight + 1.5f) {
                 unstuckOutOfBoundsCount++; respawn(b); continue
             }
@@ -327,10 +486,10 @@ class PinballPhysicsEngine(
             if (moved > 0.35f) { b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT; continue }
             val still = simT - b.anchorT
             val sp = hypot(b.vx, b.vy)
-            if (b.py < 13.0f) {
+            if (b.py < 14.0f) {
                 if (still > 0.9f) {
                     if (sp < 0.6f) unstuckLowSpeedCount++ else unstuckNoDisplacementCount++
-                    b.vx += if (Random.nextBoolean()) 2.5f else -2.5f
+                    b.vx += if (b.px < 4.5f) 2.5f else -2.5f
                     b.vy = -3.5f
                     b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT
                 }

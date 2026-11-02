@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -71,6 +72,7 @@ fun PinballMarbleRunScreen(
     var score by remember { mutableIntStateOf(0) }
     var speedMode by remember { mutableStateOf(SpeedMode.BUNNY) }
     var autoPaws by remember { mutableStateOf(true) }
+    var multiplierUi by remember { mutableIntStateOf(1) }
 
     // Visual animation states
     val bumperFlashes = remember { mutableStateListOf<BumperFlash>() }
@@ -154,6 +156,12 @@ fun PinballMarbleRunScreen(
         )
     }
 
+    engine.onMultiplier = { m -> multiplierUi = m; soundManager.play("chime") }
+    engine.onAllGemsLit = {
+        repeat(20) {
+            particles.add(SparkleParticle(4.5f, 8f, (Random.nextFloat() - 0.5f) * 10f, (Random.nextFloat() - 0.7f) * 10f, listOf(ColorPink, ColorYellow, ColorBlue, ColorGreen).random()))
+        }
+    }
     // Sync state to engine
     LaunchedEffect(speedMode) {
         engine.currentSpeedMode = speedMode
@@ -276,9 +284,10 @@ fun PinballMarbleRunScreen(
                         .border(BorderStroke(2.dp, ColorInk), CircleShape)
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(text = "⭐", fontSize = 24.sp)
-                    Text(text = "🌟", fontSize = 28.sp)
-                    Text(text = "⭐", fontSize = 24.sp)
+                    Text(text = "⭐", fontSize = 20.sp)
+                    Text(text = "🌟", fontSize = 24.sp)
+                    Text(text = "⭐", fontSize = 20.sp)
+                    if (multiplierUi > 1) Text(text = "×$multiplierUi", fontSize = 22.sp, fontWeight = FontWeight.Black, color = ColorInk)
                 }
 
                 // Score text ★ 130 (40sp bold, without words)
@@ -386,8 +395,8 @@ fun PinballMarbleRunScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(84.dp)
-                    .padding(top = 6.dp),
+                    .height(64.dp)
+                    .padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 for (isLeft in listOf(true, false)) {
@@ -422,7 +431,7 @@ fun PinballMarbleRunScreen(
                             }
                             .testTag(if (isLeft) "pinball_left_flipper_btn" else "pinball_right_flipper_btn")
                     ) {
-                        Text(text = if (isLeft) "⬆️ 🐾" else "🐾 ⬆️", fontSize = 34.sp)
+                        Text(text = if (isLeft) "⬆️ 🐾" else "🐾 ⬆️", fontSize = 28.sp)
                     }
                 }
             }
@@ -434,8 +443,8 @@ fun PinballMarbleRunScreen(
                 border = BorderStroke(3.dp, ColorInk),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(76.dp)
-                    .padding(top = 6.dp)
+                    .height(60.dp)
+                    .padding(top = 4.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -448,7 +457,7 @@ fun PinballMarbleRunScreen(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(52.dp)
                             .border(BorderStroke(3.dp, ColorInk), ShapeButton)
                             .background(ColorYellow, ShapeButton)
                             .clip(ShapeButton)
@@ -465,7 +474,7 @@ fun PinballMarbleRunScreen(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(52.dp)
                             .border(BorderStroke(3.dp, ColorInk), CircleShape)
                             .background(currentBallColor, CircleShape)
                             .clip(CircleShape)
@@ -485,13 +494,14 @@ fun PinballMarbleRunScreen(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(52.dp)
                             .border(BorderStroke(3.dp, ColorInk), ShapeButton)
                             .background(ColorPink, ShapeButton)
                             .clip(ShapeButton)
                             .plasticineClickable(haptics = haptics) {
                                 soundManager.play("whoosh")
                                 score = 0
+                                multiplierUi = 1
                                 engine.clearAllAndReset()
                             }
                             .testTag("pinball_clear_btn")
@@ -522,7 +532,7 @@ fun PinballMarbleRunScreen(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(52.dp)
                             .border(
                                 BorderStroke(
                                     width = if (autoPaws) 3.5.dp else 2.5.dp,
@@ -592,345 +602,234 @@ fun PinballCanvas(
     trailPoints: List<Offset>,
     modifier: Modifier = Modifier
 ) {
-    val fieldBgBrush = remember {
-        Brush.verticalGradient(
-            colors = listOf(Color(0xFFCFEAFF), Color(0xFFFFD6F0))
-        )
-    }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "bulbCycle")
-    val bulbIndexFloat by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(12000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "bulbStep"
-    )
-    val activeBulbIndex = bulbIndexFloat.toInt() % 12
-
     Canvas(modifier = modifier) {
-        // Compute coordinate transform from 9x16 world to Canvas
         val worldW = engine.worldWidth
         val worldH = engine.worldHeight
-        val scale = min(size.width / worldW, size.height / worldH)
+        val scale = min(size.width / (worldW + 0.8f), size.height / (worldH + 0.6f))
         val offsetX = (size.width - worldW * scale) / 2f
         val offsetY = (size.height - worldH * scale) / 2f
+        fun px(x: Float) = offsetX + x * scale
+        fun py(y: Float) = offsetY + y * scale
+        fun pd(d: Float) = d * scale
+        fun pt(x: Float, y: Float) = Offset(px(x), py(y))
+        val now = System.currentTimeMillis()
+        val tSec = (now % 100000L) / 1000f
+        fun hash(k: Int): Float { val v = sin(k * 12.9898f) * 43758.547f; return v - floor(v) }
 
-        fun toPxX(x: Float): Float = offsetX + x * scale
-        fun toPxY(y: Float): Float = offsetY + y * scale
-        fun toPxDist(d: Float): Float = d * scale
-
-        // 1. Draw Field Background with Caramel Gradient & Purple Cabinet Frame
-        val fieldRectTop = toPxY(0f)
-        val fieldRectLeft = toPxX(0f)
-        val fieldRectWidth = toPxDist(worldW)
-        val fieldRectHeight = toPxDist(worldH)
-
-        // Purple Cabinet Shadow & Frame
+        // ── корпус стола: тёмная рама и хромированная кромка ──
+        val fieldPath = Path().apply {
+            moveTo(px(0f), py(13f)); lineTo(px(0f), py(4.5f))
+            arcTo(androidx.compose.ui.geometry.Rect(px(0f), py(0f), px(9f), py(9f)), 180f, 180f, false)
+            lineTo(px(9f), py(13f)); lineTo(px(engine.rightPivot.x), py(engine.rightPivot.y))
+            lineTo(px(engine.rightPivot.x), py(18f)); lineTo(px(engine.leftPivot.x), py(18f))
+            lineTo(px(engine.leftPivot.x), py(engine.leftPivot.y)); close()
+        }
         drawRoundRect(
-            color = Color(0xFF7B1FA2),
-            topLeft = Offset(fieldRectLeft - 8.dp.toPx(), fieldRectTop - 8.dp.toPx()),
-            size = Size(fieldRectWidth + 16.dp.toPx(), fieldRectHeight + 16.dp.toPx()),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(36.dp.toPx(), 36.dp.toPx())
+            Brush.verticalGradient(listOf(Color(0xFF8E24AA), Color(0xFF4A148C), Color(0xFF311B92))),
+            Offset(px(0f) - pd(0.55f), py(0f) - pd(0.45f)), Size(pd(worldW + 1.1f), pd(worldH + 0.7f)),
+            androidx.compose.ui.geometry.CornerRadius(pd(2.2f))
         )
+        drawRoundRect(Color.White.copy(alpha = 0.35f), Offset(px(0f) - pd(0.55f), py(0f) - pd(0.45f)), Size(pd(worldW + 1.1f), pd(worldH + 0.7f)),
+            androidx.compose.ui.geometry.CornerRadius(pd(2.2f)), style = Stroke(pd(0.05f)))
 
-        // Caramel Machine Playfield
-        drawRoundRect(
-            brush = fieldBgBrush,
-            topLeft = Offset(fieldRectLeft, fieldRectTop),
-            size = Size(fieldRectWidth, fieldRectHeight),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(32.dp.toPx(), 32.dp.toPx())
-        )
-
-        // 12 Gentle Perimeter Bulbs along cabinet border (step <= 1Hz)
-        val bulbPositions = listOf(
-            Offset(fieldRectLeft, fieldRectTop + fieldRectHeight * 0.15f),
-            Offset(fieldRectLeft, fieldRectTop + fieldRectHeight * 0.35f),
-            Offset(fieldRectLeft, fieldRectTop + fieldRectHeight * 0.55f),
-            Offset(fieldRectLeft, fieldRectTop + fieldRectHeight * 0.75f),
-            Offset(fieldRectLeft + fieldRectWidth * 0.25f, fieldRectTop),
-            Offset(fieldRectLeft + fieldRectWidth * 0.50f, fieldRectTop - 4.dp.toPx()),
-            Offset(fieldRectLeft + fieldRectWidth * 0.75f, fieldRectTop),
-            Offset(fieldRectLeft + fieldRectWidth, fieldRectTop + fieldRectHeight * 0.15f),
-            Offset(fieldRectLeft + fieldRectWidth, fieldRectTop + fieldRectHeight * 0.35f),
-            Offset(fieldRectLeft + fieldRectWidth, fieldRectTop + fieldRectHeight * 0.55f),
-            Offset(fieldRectLeft + fieldRectWidth, fieldRectTop + fieldRectHeight * 0.75f),
-            Offset(fieldRectLeft + fieldRectWidth * 0.50f, fieldRectTop + fieldRectHeight)
-        )
-        bulbPositions.forEachIndexed { bIdx, pos ->
-            val isActive = bIdx == activeBulbIndex
-            val bulbColor = if (isActive) Color(0xFFFFEB3B) else Color(0xFFFFCC80)
-            drawCircle(color = bulbColor, radius = 5.dp.toPx(), center = pos)
-            drawCircle(color = ColorInk, radius = 5.dp.toPx(), center = pos, style = Stroke(width = 1.5.dp.toPx()))
-            if (isActive) {
-                drawCircle(color = ColorYellow.copy(alpha = 0.4f), radius = 9.dp.toPx(), center = pos)
+        // ── игровое поле: ночное небо с огоньками ──
+        drawPath(fieldPath, Brush.verticalGradient(listOf(Color(0xFF1A1055), Color(0xFF3A1D86), Color(0xFF5E2EA6)), py(0f), py(18f)))
+        androidx.compose.ui.graphics.drawscope.clipPath(fieldPath) {
+            // мягкие цветные круги-узоры
+            drawCircle(Color(0xFFFF4081).copy(alpha = 0.10f), pd(3.4f), pt(4.5f, 6.4f))
+            drawCircle(Color(0xFF40C4FF).copy(alpha = 0.09f), pd(2.3f), pt(4.5f, 6.4f))
+            drawCircle(Color(0xFFFFD740).copy(alpha = 0.08f), pd(1.2f), pt(4.5f, 6.4f))
+            drawCircle(Color.White.copy(alpha = 0.10f), pd(3.4f), pt(4.5f, 6.4f), style = Stroke(pd(0.06f)))
+            drawCircle(Color.White.copy(alpha = 0.10f), pd(2.3f), pt(4.5f, 6.4f), style = Stroke(pd(0.06f)))
+            // ромбики-текстура
+            for (k in 0 until 70) {
+                val x = hash(k * 3 + 1) * worldW; val y = hash(k * 3 + 2) * 17f
+                val tw = 0.5f + 0.5f * sin(tSec * 2f + k)
+                drawCircle(Color.White.copy(alpha = 0.10f + 0.35f * tw * hash(k)), pd(0.025f + hash(k * 5) * 0.035f), pt(x, y))
+            }
+            // тёмный слив под лапками
+            drawRect(Color.Black.copy(alpha = 0.55f), pt(engine.leftPivot.x, 16.9f), Size(pd(engine.rightPivot.x - engine.leftPivot.x), pd(1.2f)))
+            // световые «лыжи»-стрелки к лапкам
+            for (side in 0..1) {
+                for (k in 0 until 4) {
+                    val ax = if (side == 0) 0.6f + k * 0.22f else 8.4f - k * 0.22f
+                    val ay = 13.0f + k * 0.62f
+                    val blink = ((tSec * 3f).toInt() % 4 == k)
+                    drawCircle((if (blink) Color(0xFFFFEB3B) else Color(0xFFFFEB3B).copy(alpha = 0.22f)), pd(0.09f), pt(ax, ay))
+                }
             }
         }
 
-        // 2. Draw Top Arch & Side Walls with thick ColorInk
-        val wallStroke = 6.dp.toPx()
-        val wallColor = ColorInk
+        // ── стенки: хромированные трубы ──
+        fun rail(path: Path) {
+            drawPath(path, Color(0xFF1A0B3D), style = Stroke(pd(0.50f), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(path, Brush.linearGradient(listOf(Color(0xFFE1BEE7), Color(0xFF9575CD), Color(0xFFB39DDB)), Offset(0f, offsetY), Offset(size.width, offsetY + pd(worldH))),
+                style = Stroke(pd(0.34f), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(path, Color.White.copy(alpha = 0.55f), style = Stroke(pd(0.07f), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+        val outline = Path().apply {
+            moveTo(px(-0.2f), py(13f)); lineTo(px(-0.2f), py(4.5f))
+            arcTo(androidx.compose.ui.geometry.Rect(px(-0.2f), py(-0.2f), px(9.2f), py(9.2f)), 180f, 180f, false)
+            lineTo(px(9.2f), py(13f))
+        }
+        rail(outline)
+        rail(Path().apply { moveTo(px(0f), py(13f)); lineTo(px(engine.leftPivot.x), py(engine.leftPivot.y)) })
+        rail(Path().apply { moveTo(px(9f), py(13f)); lineTo(px(engine.rightPivot.x), py(engine.rightPivot.y)) })
 
-        val archPath = Path().apply {
-            // Left wall (x=0, y=12 up to y=3)
-            moveTo(toPxX(0f), toPxY(12f))
-            lineTo(toPxX(0f), toPxY(3f))
-            // Arch semicircle: from (0,3) to (9,3) via center (4.5, 3)
-            arcTo(
-                rect = androidx.compose.ui.geometry.Rect(
-                    left = toPxX(0f),
-                    top = toPxY(-1.5f),
-                    right = toPxX(9f),
-                    bottom = toPxY(7.5f)
-                ),
-                startAngleDegrees = 180f,
-                sweepAngleDegrees = 180f,
-                forceMoveTo = false
-            )
-            // Right wall (x=9, y=3 down to y=12)
-            lineTo(toPxX(9f), toPxY(12f))
+        // ── ролловеры-звёзды в арке ──
+        engine.starPositions.forEachIndexed { idx, p ->
+            val lit = engine.starLitStates[idx]
+            val c = pt(p.x, p.y)
+            val rr = pd(0.42f)
+            if (lit) drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.35f), rr * 1.9f, c)
+            val star = Path().apply {
+                for (k in 0 until 10) {
+                    val a = -PI.toFloat() / 2f + k * PI.toFloat() / 5f
+                    val r = if (k % 2 == 0) rr else rr * 0.45f
+                    val x = c.x + cos(a) * r; val y = c.y + sin(a) * r
+                    if (k == 0) moveTo(x, y) else lineTo(x, y)
+                }
+                close()
+            }
+            drawPath(star, if (lit) Color(0xFFFFEB3B) else Color(0xFF4527A0))
+            drawPath(star, if (lit) Color(0xFFFF8F00) else Color(0xFF9575CD), style = Stroke(pd(0.05f), join = StrokeJoin.Round))
         }
 
-        drawPath(
-            path = archPath,
-            color = wallColor,
-            style = Stroke(width = wallStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-
-        // 3. Draw Bottom Slanted Chutes to Flippers
-        // Left chute: (0, 12) -> (2.2, 14)
-        drawLine(
-            color = wallColor,
-            start = Offset(toPxX(0f), toPxY(12f)),
-            end = Offset(toPxX(2.2f), toPxY(14f)),
-            strokeWidth = wallStroke,
-            cap = StrokeCap.Round
-        )
-
-        // Right chute: (9, 12) -> (6.8, 14)
-        drawLine(
-            color = wallColor,
-            start = Offset(toPxX(9f), toPxY(12f)),
-            end = Offset(toPxX(6.8f), toPxY(14f)),
-            strokeWidth = wallStroke,
-            cap = StrokeCap.Round
-        )
-
-        // 4. Draw Slingshots (Triangles above flippers)
-        val leftSlingshot = Path().apply {
-            moveTo(toPxX(1.1f), toPxY(9.6f))
-            lineTo(toPxX(2.0f), toPxY(11.2f))
-            lineTo(toPxX(1.1f), toPxY(11.4f))
-            close()
-        }
-        drawPath(leftSlingshot, color = Color(0xFFFFCC80))
-        drawPath(leftSlingshot, color = wallColor, style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
-
-        val rightSlingshot = Path().apply {
-            moveTo(toPxX(7.9f), toPxY(9.6f))
-            lineTo(toPxX(7.9f), toPxY(11.4f))
-            lineTo(toPxX(7.0f), toPxY(11.2f))
-            close()
-        }
-        drawPath(rightSlingshot, color = Color(0xFFFFCC80))
-        drawPath(rightSlingshot, color = wallColor, style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
-
-        // 5. Draw Star Targets (3 sensors in top arch)
-        val starPos = listOf(
-            Offset(toPxX(3.0f), toPxY(2.0f)),
-            Offset(toPxX(4.5f), toPxY(1.2f)),
-            Offset(toPxX(6.0f), toPxY(2.0f))
-        )
-        starPos.forEachIndexed { idx, center ->
-            val isLit = engine.starLitStates[idx]
-            drawCircle(
-                color = if (isLit) ColorYellow else ColorWhite,
-                radius = toPxDist(0.45f),
-                center = center
-            )
-            drawCircle(
-                color = wallColor,
-                radius = toPxDist(0.45f),
-                center = center,
-                style = Stroke(width = 2.5.dp.toPx())
-            )
-            // Inner decorative star ring
-            drawCircle(
-                color = if (isLit) ColorOrange else Color.LightGray,
-                radius = toPxDist(0.25f),
-                center = center
-            )
+        // ── спиннер (правая дорожка) ──
+        run {
+            val c = pt(engine.spinnerPos.x, engine.spinnerPos.y)
+            drawCircle(Color.Black.copy(alpha = 0.35f), pd(0.55f), c)
+            drawCircle(Color(0xFF80DEEA).copy(alpha = 0.5f), pd(0.55f), c, style = Stroke(pd(0.05f)))
+            val a = engine.spinAngle
+            val ca = cos(a); val sa = sin(a)
+            val half = pd(0.46f)
+            drawLine(Color(0xFFFF7043), Offset(c.x - half * ca, c.y - half * 0.45f * sa), Offset(c.x + half * ca, c.y + half * 0.45f * sa), pd(0.16f), StrokeCap.Round)
+            drawCircle(Color.White, pd(0.08f), c)
         }
 
-        // 6. Draw Bumpers with Friendly Faces (4 round bumpers: (3, 5.5), (6, 5.5), (4.5, 7.5), (4.5, 4))
+        // ── воронка («чёрная дыра») ──
+        run {
+            val c = pt(engine.saucerPos.x, engine.saucerPos.y)
+            val rr = pd(engine.saucerR + 0.18f)
+            val fl = engine.saucerFlash
+            drawCircle(Color(0xFF7C4DFF).copy(alpha = 0.30f + 0.4f * fl), rr * 1.5f, c)
+            drawCircle(Brush.radialGradient(listOf(Color.Black, Color(0xFF1A0B3D)), c, rr), rr, c)
+            for (k in 0 until 3) {
+                val a0 = tSec * 4f + k * 2.094f
+                drawArc(Color(0xFFB388FF).copy(alpha = 0.8f), Math.toDegrees(a0.toDouble()).toFloat(), 80f, false,
+                    Offset(c.x - rr * 0.8f, c.y - rr * 0.8f), Size(rr * 1.6f, rr * 1.6f), style = Stroke(pd(0.06f), cap = StrokeCap.Round))
+                drawArc(Color(0xFF80D8FF).copy(alpha = 0.7f), Math.toDegrees((a0 * 1.6f).toDouble()).toFloat() + 40f, 60f, false,
+                    Offset(c.x - rr * 0.5f, c.y - rr * 0.5f), Size(rr, rr), style = Stroke(pd(0.05f), cap = StrokeCap.Round))
+            }
+            drawCircle(Color(0xFFD1C4E9), rr, c, style = Stroke(pd(0.09f)))
+        }
+
+        // ── кристаллы-мишени на стенках ──
+        engine.gemPositions.forEachIndexed { idx, p ->
+            val c = pt(p.x, p.y)
+            val lit = engine.gemLit[idx]
+            val fl = engine.gemFlash[idx]
+            val r = pd(engine.gemR) * (1f + 0.25f * fl)
+            if (lit) drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.35f + 0.3f * fl), r * 1.8f, c)
+            val gem = Path().apply { moveTo(c.x, c.y - r); lineTo(c.x + r * 0.9f, c.y); lineTo(c.x, c.y + r); lineTo(c.x - r * 0.9f, c.y); close() }
+            drawPath(gem, if (lit) Brush.linearGradient(listOf(Color(0xFFFFF59D), Color(0xFFFFB300)), Offset(c.x - r, c.y - r), Offset(c.x + r, c.y + r))
+                else Brush.linearGradient(listOf(Color(0xFF80DEEA), Color(0xFF0097A7)), Offset(c.x - r, c.y - r), Offset(c.x + r, c.y + r)))
+            drawPath(gem, Color.White.copy(alpha = 0.85f), style = Stroke(pd(0.04f), join = StrokeJoin.Round))
+            drawLine(Color.White.copy(alpha = 0.7f), Offset(c.x - r * 0.4f, c.y - r * 0.25f), Offset(c.x, c.y - r * 0.7f), pd(0.04f), StrokeCap.Round)
+        }
+
+        // ── рогатки: резиновые треугольники ──
+        for (side in 0..1) {
+            val mx = { x: Float -> if (side == 0) x else 9f - x }
+            val tri = Path().apply {
+                moveTo(px(mx(1.15f)), py(10.6f)); lineTo(px(mx(2.25f)), py(13.35f)); lineTo(px(mx(1.15f)), py(12.6f)); close()
+            }
+            val fl = engine.slingFlash[side]
+            drawPath(tri, Brush.linearGradient(listOf(Color(0xFFFFE082).copy(alpha = 1f), Color(0xFFFF7043)), pt(mx(1.15f), 10.6f), pt(mx(2.25f), 13.35f)))
+            drawPath(tri, Color(0xFF1A0B3D), style = Stroke(pd(0.12f), join = StrokeJoin.Round))
+            drawLine(Color.White.copy(alpha = 0.4f + 0.6f * fl), pt(mx(1.3f), 10.9f), pt(mx(2.15f), 13.0f), pd(0.09f + 0.07f * fl), StrokeCap.Round)
+            if (fl > 0f) drawLine(Color(0xFFFFFF8D).copy(alpha = fl), pt(mx(1.15f), 10.6f), pt(mx(2.25f), 13.35f), pd(0.18f), StrokeCap.Round)
+        }
+
+        // ── бамперы с мордочками ──
         val bumperColors = listOf(ColorPink, ColorYellow, ColorPurple, ColorGreen)
-        val bumperCenters = engine.bumperPositions.map { Offset(toPxX(it.x), toPxY(it.y)) }
-        val bumperR = toPxDist(0.7f)
-
-        bumperCenters.forEachIndexed { idx, center ->
-            // Outer body
-            drawCircle(
-                color = bumperColors[idx % bumperColors.size],
-                radius = bumperR,
-                center = center
-            )
-            drawCircle(
-                color = wallColor,
-                radius = bumperR,
-                center = center,
-                style = Stroke(width = 4.dp.toPx())
-            )
-            // Inner plasticine ring highlight
-            drawCircle(
-                color = ColorWhite.copy(alpha = 0.85f),
-                radius = bumperR * 0.45f,
-                center = center
-            )
-
-            // Bumper Face (cute eyes and smiling mouth; reacts to hit)
-            val isBumperFlashed = bumperFlashes.any { it.id == idx }
-            val eyeDist = bumperR * 0.32f
-            val eyeY = center.y - bumperR * 0.12f
-            val eyeR = bumperR * 0.12f
-            if (isBumperFlashed) {
-                // Happy squinting lines
-                drawLine(ColorInk, Offset(center.x - eyeDist - eyeR, eyeY), Offset(center.x - eyeDist + eyeR, eyeY), strokeWidth = 3f)
-                drawLine(ColorInk, Offset(center.x + eyeDist - eyeR, eyeY), Offset(center.x + eyeDist + eyeR, eyeY), strokeWidth = 3f)
-                // Surprised open mouth 'O'
-                drawCircle(ColorInk, radius = bumperR * 0.18f, center = Offset(center.x, center.y + bumperR * 0.28f))
+        engine.bumperPositions.forEachIndexed { idx, p ->
+            val center = pt(p.x, p.y)
+            val fl = engine.bumperFlash[idx]
+            val bR = pd(engine.bumperR) * (1f + 0.12f * fl)
+            val col = bumperColors[idx % bumperColors.size]
+            drawCircle(Color.Black.copy(alpha = 0.40f), bR * 1.1f, Offset(center.x + pd(0.08f), center.y + pd(0.14f)))
+            drawCircle(Color(0xFF1A0B3D), bR * 1.12f, center)
+            drawCircle(Brush.linearGradient(listOf(Color(0xFFE1BEE7), Color(0xFF7E57C2)), Offset(center.x - bR, center.y - bR), Offset(center.x + bR, center.y + bR)), bR * 1.04f, center)
+            drawCircle(Brush.radialGradient(listOf(col.copy(alpha = 1f).let { Color(it.red * 0.35f + 0.65f, it.green * 0.35f + 0.65f, it.blue * 0.35f + 0.65f) }, col, Color(col.red * 0.55f, col.green * 0.55f, col.blue * 0.55f)),
+                Offset(center.x - bR * 0.3f, center.y - bR * 0.35f), bR * 1.3f), bR * 0.88f, center)
+            drawCircle(Color.White.copy(alpha = 0.45f), bR * 0.88f, center, style = Stroke(pd(0.04f)))
+            drawOval(Color.White.copy(alpha = 0.5f), Offset(center.x - bR * 0.6f, center.y - bR * 0.78f), Size(bR * 0.7f, bR * 0.32f))
+            val eyeDist = bR * 0.30f; val eyeY = center.y - bR * 0.10f; val eyeR = bR * 0.12f
+            if (fl > 0.05f) {
+                drawLine(ColorInk, Offset(center.x - eyeDist - eyeR, eyeY), Offset(center.x - eyeDist + eyeR, eyeY), 3f, StrokeCap.Round)
+                drawLine(ColorInk, Offset(center.x + eyeDist - eyeR, eyeY), Offset(center.x + eyeDist + eyeR, eyeY), 3f, StrokeCap.Round)
+                drawCircle(ColorInk, bR * 0.17f, Offset(center.x, center.y + bR * 0.28f))
+                drawCircle(Color.White.copy(alpha = fl), bR * 1.4f, center, style = Stroke(pd(0.08f) * fl))
             } else {
-                // Two dot eyes
-                drawCircle(ColorInk, radius = eyeR, center = Offset(center.x - eyeDist, eyeY))
-                drawCircle(ColorInk, radius = eyeR, center = Offset(center.x + eyeDist, eyeY))
-                // Cute smiling mouth arc
-                drawArc(
-                    color = ColorInk,
-                    startAngle = 0f,
-                    sweepAngle = 180f,
-                    useCenter = false,
-                    topLeft = Offset(center.x - bumperR * 0.22f, center.y + bumperR * 0.10f),
-                    size = Size(bumperR * 0.44f, bumperR * 0.32f),
-                    style = Stroke(width = 3f, cap = StrokeCap.Round)
-                )
+                drawCircle(ColorInk, eyeR, Offset(center.x - eyeDist, eyeY)); drawCircle(ColorInk, eyeR, Offset(center.x + eyeDist, eyeY))
+                drawCircle(Color.White, eyeR * 0.4f, Offset(center.x - eyeDist - eyeR * 0.3f, eyeY - eyeR * 0.3f))
+                drawCircle(Color.White, eyeR * 0.4f, Offset(center.x + eyeDist - eyeR * 0.3f, eyeY - eyeR * 0.3f))
+                drawArc(ColorInk, 0f, 180f, false, Offset(center.x - bR * 0.22f, center.y + bR * 0.08f), Size(bR * 0.44f, bR * 0.32f), style = Stroke(3f, cap = StrokeCap.Round))
             }
         }
 
-        // Flash rings on bumpers
-        bumperFlashes.forEach { flash ->
-            val center = bumperCenters.getOrNull(flash.id) ?: Offset.Zero
-            val elapsed = System.currentTimeMillis() - flash.startTime
-            val prog = (elapsed / 250f).coerceIn(0f, 1f)
-            val ringRadius = bumperR + prog * toPxDist(0.8f)
-            drawCircle(
-                color = ColorYellow.copy(alpha = 1f - prog),
-                radius = ringRadius,
-                center = center,
-                style = Stroke(width = 4.dp.toPx())
-            )
-        }
-
-        // 7. Draw Flippers with Pivots
+        // ── лапки ──
         val (leftAngle, rightAngle) = engine.getFlipperAngles()
-        val flipLength = toPxDist(2.0f)
-        val flipThick = toPxDist(0.46f)
-
-        // Left flipper
-        val lPivot = Offset(toPxX(2.2f), toPxY(14.0f))
-        val lTip = Offset(
-            lPivot.x + flipLength * cos(leftAngle),
-            lPivot.y + flipLength * sin(leftAngle)
-        )
-        drawLine(
-            color = if (leftFlipperActive) Color(0xFFFFD54F) else ColorOrange,
-            start = lPivot,
-            end = lTip,
-            strokeWidth = flipThick,
-            cap = StrokeCap.Round
-        )
-        drawLine(
-            color = wallColor,
-            start = lPivot,
-            end = lTip,
-            strokeWidth = flipThick,
-            cap = StrokeCap.Round
-        )
-        // Left pivot circle
-        drawCircle(color = wallColor, radius = flipThick * 0.5f, center = lPivot)
-
-        // Right flipper
-        val rPivot = Offset(toPxX(6.8f), toPxY(14.0f))
-        val rTip = Offset(
-            rPivot.x - flipLength * cos(rightAngle),
-            rPivot.y - flipLength * sin(rightAngle)
-        )
-        drawLine(
-            color = if (rightFlipperActive) Color(0xFFFFD54F) else ColorOrange,
-            start = rPivot,
-            end = rTip,
-            strokeWidth = flipThick,
-            cap = StrokeCap.Round
-        )
-        drawLine(
-            color = wallColor,
-            start = rPivot,
-            end = rTip,
-            strokeWidth = flipThick,
-            cap = StrokeCap.Round
-        )
-        // Right pivot circle
-        drawCircle(color = wallColor, radius = flipThick * 0.5f, center = rPivot)
-
-        // 8. Draw Ball Trailing Rainbow Dots
-        trailPoints.forEachIndexed { tIdx, pt ->
-            val trailAlpha = ((tIdx + 1).toFloat() / trailPoints.size.toFloat() * 0.75f).coerceIn(0.1f, 0.75f)
-            val trailR = toPxDist(0.18f) * ((tIdx + 1).toFloat() / trailPoints.size.toFloat())
-            drawCircle(
-                color = ballColor.copy(alpha = trailAlpha),
-                radius = trailR.coerceAtLeast(2f),
-                center = Offset(toPxX(pt.x), toPxY(pt.y))
-            )
+        val flipLength = pd(engine.flipLen)
+        val flipThick = pd(engine.flipHalf * 2f)
+        for (left in listOf(true, false)) {
+            val pv = if (left) pt(engine.leftPivot.x, engine.leftPivot.y) else pt(engine.rightPivot.x, engine.rightPivot.y)
+            val tip = if (left) Offset(pv.x + flipLength * cos(leftAngle), pv.y + flipLength * sin(leftAngle))
+                      else Offset(pv.x - flipLength * cos(rightAngle), pv.y - flipLength * sin(rightAngle))
+            val active = if (left) leftFlipperActive else rightFlipperActive
+            drawLine(Color.Black.copy(alpha = 0.35f), Offset(pv.x + 4f, pv.y + 7f), Offset(tip.x + 4f, tip.y + 7f), flipThick * 1.3f, StrokeCap.Round)
+            drawLine(Color(0xFF1A0B3D), pv, tip, flipThick * 1.32f, StrokeCap.Round)
+            drawLine(if (active) Color(0xFFFFD54F) else Color(0xFFFF8A65), pv, tip, flipThick, StrokeCap.Round)
+            // блик вдоль лапки
+            val nx = -(tip.y - pv.y) / flipLength; val ny = (tip.x - pv.x) / flipLength
+            drawLine(Color.White.copy(alpha = 0.55f), Offset(pv.x + nx * flipThick * 0.2f * -1f, pv.y + ny * flipThick * 0.2f * -1f), Offset(tip.x + nx * flipThick * 0.2f * -1f, tip.y + ny * flipThick * 0.2f * -1f), flipThick * 0.16f, StrokeCap.Round)
+            drawCircle(Color(0xFFE0E0E0), flipThick * 0.42f, pv)
+            drawCircle(Color(0xFF616161), flipThick * 0.42f, pv, style = Stroke(flipThick * 0.1f))
+            drawCircle(Color(0xFF616161), flipThick * 0.12f, pv)
         }
 
-        // 9. Draw Balls (filled with ballColor, gloss highlight and ink outline)
-        val balls = engine.getBalls()
-        val ballR = toPxDist(0.4f)
-        balls.forEach { b ->
-            val bPos = b.position
-            val cx = toPxX(bPos.x)
-            val cy = toPxY(bPos.y)
-
-            // Ball colored body
-            drawCircle(
-                color = ballColor,
-                radius = ballR,
-                center = Offset(cx, cy)
-            )
-            // Ball thick outline
-            drawCircle(
-                color = wallColor,
-                radius = ballR,
-                center = Offset(cx, cy),
-                style = Stroke(width = 3.dp.toPx())
-            )
-            // Gloss highlight dot
-            drawCircle(
-                color = ColorWhite.copy(alpha = 0.9f),
-                radius = ballR * 0.35f,
-                center = Offset(cx - ballR * 0.3f, cy - ballR * 0.3f)
-            )
+        // ── след и шарики ──
+        trailPoints.forEachIndexed { tIdx, p ->
+            val k = (tIdx + 1).toFloat() / trailPoints.size.toFloat()
+            drawCircle(ballColor.copy(alpha = (k * 0.55f).coerceIn(0.05f, 0.55f)), (pd(engine.ballR) * 0.7f * k).coerceAtLeast(2f), pt(p.x, p.y))
+        }
+        val ballRpx = pd(engine.ballR)
+        engine.getBalls().forEach { b ->
+            val c = pt(b.px, b.py)
+            val vis = if (b.captured > 0f) 0.55f else 1f
+            val br = ballRpx * vis
+            drawOval(Color.Black.copy(alpha = 0.40f), Offset(c.x - br * 0.9f + 3f, c.y + br * 0.55f + 3f), Size(br * 1.8f, br * 0.9f))
+            drawCircle(Brush.radialGradient(
+                listOf(Color.White, Color(ballColor.red * 0.4f + 0.6f, ballColor.green * 0.4f + 0.6f, ballColor.blue * 0.4f + 0.6f), ballColor, Color(ballColor.red * 0.4f, ballColor.green * 0.4f, ballColor.blue * 0.4f)),
+                Offset(c.x - br * 0.35f, c.y - br * 0.4f), br * 1.5f), br, c)
+            drawCircle(Color(0xFF1A0B3D), br, c, style = Stroke(2.5f))
+            // «окно» отражения вращается вместе с шариком
+            val ra = b.roll
+            drawCircle(Color.White.copy(alpha = 0.75f), br * 0.14f, Offset(c.x - br * 0.38f * cos(ra * 0.4f), c.y - br * 0.42f))
+            drawArc(Color.White.copy(alpha = 0.5f), 200f, 60f, false, Offset(c.x - br * 0.75f, c.y - br * 0.75f), Size(br * 1.5f, br * 1.5f), style = Stroke(br * 0.12f, cap = StrokeCap.Round))
         }
 
-        // 10. Draw Sparkle Celebration Particles
+        // ── вспышки и салют ──
+        bumperFlashes.forEach { flash ->
+            val centerP = engine.bumperPositions.getOrNull(flash.id) ?: return@forEach
+            val prog = ((now - flash.startTime) / 250f).coerceIn(0f, 1f)
+            drawCircle(ColorYellow.copy(alpha = 1f - prog), pd(engine.bumperR) + prog * pd(0.8f), pt(centerP.x, centerP.y), style = Stroke(pd(0.08f)))
+        }
         particles.forEach { p ->
-            val px = toPxX(p.x)
-            val py = toPxY(p.y)
-            drawCircle(
-                color = p.color,
-                radius = 7.dp.toPx(),
-                center = Offset(px, py)
-            )
+            drawCircle(p.color.copy(alpha = 0.35f), 12.dp.toPx(), pt(p.x, p.y))
+            drawCircle(p.color, 6.dp.toPx(), pt(p.x, p.y))
+            drawCircle(Color.White, 2.dp.toPx(), pt(p.x, p.y))
         }
     }
 }

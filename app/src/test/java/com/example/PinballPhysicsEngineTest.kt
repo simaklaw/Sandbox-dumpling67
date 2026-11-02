@@ -69,7 +69,7 @@ class PinballPhysicsEngineTest {
         e.autoPawsEnabled = false
         e.clearAllAndReset()
         val b = e.getBalls().first()
-        b.px = 3.2f; b.py = 13.3f; b.vx = 0f; b.vy = 0f
+        b.px = 3.4f; b.py = 15.4f; b.vx = 0f; b.vy = 0f
         var t = 100_000_000L
         e.step(t)
         // дать шарику лечь на лапку
@@ -96,11 +96,50 @@ class PinballPhysicsEngineTest {
             t += 16_666_666L
             e.step(t)
             val b = e.getBalls().first()
-            if (hypot(b.px - lx, b.py - ly) < 0.05f && b.py < 12.5f) stillTop += 1f / 60f else stillTop = 0f
+            if (hypot(b.px - lx, b.py - ly) < 0.05f && b.py < 13.5f) stillTop += 1f / 60f else stillTop = 0f
             lx = b.px; ly = b.py
             if (stillTop > maxStill) maxStill = stillTop
         }
         println("max still time on top = $maxStill s; nudges=${e.unstuckLowSpeedCount + e.unstuckNoDisplacementCount}")
         assertTrue("ball stuck on top for $maxStill s", maxStill < 1.5f)
+    }
+}
+
+class PinballFieldTest {
+    private fun newEngine() = PinballPhysicsEngine({}, {}, {}, {}, {})
+
+    /** Шарик в воронке не пропадает и вылетает вверх. */
+    @Test
+    fun saucerCapturesAndEjects() {
+        val e = newEngine()
+        e.autoPawsEnabled = false
+        e.clearAllAndReset()
+        val b = e.getBalls().first()
+        b.px = e.saucerPos.x; b.py = e.saucerPos.y - 0.2f; b.vx = 0f; b.vy = 1f
+        var t = 100_000_000L
+        e.step(t)
+        var captured = false; var ejectedUp = false
+        repeat(200) {
+            t += 16_666_666L; e.step(t)
+            if (b.captured > 0f) captured = true
+            if (captured && b.captured <= 0f && b.vy < -5f) ejectedUp = true
+        }
+        assertTrue("saucer must capture", captured)
+        assertTrue("saucer must eject upward", ejectedUp)
+    }
+
+    /** Шарик, брошенный в зону лапок без нажатий и автолапок, не теряется (остаётся в поле). */
+    @Test
+    fun ballStaysInsideFieldWithoutInput() {
+        val e = newEngine()
+        e.autoPawsEnabled = false
+        var t = 100_000_000L
+        e.step(t)
+        repeat(60 * 120) {
+            t += 16_666_666L; e.step(t)
+            for (b in e.getBalls()) {
+                assertTrue("ball escaped: ${b.px},${b.py}", b.px in -0.5f..9.5f && b.py in -1f..18.2f)
+            }
+        }
     }
 }

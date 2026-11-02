@@ -18,7 +18,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp as colorLerp
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -37,23 +39,42 @@ import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
 
-private class PiBoard(val name: String, val cols: Int, val rows: Int, val mask: (Int, Int) -> Boolean, val rainbowByRow: Boolean)
+/** style: 0 — обычные цвета, 1 — перламутр (переливается), 2 — «хамелеон»: каждая ячейка плавно меняет весь спектр. */
+private class PiBoard(val name: String, val cols: Int, val rows: Int, val mask: (Int, Int) -> Boolean, val rainbowByRow: Boolean, val style: Int = 0)
 
 private val PI_RAINBOW = listOf(
     Color(0xFFEF5350), Color(0xFFFF9800), Color(0xFFFFD600), Color(0xFF66BB6A),
     Color(0xFF29B6F6), Color(0xFF5C6BC0), Color(0xFFAB47BC), Color(0xFFEC407A)
 )
+private val PI_CANDY = listOf(
+    Color(0xFFFF5C8A), Color(0xFF40C4FF), Color(0xFFFFD740), Color(0xFF69F0AE), Color(0xFFB388FF), Color(0xFFFF9E40)
+)
 
 private val PI_BOARDS = listOf(
     PiBoard("Радуга", 6, 8, { _, _ -> true }, true),
-    PiBoard("Круг", 7, 7, { c, r -> hypot(c - 3f, r - 3f) <= 3.2f }, false),
+    PiBoard("Перламутр", 7, 7, { c, r -> hypot(c - 3f, r - 3f) <= 3.2f }, false, 1),
     PiBoard("Сердце", 7, 6, { c, r ->
         val x = (c - 3f) / 3.2f; val y = (2.2f - r) / 3f
         val a = x * x + y * y - 1f
         a * a * a - x * x * y * y * y <= 0.02f
     }, false),
-    PiBoard("Квадрат", 5, 5, { _, _ -> true }, false)
+    PiBoard("Конфетки", 5, 5, { _, _ -> true }, false),
+    PiBoard("Хамелеон", 6, 6, { _, _ -> true }, false, 2)
 )
+
+/** Цвет ячейки; для переливающихся стилей зависит от кадра. */
+private fun piColor(boardIdx: Int, board: PiBoard, c: Int, r: Int, frame: Int): Color = when {
+    board.style == 1 -> Color.hsv(((c * 31 + r * 23 + frame * 0.9f) % 360f + 360f) % 360f, 0.38f, 1f)
+    board.style == 2 -> Color.hsv(((c * 47 + r * 29 + frame * 1.6f) % 360f + 360f) % 360f, 0.85f, 1f)
+    board.rainbowByRow -> PI_RAINBOW[r % PI_RAINBOW.size]
+    boardIdx == 2 -> if ((c + r) % 2 == 0) Color(0xFFFF5C8A) else Color(0xFFFF8FB1)
+    else -> PI_CANDY[(c * 2 + r * 3) % PI_CANDY.size]
+}
+
+private fun piRand(k: Int): Float {
+    val v = sin(k * 12.9898f) * 43758.547f
+    return v - kotlin.math.floor(v)
+}
 
 private class PiSpark(var x: Float, var y: Float, var vx: Float, var vy: Float, var life: Float, val c: Color)
 
@@ -75,6 +96,7 @@ fun PopItScreen(
     // true = вдавлен
     val pushed = remember { BooleanArray(maxCells) }
     val anim = remember { FloatArray(maxCells) }
+    val vel = remember { FloatArray(maxCells) }
     val sparks = remember { mutableListOf<PiSpark>() }
     var frame by remember { mutableStateOf(0) }
     var count by remember { mutableStateOf(0) }
@@ -95,16 +117,10 @@ fun PopItScreen(
         return Triple(cell, (sz.width - cell * board.cols) / 2f, (sz.height - cell * board.rows) / 2f)
     }
 
-    fun colorOf(c: Int, r: Int): Color = when {
-        board.rainbowByRow -> PI_RAINBOW[r % PI_RAINBOW.size]
-        boardIdx == 1 -> PI_RAINBOW[((hypot(c - 3f, r - 3f)).toInt()) % PI_RAINBOW.size]
-        boardIdx == 2 -> if ((c + r) % 2 == 0) Color(0xFFFF5C8A) else Color(0xFFFF8FB1)
-        else -> PI_RAINBOW[(c + r) % PI_RAINBOW.size]
-    }
+    fun colorOf(c: Int, r: Int): Color = piColor(boardIdx, board, c, r, frame)
 
-    fun toggle(i: Int, forcePush: Boolean) {
+    fun toggle(i: Int) {
         val c = i % board.cols; val r = i / board.cols
-        if (forcePush && pushed[i]) return
         pushed[i] = !pushed[i]
         val (cell, ox, oy) = layout(canvasSize)
         val cx = ox + (c + 0.5f) * cell; val cy = oy + (r + 0.5f) * cell
@@ -142,8 +158,10 @@ fun PopItScreen(
             withFrameNanos { }
             for (i in 0 until maxCells) {
                 val t = if (pushed[i]) 1f else 0f
-                anim[i] += (t - anim[i]) * 0.38f
-                if (abs(t - anim[i]) < 0.003f) anim[i] = t
+                // пружинка: щёлкает и чуть «пружинит»
+                vel[i] = vel[i] * 0.66f + (t - anim[i]) * 0.30f
+                anim[i] += vel[i]
+                if (abs(t - anim[i]) < 0.003f && abs(vel[i]) < 0.003f) { anim[i] = t; vel[i] = 0f }
             }
             val it = sparks.iterator()
             while (it.hasNext()) { val s = it.next(); s.x += s.vx; s.y += s.vy; s.vy += 0.12f; s.life -= 0.05f; if (s.life <= 0f) it.remove() }
@@ -180,33 +198,32 @@ fun PopItScreen(
                 Canvas(
                     modifier = Modifier.fillMaxSize().pointerInput(boardIdx) {
                         awaitEachGesture {
-                            val down = awaitFirstDown()
-                            val visited = HashSet<Int>()
                             fun cellAt(p: Offset): Int {
                                 val (cell, ox, oy) = layout(canvasSize)
                                 val c = ((p.x - ox) / cell).toInt(); val r = ((p.y - oy) / cell).toInt()
                                 if (c !in 0 until board.cols || r !in 0 until board.rows || !board.mask(c, r)) return -1
                                 val cx = ox + (c + 0.5f) * cell; val cy = oy + (r + 0.5f) * cell
-                                return if (hypot(p.x - cx, p.y - cy) < cell * 0.5f) r * board.cols + c else -1
+                                return if (hypot(p.x - cx, p.y - cy) < cell * 0.52f) r * board.cols + c else -1
                             }
+                            // одно нажатие = одна ячейка; провести пальцем нельзя — нужно отпустить и нажать снова
+                            val down = awaitFirstDown()
+                            down.consume()
                             val first = cellAt(down.position)
-                            if (first >= 0) { toggle(first, false); visited.add(first) }
+                            if (first >= 0) toggle(first)
                             while (true) {
                                 val ev = awaitPointerEvent()
-                                if (ev.type == PointerEventType.Release || ev.changes.none { it.pressed }) break
                                 ev.changes.forEach { ch ->
-                                    val i = cellAt(ch.position)
-                                    // при протягивании пальца — только вдавливаем
-                                    if (i >= 0 && visited.add(i)) toggle(i, true)
+                                    if (ch.changedToDown()) { val i = cellAt(ch.position); if (i >= 0) toggle(i) } // второй палец — отдельное нажатие
                                     ch.consume()
                                 }
+                                if (ev.changes.none { it.pressed }) break
                             }
                         }
                     }
                 ) {
                     canvasSize = size
                     val f = frame
-                    drawBoard(board, boardIdx, anim, sparks, layout(size), celebrate, f, ::colorOf)
+                    drawBoard(board, boardIdx, anim, sparks, layout(size), celebrate, f) { c, r -> piColor(boardIdx, board, c, r, f) }
                 }
             }
 
@@ -254,41 +271,15 @@ private fun DrawScope.drawBoard(
         drawRoundRect(Brush.linearGradient(listOf(Color(0xFFA78BFA), base, Color(0xFF5B21B6)), Offset(ox, oy), Offset(ox + w, oy + h)), Offset(ox - 22f, oy - 22f), Size(w + 44f, h + 44f), CornerRadius(60f))
         drawRoundRect(Color.White.copy(alpha = 0.35f), Offset(ox - 22f, oy - 22f), Size(w + 44f, h + 44f), CornerRadius(60f), style = Stroke(3f))
     }
+    // фактура силикона: мелкая «зернистость» листа
+    for (k in 0 until 160) {
+        val x = ox - 20f + piRand(k * 3 + 1) * (w + 40f); val y = oy - 20f + piRand(k * 3 + 2) * (h + 40f)
+        drawCircle((if (k % 2 == 0) Color.White else Color.Black).copy(alpha = 0.05f), 1.2f + piRand(k * 3 + 3) * 1.8f, Offset(x, y))
+    }
     for (r in 0 until board.rows) for (c in 0 until board.cols) {
         if (!board.mask(c, r)) continue
         val i = r * board.cols + c
-        val a = anim[i]
-        val cx = ox + (c + 0.5f) * cell; val cy = oy + (r + 0.5f) * cell
-        val col = colorOf(c, r)
-        val R = cell * 0.40f
-        val ctr = Offset(cx, cy)
-        // ямка вокруг пупырки
-        drawCircle(Color.Black.copy(alpha = 0.32f), R * 1.14f, ctr)
-        drawCircle(Color.White.copy(alpha = 0.18f), R * 1.14f, Offset(cx, cy + R * 0.05f), style = Stroke(2f))
-        val dark = Color(
-            (col.red * 0.55f), (col.green * 0.55f), (col.blue * 0.6f), 1f
-        )
-        val light = Color(
-            (col.red + (1f - col.red) * 0.55f), (col.green + (1f - col.green) * 0.55f), (col.blue + (1f - col.blue) * 0.55f), 1f
-        )
-        val rr = R * (1f - 0.06f * a)
-        // выпуклая: свет сверху-слева. вдавленная: тень сверху-слева (инверсия)
-        val lightCenter = Offset(cx - R * 0.35f * (1f - 2f * a), cy - R * 0.4f * (1f - 2f * a))
-        drawCircle(
-            Brush.radialGradient(
-                0f to if (a < 0.5f) light else dark,
-                0.55f to col,
-                1f to if (a < 0.5f) dark else light.copy(alpha = 0.9f),
-                center = lightCenter, radius = rr * 1.5f
-            ), rr, ctr
-        )
-        if (a < 0.5f) {
-            drawArc(Color.White.copy(alpha = 0.85f), 205f, 65f, false, Offset(cx - rr * 0.66f, cy - rr * 0.66f), Size(rr * 1.32f, rr * 1.32f), style = Stroke(cell * 0.05f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-            drawCircle(Color.White.copy(alpha = 0.95f), rr * 0.12f, Offset(cx - rr * 0.38f, cy - rr * 0.42f))
-        } else {
-            drawCircle(Color.Black.copy(alpha = 0.3f), rr, ctr, style = Stroke(cell * 0.05f))
-            drawArc(Color.White.copy(alpha = 0.4f), 25f, 70f, false, Offset(cx - rr * 0.78f, cy - rr * 0.78f), Size(rr * 1.56f, rr * 1.56f), style = Stroke(cell * 0.035f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-        }
+        drawPopCell(Offset(ox + (c + 0.5f) * cell, oy + (r + 0.5f) * cell), cell * 0.40f, colorOf(c, r), anim[i], i, board.style)
     }
     for (s in sparks) drawCircle(s.c.copy(alpha = s.life.coerceIn(0f, 1f)), 5f * s.life.coerceIn(0.3f, 1f), Offset(s.x, s.y))
     if (celebrate > 0f) {
@@ -298,5 +289,73 @@ private fun DrawScope.drawBoard(
             val d = t * size.minDimension * 0.55f
             drawCircle(PI_RAINBOW[k % PI_RAINBOW.size].copy(alpha = celebrate), 9f * celebrate + 3f, Offset(size.width / 2f + cos(a) * d, size.height / 2f + sin(a) * d))
         }
+    }
+}
+
+/** Одна ячейка: выпуклый глянцевый купол или вдавленная чашка с рельефом. a: 0 — выпуклая, 1 — вдавлена. */
+private fun DrawScope.drawPopCell(ctr: Offset, R: Float, col: Color, aRaw: Float, seed: Int, style: Int) {
+    val a = aRaw.coerceIn(0f, 1f)
+    val cx = ctr.x; val cy = ctr.y
+    val dark = colorLerp(col, Color.Black, 0.5f)
+    val deep = colorLerp(col, Color.Black, 0.68f)
+    val light = colorLerp(col, Color.White, 0.6f)
+    // гнездо в листе: фаска, тень, полость
+    drawCircle(Color.Black.copy(alpha = 0.30f), R * 1.22f, Offset(cx + R * 0.03f, cy + R * 0.07f))
+    drawCircle(
+        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.42f), Color.White.copy(alpha = 0.26f)), cy - R * 1.16f, cy + R * 1.16f),
+        R * 1.16f, ctr
+    )
+    drawCircle(Color(0xFF241250).copy(alpha = 0.62f), R * 1.04f, ctr)
+    if (a < 0.5f) {
+        // ───── выпуклый купол ─────
+        val rr = R * (1f - 0.12f * a)
+        val lc = Offset(cx - rr * 0.32f, cy - rr * 0.40f)
+        drawCircle(
+            Brush.radialGradient(
+                0f to light, 0.30f to colorLerp(col, Color.White, 0.22f), 0.68f to col, 1f to dark,
+                center = lc, radius = rr * 1.5f
+            ), rr, ctr
+        )
+        // подповерхностное свечение и переотражённый свет у нижнего края
+        drawCircle(colorLerp(col, Color.White, 0.4f).copy(alpha = 0.28f), rr * 0.5f, Offset(cx + rr * 0.26f, cy + rr * 0.32f))
+        drawArc(light.copy(alpha = 0.5f), 25f, 130f, false, Offset(cx - rr * 0.84f, cy - rr * 0.84f), Size(rr * 1.68f, rr * 1.68f), style = Stroke(rr * 0.10f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        if (style != 0) { // перламутровая плёнка: второй оттенок с другой стороны
+            val h2 = Color.hsv(((col.red * 360f + col.green * 200f + 120f) % 360f), 0.55f, 1f)
+            drawCircle(h2.copy(alpha = 0.32f), rr * 0.62f, Offset(cx + rr * 0.3f, cy + rr * 0.3f))
+            drawCircle(Color.White.copy(alpha = 0.12f), rr * 0.9f, Offset(cx - rr * 0.1f, cy - rr * 0.1f), style = Stroke(rr * 0.07f))
+        }
+        // фактура: микро-точки
+        for (k in 0 until 8) {
+            val ang = piRand(seed * 17 + k) * 6.283f; val d = piRand(seed * 29 + k) * rr * 0.8f
+            drawCircle((if (k % 2 == 0) Color.White else Color.Black).copy(alpha = 0.07f), rr * 0.025f + 0.8f, Offset(cx + cos(ang) * d, cy + sin(ang) * d))
+        }
+        drawCircle(dark.copy(alpha = 0.6f), rr, ctr, style = Stroke(R * 0.05f))
+        // блики: окно-отражение и точка
+        rotate(-28f, Offset(cx - rr * 0.25f, cy - rr * 0.5f)) {
+            drawOval(Color.White.copy(alpha = 0.42f), Offset(cx - rr * 0.65f, cy - rr * 0.76f), Size(rr * 0.80f, rr * 0.40f))
+        }
+        drawCircle(Color.White.copy(alpha = 0.95f), rr * 0.09f, Offset(cx - rr * 0.42f, cy - rr * 0.52f))
+        drawCircle(Color.White.copy(alpha = 0.6f), rr * 0.045f, Offset(cx - rr * 0.28f, cy - rr * 0.6f))
+    } else {
+        // ───── вдавленная чашка ─────
+        val rr = R * 0.93f
+        val lc = Offset(cx + rr * 0.30f, cy + rr * 0.36f) // свет попадает внутрь снизу-справа
+        drawCircle(
+            Brush.radialGradient(
+                0f to colorLerp(col, Color.White, 0.30f), 0.42f to colorLerp(col, Color.Black, 0.12f), 0.8f to dark, 1f to deep,
+                center = lc, radius = rr * 1.45f
+            ), rr, ctr
+        )
+        // глубокая тень от верхне-левой стенки
+        drawArc(Color.Black.copy(alpha = 0.50f), 190f, 120f, false, Offset(cx - rr * 0.86f, cy - rr * 0.86f), Size(rr * 1.72f, rr * 1.72f), style = Stroke(rr * 0.18f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        // блик на противоположной стенке
+        drawArc(Color.White.copy(alpha = 0.50f), 15f, 95f, false, Offset(cx - rr * 0.84f, cy - rr * 0.84f), Size(rr * 1.68f, rr * 1.68f), style = Stroke(rr * 0.08f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        // складки продавленного силикона
+        for (k in 0 until 3) {
+            drawArc(Color.White.copy(alpha = 0.13f), 40f + k * 95f, 36f, false, Offset(cx - rr * 0.52f, cy - rr * 0.52f), Size(rr * 1.04f, rr * 1.04f), style = Stroke(rr * 0.03f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        }
+        if (style != 0) drawCircle(Color.White.copy(alpha = 0.10f), rr * 0.45f, Offset(cx + rr * 0.2f, cy + rr * 0.22f))
+        drawCircle(deep.copy(alpha = 0.75f), rr, ctr, style = Stroke(R * 0.06f))
+        drawCircle(Color.White.copy(alpha = 0.22f), rr * 1.07f, Offset(cx, cy + R * 0.03f), style = Stroke(1.6f))
     }
 }

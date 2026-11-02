@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -634,7 +635,7 @@ fun PinballCanvas(
 
         // ── игровое поле: ночное небо с огоньками ──
         drawPath(fieldPath, Brush.verticalGradient(listOf(Color(0xFF1A1055), Color(0xFF3A1D86), Color(0xFF5E2EA6)), py(0f), py(18f)))
-        androidx.compose.ui.graphics.drawscope.clipPath(fieldPath) {
+        clipPath(fieldPath) {
             // мягкие цветные круги-узоры
             drawCircle(Color(0xFFFF4081).copy(alpha = 0.10f), pd(3.4f), pt(4.5f, 6.4f))
             drawCircle(Color(0xFF40C4FF).copy(alpha = 0.09f), pd(2.3f), pt(4.5f, 6.4f))

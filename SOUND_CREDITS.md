@@ -65,3 +65,8 @@ sand_press_*, sand_scrape_*, sand_wave (кинетический песок) —
 - kit_chop_{carrot,cucumber,tomato,hard}_1/2, kit_plop, kit_done — синтезированы (numpy/scipy): нож по доске, хруст/сочность овощей, плюх в миску, звоночек готового салата. Собственная генерация.
 - Пинбол: собственный физический движок вместо jbox2d (лапки, активные отбойники, защита от застревания).
 - pet_crunch_1..3, pet_munch_1..2, pet_lap, pet_gulp, pet_mouse_1..3 — синтезированы (numpy/scipy): хруст, жевание, лакание, глоток, писк мыши. Собственная генерация. Картинки feed_cat/feed_dog/feed_mouse — рисунки пользователя; food_cheese — нарисован скриптом.
+
+## Комната «Зверята» (картинки и голоса)
+- Картинки (res/drawable-nodpi/ra_*.png): набор «RoundAnimals» — lemmling, StudioFibonacci, bloodsong (clker.com / OpenClipart, общественное достояние).
+- Голоса ar_baa/ar_bark/ar_bleat/ar_meow/ar_moo/ar_mwa/ar_peeps/ar_squeal/ar_whinny: набор «baby-animals» (лицензия не указана автором — уточнить перед публикацией).
+- Голоса ar_moo2, ar_baa2, ar_lamb, ar_oink1–3: «Mudchute Animals» — Secretlondon, OpenGameArt.org, GFDL 1.2+ / CC-BY-SA 3.0+ (нужна атрибуция).

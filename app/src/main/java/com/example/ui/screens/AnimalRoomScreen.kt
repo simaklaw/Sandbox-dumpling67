@@ -5,6 +5,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.SoundPool
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -22,6 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -29,6 +36,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.*
@@ -40,34 +48,70 @@ data class AnimalSoundCardItem(
     val soundKey: String,
     val name: String,
     val voiceNameKey: String,
-    val emoji: String,
+    val imageRes: Int,
+    /** Записи голоса (res/raw): при каждом нажатии берётся другая, подряд не повторяется. */
+    val voices: List<String>,
     val bgColor: Color,
     val badgeColor: Color
 )
 
-val FULL_ANIMAL_SOUND_LIST = listOf(
-    AnimalSoundCardItem("animal_cow", "Коровка", "voice_name_cow", "🐮", Color(0xFFE8F5E9), Color(0xFF81C784)),
-    AnimalSoundCardItem("animal_horse", "Лошадка", "voice_name_horse", "🐴", Color(0xFFEFEBE9), Color(0xFFA1887F)),
-    AnimalSoundCardItem("animal_dog", "Собачка", "voice_name_dog", "🐶", Color(0xFFFFF8E1), Color(0xFFFFB300)),
-    AnimalSoundCardItem("animal_cat", "Кошечка", "voice_name_cat", "🐱", Color(0xFFFBE9E7), Color(0xFFFF8A65)),
-    AnimalSoundCardItem("animal_pig", "Свинка", "voice_name_pig", "🐷", Color(0xFFFCE4EC), Color(0xFFF48FB1)),
-    AnimalSoundCardItem("animal_sheep", "Барашек", "voice_name_sheep", "🐑", Color(0xFFE0F2F1), Color(0xFF80CBC4)),
-    AnimalSoundCardItem("animal_chick", "Цыплёнок", "voice_name_duck", "🐥", Color(0xFFFFFDE7), Color(0xFFFFCA28)),
-    AnimalSoundCardItem("animal_piglet", "Поросёнок", "voice_name_pig", "🐖", Color(0xFFFFF3E0), Color(0xFFFF8A65)),
-    AnimalSoundCardItem("animal_frog", "Лягушонок", "voice_name_frog", "🐸", Color(0xFFE8F8F5), Color(0xFF66BB6A)),
-    AnimalSoundCardItem("animal_lamb", "Ягнёнок", "voice_name_sheep", "🐑", Color(0xFFECEFF1), Color(0xFF90A4AE)),
-    AnimalSoundCardItem("animal_duck", "Уточка", "voice_name_duck", "🦆", Color(0xFFFFFDE7), Color(0xFFFFD54F)),
-    AnimalSoundCardItem("animal_calf", "Телёнок", "voice_name_cow", "🐄", Color(0xFFF3E5F5), Color(0xFFCE93D8))
+private val AR_COW = AnimalSoundCardItem("animal_cow", "Коровка", "voice_name_cow", R.drawable.ra_cow, listOf("ar_moo", "ar_moo2"), Color(0xFFE8F5E9), Color(0xFF81C784))
+private val AR_DOG = AnimalSoundCardItem("animal_dog", "Собачка", "voice_name_dog", R.drawable.ra_dog, listOf("ar_bark"), Color(0xFFFFF8E1), Color(0xFFFFB300))
+private val AR_CAT = AnimalSoundCardItem("animal_cat", "Кошечка", "voice_name_cat", R.drawable.ra_cat, listOf("ar_meow", "ar_mwa"), Color(0xFFFBE9E7), Color(0xFFFF8A65))
+private val AR_PIG = AnimalSoundCardItem("animal_pig", "Свинка", "voice_name_pig", R.drawable.ra_pig, listOf("ar_oink1", "ar_oink2", "ar_oink3", "ar_squeal"), Color(0xFFFCE4EC), Color(0xFFF48FB1))
+private val AR_SHEEP = AnimalSoundCardItem("animal_sheep", "Барашек", "voice_name_sheep", R.drawable.ra_sheep, listOf("ar_baa", "ar_baa2", "ar_lamb"), Color(0xFFE0F2F1), Color(0xFF80CBC4))
+private val AR_GOAT = AnimalSoundCardItem("animal_goat", "Козочка", "voice_name_sheep", R.drawable.ra_goat, listOf("ar_bleat"), Color(0xFFECEFF1), Color(0xFF90A4AE))
+private val AR_CHICK = AnimalSoundCardItem("animal_chick", "Цыплёнок", "voice_name_chick", R.drawable.ra_chicken, listOf("ar_peeps"), Color(0xFFFFFDE7), Color(0xFFFFCA28))
+private val AR_ZEBRA = AnimalSoundCardItem("animal_horse", "Зебра", "voice_name_cow", R.drawable.ra_zebra, listOf("ar_whinny"), Color(0xFFEFEBE9), Color(0xFFA1887F))
+
+val FULL_ANIMAL_SOUND_LIST = listOf(AR_COW, AR_DOG, AR_CAT, AR_PIG, AR_SHEEP, AR_CHICK, AR_GOAT, AR_ZEBRA)
+
+val TODDLER_ANIMAL_SOUND_LIST = listOf(AR_COW, AR_DOG, AR_CAT, AR_PIG, AR_SHEEP, AR_CHICK)
+
+private val AR_ALL_SOUNDS = listOf(
+    "ar_moo", "ar_moo2", "ar_bark", "ar_meow", "ar_mwa", "ar_oink1", "ar_oink2", "ar_oink3", "ar_squeal",
+    "ar_baa", "ar_baa2", "ar_lamb", "ar_bleat", "ar_peeps", "ar_whinny"
 )
 
-val TODDLER_ANIMAL_SOUND_LIST = listOf(
-    AnimalSoundCardItem("animal_cow", "Коровка", "voice_name_cow", "🐮", Color(0xFFE8F5E9), Color(0xFF81C784)),
-    AnimalSoundCardItem("animal_dog", "Собачка", "voice_name_dog", "🐶", Color(0xFFFFF8E1), Color(0xFFFFB300)),
-    AnimalSoundCardItem("animal_cat", "Кошечка", "voice_name_cat", "🐱", Color(0xFFFBE9E7), Color(0xFFFF8A65)),
-    AnimalSoundCardItem("animal_duck", "Уточка", "voice_name_duck", "🦆", Color(0xFFFFFDE7), Color(0xFFFFD54F)),
-    AnimalSoundCardItem("animal_pig", "Свинка", "voice_name_pig", "🐷", Color(0xFFFCE4EC), Color(0xFFF48FB1)),
-    AnimalSoundCardItem("animal_frog", "Лягушонок", "voice_name_frog", "🐸", Color(0xFFE8F8F5), Color(0xFF66BB6A))
-)
+/**
+ * Прямой проигрыватель голосов зверей (SoundPool): не зависит от каталога звуков, лимитов и «процедурных»
+ * замен — нажатие всегда даёт настоящую запись без задержки.
+ */
+class AnimalVoices(ctx: Context) {
+    private val pool: SoundPool = SoundPool.Builder()
+        .setMaxStreams(4)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        ).build()
+    private val ids = HashMap<String, Int>()
+    private val ready = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+    private val last = HashMap<String, Int>()
+    private var stream = 0
+
+    init {
+        pool.setOnLoadCompleteListener { _, id, status -> if (status == 0) ready.add(id) }
+        for (n in AR_ALL_SOUNDS) {
+            val res = ctx.resources.getIdentifier(n, "raw", ctx.packageName)
+            if (res != 0) ids[n] = pool.load(ctx, res, 1)
+        }
+    }
+
+    fun play(names: List<String>, volume: Float) {
+        val loaded = names.filter { ids[it]?.let { id -> id in ready } == true }
+        if (loaded.isEmpty()) return
+        val key = names.first()
+        val prev = last[key] ?: -1
+        val pick = (loaded.indices).filter { it != prev }.ifEmpty { loaded.indices.toList() }.random()
+        last[key] = pick
+        if (stream != 0) pool.stop(stream)
+        stream = pool.play(ids[loaded[pick]]!!, volume, volume, 1, 0, 1f)
+    }
+
+    fun release() { try { pool.release() } catch (e: Exception) { } }
+}
 
 @Composable
 fun AnimalRoomScreen(
@@ -82,6 +126,9 @@ fun AnimalRoomScreen(
     val ageProfile = LocalAgeProfile.current
 
     val animalList = if (ageProfile.isToddler2) TODDLER_ANIMAL_SOUND_LIST else FULL_ANIMAL_SOUND_LIST
+
+    val voices = remember { AnimalVoices(context.applicationContext) }
+    DisposableEffect(voices) { onDispose { voices.release() } }
 
     // Preload animal sounds group
     DisposableEffect(Unit) {
@@ -111,7 +158,7 @@ fun AnimalRoomScreen(
             lastInteractionTime = System.currentTimeMillis()
             haptics.vibrate(20)
         }
-        soundManager.play(item.soundKey)
+        if (!soundManager.isMuted) voices.play(item.voices, (0.55f + 0.45f * soundManager.masterVolume).coerceIn(0.4f, 1f))
 
         scope.launch {
             // Jump scale & bounce
@@ -267,14 +314,17 @@ fun AnimalRoomScreen(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(90.dp)
+                                            .fillMaxSize(0.78f)
                                             .clip(CircleShape)
                                             .background(item0.badgeColor.copy(alpha = 0.25f))
                                     )
-                                    Text(
-                                        text = item0.emoji,
-                                        fontSize = 64.sp,
-                                        modifier = Modifier.scale(jump0)
+                                    Image(
+                                        painter = painterResource(item0.imageRes),
+                                        contentDescription = item0.name,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier
+                                            .fillMaxSize(0.84f)
+                                            .graphicsLayer { scaleX = jump0; scaleY = jump0 }
                                     )
                                 }
                             }
@@ -307,17 +357,20 @@ fun AnimalRoomScreen(
                                         modifier = Modifier.fillMaxSize(),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(90.dp)
-                                                .clip(CircleShape)
-                                                .background(item1.badgeColor.copy(alpha = 0.25f))
-                                        )
-                                        Text(
-                                            text = item1.emoji,
-                                            fontSize = 64.sp,
-                                            modifier = Modifier.scale(jump1)
-                                        )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize(0.78f)
+                                            .clip(CircleShape)
+                                            .background(item1.badgeColor.copy(alpha = 0.25f))
+                                    )
+                                    Image(
+                                        painter = painterResource(item1.imageRes),
+                                        contentDescription = item1.name,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier
+                                            .fillMaxSize(0.84f)
+                                            .graphicsLayer { scaleX = jump1; scaleY = jump1 }
+                                    )
                                     }
                                 }
                             } else {

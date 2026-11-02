@@ -17,6 +17,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -147,7 +150,14 @@ fun VeggieCuttingScreen(
             val sp = W() * (0.15f + Random.nextFloat() * 0.3f)
             drops.add(VcDrop(lineX, cy() + (Random.nextFloat() - 0.5f) * d * 0.6f, cos(a) * sp, sin(a) * sp - H() * 0.1f, 1f, vt.skin.copy(alpha = 0.9f), W() * 0.008f))
         }
-        if (m.len <= 0.5f) { m.nextAt = m.clock + 0.35f }
+        if (m.len <= 0.5f) {
+            m.nextAt = m.clock + 0.45f
+            sm.play("kit_done", volume = 0.6f, rate = 1.3f)
+            repeat(14) {
+                val a = Random.nextFloat() * 2f * PI.toFloat(); val sp = W() * (0.2f + Random.nextFloat() * 0.4f)
+                drops.add(VcDrop(W() / 2f, cy(), cos(a) * sp, sin(a) * sp - H() * 0.1f, 1f, listOf(Color(0xFFFFD54F), Color(0xFFEF5350), Color(0xFF66BB6A)).random(), W() * 0.009f))
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -164,7 +174,7 @@ fun VeggieCuttingScreen(
                     val target = m.x0 + m.len - m.st
                     m.knifeX += (target - m.knifeX) * min(1f, dt * 22f)
                     m.knifeDown = max(0f, m.knifeDown - dt * 7f)
-                    if (m.nextAt in 0f..m.clock) { initVeg((m.type + 1 + Random.nextInt(VC_TYPES.size - 1)) % VC_TYPES.size) }
+                    if (m.nextAt in 0f..m.clock) { initVeg((m.type + 1 + Random.nextInt(VC_TYPES.size - 1)) % VC_TYPES.size); sm.play("kit_plop", volume = 0.8f, rate = 1.25f) }
                     val g = H() * 3.2f
                     val it = slices.iterator()
                     while (it.hasNext()) {
@@ -327,23 +337,64 @@ private fun DrawScope.drawKitchen(
     for (s in slices) drawDisc(s.x, s.y, s.d, s.type, s.rot)
     for (d in drops) drawCircle(d.c.copy(alpha = d.life.coerceIn(0f, 1f)), d.r, Offset(d.x, d.y))
 
-    // нож: висит над местом разреза, по тапу резко опускается
-    val bladeW = w * 0.085f
-    val bladeH = h * 0.17f
-    val hoverY = cy - thick * 0.5f - h * 0.035f - sin(clock * 3f) * h * 0.004f
+    // нож: поварской, острие вправо, висит над местом разреза и по тапу рубит вниз
+    val bl = w * 0.30f            // длина лезвия
+    val bh = w * 0.078f           // высота лезвия у пятки
+    val hoverY = cy - thick * 0.5f - h * 0.03f - sin(clock * 3f) * h * 0.004f
     val downY = cy + thick * 0.5f + h * 0.005f
     val k = knifeDown
     val edgeY = hoverY + (downY - hoverY) * k
-    rotate(-6f * (1f - k), Offset(knifeX, edgeY)) {
-        val blade = Path().apply {
-            moveTo(knifeX - bladeW / 2f, edgeY); lineTo(knifeX + bladeW / 2f, edgeY)
-            lineTo(knifeX + bladeW * 0.42f, edgeY - bladeH); lineTo(knifeX - bladeW * 0.42f, edgeY - bladeH); close()
+    val pivot = Offset(knifeX, edgeY)
+    rotate(-13f * (1f - k), pivot) {
+        withTransform({ translate(knifeX, edgeY) }) {
+            // тень от ножа на разделочной доске
+            drawOval(Color.Black.copy(alpha = 0.12f * (1f - k)), Offset(-bl * 0.55f, downY - edgeY + bh * 0.1f), Size(bl * 1.0f, bh * 0.22f))
+            val heel = -bl * 0.60f
+            val tipX = bl * 0.40f
+            val blade = Path().apply {
+                moveTo(heel, -bh)                                        // пятка, спинка
+                lineTo(bl * 0.12f, -bh * 0.98f)
+                cubicTo(bl * 0.28f, -bh * 0.96f, bl * 0.38f, -bh * 0.55f, tipX, -bh * 0.10f) // скос к острию
+                cubicTo(bl * 0.34f, -bh * 0.02f, bl * 0.22f, 0f, bl * 0.06f, 0f)             // брюшко
+                lineTo(heel + bl * 0.05f, 0f)                            // режущая кромка
+                lineTo(heel, -bh * 0.08f)
+                close()
+            }
+            drawPath(blade, Brush.verticalGradient(listOf(Color(0xFF90A4AE), Color(0xFFECEFF1), Color(0xFFFFFFFF)), -bh, 0f))
+            // фаска вдоль кромки: светлая и тёмная полоса
+            val bevel = Path().apply {
+                moveTo(heel + bl * 0.04f, -bh * 0.30f); lineTo(bl * 0.05f, -bh * 0.27f)
+                cubicTo(bl * 0.22f, -bh * 0.25f, bl * 0.32f, -bh * 0.18f, tipX - bl * 0.01f, -bh * 0.11f)
+                lineTo(bl * 0.30f, -bh * 0.03f); lineTo(bl * 0.06f, -bh * 0.015f); lineTo(heel + bl * 0.05f, -bh * 0.015f); close()
+            }
+            drawPath(bevel, Color(0xFFFFFFFF).copy(alpha = 0.85f))
+            drawLine(Color(0xFF78909C), Offset(heel + bl * 0.04f, -bh * 0.30f), Offset(bl * 0.05f, -bh * 0.27f), 2.5f)
+            // блик и тёмная спинка
+            drawLine(Color.White.copy(alpha = 0.9f), Offset(heel + bl * 0.08f, -bh * 0.78f), Offset(bl * 0.18f, -bh * 0.76f), bh * 0.07f, StrokeCap.Round)
+            drawLine(Color(0xFF546E7A), Offset(heel, -bh), Offset(bl * 0.12f, -bh * 0.98f), 4f, StrokeCap.Round)
+            drawPath(blade, Color(0xFF607D8B), style = Stroke(2.5f, join = StrokeJoin.Round))
+            // накладка-болстер на пятке
+            drawRoundRect(Color(0xFFB0BEC5), Offset(heel - bl * 0.025f, -bh * 1.02f), Size(bl * 0.05f, bh * 1.04f), CornerRadius(bl * 0.01f))
+            drawRoundRect(Color(0xFF607D8B), Offset(heel - bl * 0.025f, -bh * 1.02f), Size(bl * 0.05f, bh * 1.04f), CornerRadius(bl * 0.01f), style = Stroke(2.5f))
+            // рукоятка: дерево с заклёпками
+            val hl = bl * 0.42f
+            val hx = heel - bl * 0.025f - hl
+            val handle = Path().apply {
+                moveTo(hx + hl * 0.06f, -bh * 1.00f)
+                lineTo(heel - bl * 0.025f, -bh * 1.00f)
+                lineTo(heel - bl * 0.025f, -bh * 0.18f)
+                cubicTo(heel - bl * 0.10f, -bh * 0.08f, hx + hl * 0.25f, -bh * 0.12f, hx + hl * 0.04f, -bh * 0.20f)
+                cubicTo(hx - hl * 0.02f, -bh * 0.30f, hx - hl * 0.02f, -bh * 0.82f, hx + hl * 0.06f, -bh * 1.00f)
+                close()
+            }
+            drawPath(handle, Brush.verticalGradient(listOf(Color(0xFFA1704A), Color(0xFF6D4C41), Color(0xFF4E342E)), -bh, -bh * 0.1f))
+            drawPath(handle, Color(0xFF3E2723), style = Stroke(3f, join = StrokeJoin.Round))
+            drawLine(Color.White.copy(alpha = 0.25f), Offset(hx + hl * 0.12f, -bh * 0.88f), Offset(heel - bl * 0.06f, -bh * 0.88f), bh * 0.06f, StrokeCap.Round)
+            for (q in 0..2) {
+                val rx = heel - bl * 0.025f - hl * (0.2f + q * 0.28f)
+                drawCircle(Color(0xFFFFCC80), bh * 0.07f, Offset(rx, -bh * 0.56f))
+                drawCircle(Color(0xFF8D6E63), bh * 0.07f, Offset(rx, -bh * 0.56f), style = Stroke(1.5f))
+            }
         }
-        drawPath(blade, Brush.horizontalGradient(listOf(Color(0xFFCFD8DC), Color(0xFFFFFFFF), Color(0xFF90A4AE)), knifeX - bladeW / 2f, knifeX + bladeW / 2f))
-        drawLine(Color.White, Offset(knifeX - bladeW / 2f, edgeY), Offset(knifeX + bladeW / 2f, edgeY), 4f)
-        drawPath(blade, Color(0xFF607D8B), style = Stroke(3f))
-        drawRoundRect(Color(0xFF6D4C41), Offset(knifeX - bladeW * 0.3f, edgeY - bladeH - h * 0.1f), Size(bladeW * 0.6f, h * 0.105f), CornerRadius(bladeW * 0.2f))
-        drawRoundRect(Color(0xFF3E2723), Offset(knifeX - bladeW * 0.3f, edgeY - bladeH - h * 0.1f), Size(bladeW * 0.6f, h * 0.105f), CornerRadius(bladeW * 0.2f), style = Stroke(3f))
-        drawCircle(Color(0xFFFFCC80), bladeW * 0.06f, Offset(knifeX, edgeY - bladeH - h * 0.06f))
     }
 }

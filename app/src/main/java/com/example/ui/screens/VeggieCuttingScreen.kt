@@ -339,7 +339,7 @@ private fun DrawScope.drawKitchen(
 
     // нож: поварской, острие вправо, висит над местом разреза и по тапу рубит вниз
     val bl = w * 0.30f            // длина лезвия
-    val bh = w * 0.078f           // высота лезвия у пятки
+    val kbh = w * 0.078f           // высота лезвия у пятки
     val hoverY = cy - thick * 0.5f - h * 0.03f - sin(clock * 3f) * h * 0.004f
     val downY = cy + thick * 0.5f + h * 0.005f
     val k = knifeDown
@@ -348,52 +348,52 @@ private fun DrawScope.drawKitchen(
     rotate(-13f * (1f - k), pivot) {
         withTransform({ translate(knifeX, edgeY) }) {
             // тень от ножа на разделочной доске
-            drawOval(Color.Black.copy(alpha = 0.12f * (1f - k)), Offset(-bl * 0.55f, downY - edgeY + bh * 0.1f), Size(bl * 1.0f, bh * 0.22f))
+            drawOval(Color.Black.copy(alpha = 0.12f * (1f - k)), Offset(-bl * 0.55f, downY - edgeY + kbh * 0.1f), Size(bl * 1.0f, kbh * 0.22f))
             val heel = -bl * 0.60f
             val tipX = bl * 0.40f
             val blade = Path().apply {
-                moveTo(heel, -bh)                                        // пятка, спинка
-                lineTo(bl * 0.12f, -bh * 0.98f)
-                cubicTo(bl * 0.28f, -bh * 0.96f, bl * 0.38f, -bh * 0.55f, tipX, -bh * 0.10f) // скос к острию
-                cubicTo(bl * 0.34f, -bh * 0.02f, bl * 0.22f, 0f, bl * 0.06f, 0f)             // брюшко
+                moveTo(heel, -kbh)                                        // пятка, спинка
+                lineTo(bl * 0.12f, -kbh * 0.98f)
+                cubicTo(bl * 0.28f, -kbh * 0.96f, bl * 0.38f, -kbh * 0.55f, tipX, -kbh * 0.10f) // скос к острию
+                cubicTo(bl * 0.34f, -kbh * 0.02f, bl * 0.22f, 0f, bl * 0.06f, 0f)             // брюшко
                 lineTo(heel + bl * 0.05f, 0f)                            // режущая кромка
-                lineTo(heel, -bh * 0.08f)
+                lineTo(heel, -kbh * 0.08f)
                 close()
             }
-            drawPath(blade, Brush.verticalGradient(listOf(Color(0xFF90A4AE), Color(0xFFECEFF1), Color(0xFFFFFFFF)), -bh, 0f))
+            drawPath(blade, Brush.verticalGradient(listOf(Color(0xFF90A4AE), Color(0xFFECEFF1), Color(0xFFFFFFFF)), -kbh, 0f))
             // фаска вдоль кромки: светлая и тёмная полоса
             val bevel = Path().apply {
-                moveTo(heel + bl * 0.04f, -bh * 0.30f); lineTo(bl * 0.05f, -bh * 0.27f)
-                cubicTo(bl * 0.22f, -bh * 0.25f, bl * 0.32f, -bh * 0.18f, tipX - bl * 0.01f, -bh * 0.11f)
-                lineTo(bl * 0.30f, -bh * 0.03f); lineTo(bl * 0.06f, -bh * 0.015f); lineTo(heel + bl * 0.05f, -bh * 0.015f); close()
+                moveTo(heel + bl * 0.04f, -kbh * 0.30f); lineTo(bl * 0.05f, -kbh * 0.27f)
+                cubicTo(bl * 0.22f, -kbh * 0.25f, bl * 0.32f, -kbh * 0.18f, tipX - bl * 0.01f, -kbh * 0.11f)
+                lineTo(bl * 0.30f, -kbh * 0.03f); lineTo(bl * 0.06f, -kbh * 0.015f); lineTo(heel + bl * 0.05f, -kbh * 0.015f); close()
             }
             drawPath(bevel, Color(0xFFFFFFFF).copy(alpha = 0.85f))
-            drawLine(Color(0xFF78909C), Offset(heel + bl * 0.04f, -bh * 0.30f), Offset(bl * 0.05f, -bh * 0.27f), 2.5f)
+            drawLine(Color(0xFF78909C), Offset(heel + bl * 0.04f, -kbh * 0.30f), Offset(bl * 0.05f, -kbh * 0.27f), 2.5f)
             // блик и тёмная спинка
-            drawLine(Color.White.copy(alpha = 0.9f), Offset(heel + bl * 0.08f, -bh * 0.78f), Offset(bl * 0.18f, -bh * 0.76f), bh * 0.07f, StrokeCap.Round)
-            drawLine(Color(0xFF546E7A), Offset(heel, -bh), Offset(bl * 0.12f, -bh * 0.98f), 4f, StrokeCap.Round)
+            drawLine(Color.White.copy(alpha = 0.9f), Offset(heel + bl * 0.08f, -kbh * 0.78f), Offset(bl * 0.18f, -kbh * 0.76f), kbh * 0.07f, StrokeCap.Round)
+            drawLine(Color(0xFF546E7A), Offset(heel, -kbh), Offset(bl * 0.12f, -kbh * 0.98f), 4f, StrokeCap.Round)
             drawPath(blade, Color(0xFF607D8B), style = Stroke(2.5f, join = StrokeJoin.Round))
             // накладка-болстер на пятке
-            drawRoundRect(Color(0xFFB0BEC5), Offset(heel - bl * 0.025f, -bh * 1.02f), Size(bl * 0.05f, bh * 1.04f), CornerRadius(bl * 0.01f))
-            drawRoundRect(Color(0xFF607D8B), Offset(heel - bl * 0.025f, -bh * 1.02f), Size(bl * 0.05f, bh * 1.04f), CornerRadius(bl * 0.01f), style = Stroke(2.5f))
+            drawRoundRect(Color(0xFFB0BEC5), Offset(heel - bl * 0.025f, -kbh * 1.02f), Size(bl * 0.05f, kbh * 1.04f), CornerRadius(bl * 0.01f))
+            drawRoundRect(Color(0xFF607D8B), Offset(heel - bl * 0.025f, -kbh * 1.02f), Size(bl * 0.05f, kbh * 1.04f), CornerRadius(bl * 0.01f), style = Stroke(2.5f))
             // рукоятка: дерево с заклёпками
             val hl = bl * 0.42f
             val hx = heel - bl * 0.025f - hl
             val handle = Path().apply {
-                moveTo(hx + hl * 0.06f, -bh * 1.00f)
-                lineTo(heel - bl * 0.025f, -bh * 1.00f)
-                lineTo(heel - bl * 0.025f, -bh * 0.18f)
-                cubicTo(heel - bl * 0.10f, -bh * 0.08f, hx + hl * 0.25f, -bh * 0.12f, hx + hl * 0.04f, -bh * 0.20f)
-                cubicTo(hx - hl * 0.02f, -bh * 0.30f, hx - hl * 0.02f, -bh * 0.82f, hx + hl * 0.06f, -bh * 1.00f)
+                moveTo(hx + hl * 0.06f, -kbh * 1.00f)
+                lineTo(heel - bl * 0.025f, -kbh * 1.00f)
+                lineTo(heel - bl * 0.025f, -kbh * 0.18f)
+                cubicTo(heel - bl * 0.10f, -kbh * 0.08f, hx + hl * 0.25f, -kbh * 0.12f, hx + hl * 0.04f, -kbh * 0.20f)
+                cubicTo(hx - hl * 0.02f, -kbh * 0.30f, hx - hl * 0.02f, -kbh * 0.82f, hx + hl * 0.06f, -kbh * 1.00f)
                 close()
             }
-            drawPath(handle, Brush.verticalGradient(listOf(Color(0xFFA1704A), Color(0xFF6D4C41), Color(0xFF4E342E)), -bh, -bh * 0.1f))
+            drawPath(handle, Brush.verticalGradient(listOf(Color(0xFFA1704A), Color(0xFF6D4C41), Color(0xFF4E342E)), -kbh, -kbh * 0.1f))
             drawPath(handle, Color(0xFF3E2723), style = Stroke(3f, join = StrokeJoin.Round))
-            drawLine(Color.White.copy(alpha = 0.25f), Offset(hx + hl * 0.12f, -bh * 0.88f), Offset(heel - bl * 0.06f, -bh * 0.88f), bh * 0.06f, StrokeCap.Round)
+            drawLine(Color.White.copy(alpha = 0.25f), Offset(hx + hl * 0.12f, -kbh * 0.88f), Offset(heel - bl * 0.06f, -kbh * 0.88f), kbh * 0.06f, StrokeCap.Round)
             for (q in 0..2) {
                 val rx = heel - bl * 0.025f - hl * (0.2f + q * 0.28f)
-                drawCircle(Color(0xFFFFCC80), bh * 0.07f, Offset(rx, -bh * 0.56f))
-                drawCircle(Color(0xFF8D6E63), bh * 0.07f, Offset(rx, -bh * 0.56f), style = Stroke(1.5f))
+                drawCircle(Color(0xFFFFCC80), kbh * 0.07f, Offset(rx, -kbh * 0.56f))
+                drawCircle(Color(0xFF8D6E63), kbh * 0.07f, Offset(rx, -kbh * 0.56f), style = Stroke(1.5f))
             }
         }
     }

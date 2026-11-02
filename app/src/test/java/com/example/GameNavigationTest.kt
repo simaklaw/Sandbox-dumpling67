@@ -21,7 +21,7 @@ class GameNavigationTest {
 
     @Test
     fun newStep14GamesAreInGamesFolder() {
-        listOf(24, 25, 26, 27, 28, 30, 31, 32, 33, 34, 35).forEach { assertEquals(FolderType.GAMES, folderTypeForPage(it)) }
+        listOf(24, 26, 27, 28, 30, 31, 32, 33, 34, 35).forEach { assertEquals(FolderType.GAMES, folderTypeForPage(it)) }
     }
 
     @Test
@@ -32,7 +32,7 @@ class GameNavigationTest {
 
     @Test
     fun homeLevelGamesReturnHome() {
-        listOf(1, 7, 9).forEach {
+        listOf(1, 7, 9, 25).forEach {
             assertNull(folderTypeForPage(it))
             assertEquals(AppScreenState.Home, parentStateForGame(it, isToddler2 = false))
         }

@@ -381,6 +381,7 @@ fun MainAppScreen(
                                     36 -> VeggieCuttingScreen(repository = repository, soundPlayer = soundPlayer)
                                     37 -> KastrulyaScreen(repository = repository, soundPlayer = soundPlayer)
                                     38 -> LaundryScreen(repository = repository, soundPlayer = soundPlayer)
+                                    39 -> CradleRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     23 -> BabyPhoneScreen(
                                         repository = repository,
                                         soundPlayer = soundPlayer,

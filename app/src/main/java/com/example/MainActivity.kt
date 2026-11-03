@@ -380,6 +380,7 @@ fun MainAppScreen(
                                     35 -> SharkChaseScreen(repository = repository, soundPlayer = soundPlayer)
                                     36 -> VeggieCuttingScreen(repository = repository, soundPlayer = soundPlayer)
                                     37 -> KastrulyaScreen(repository = repository, soundPlayer = soundPlayer)
+                                    38 -> LaundryScreen(repository = repository, soundPlayer = soundPlayer)
                                     23 -> BabyPhoneScreen(
                                         repository = repository,
                                         soundPlayer = soundPlayer,

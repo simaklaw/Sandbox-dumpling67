@@ -85,6 +85,7 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
     ),
     FolderType.KITCHEN to listOf(
         FolderSection("Кухня", "🍳", ColorPurple, listOf(
+            FolderItem("Кастрюля чудес", "🍲", 37, ColorOrange),
             FolderItem("Нарезка овощей", "🔪", 36, ColorGreen),
             FolderItem("Сыпучести", "🌾", 6, ColorYellow)
         ))

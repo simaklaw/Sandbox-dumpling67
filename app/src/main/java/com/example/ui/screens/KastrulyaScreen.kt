@@ -183,7 +183,7 @@ fun KastrulyaScreen(
         )
     }
 
-    var size by remember { mutableStateOf(IntSize.Zero) }
+    var boxSize by remember { mutableStateOf(IntSize.Zero) }
     var frame by remember { mutableIntStateOf(0) }
     val m = remember { KcModel() }
 
@@ -195,8 +195,8 @@ fun KastrulyaScreen(
     var rewardSkin by remember { mutableStateOf<KcSkin?>(null) }
     var demoOn by remember { mutableStateOf(false) }
 
-    fun W() = size.width.toFloat()
-    fun H() = size.height.toFloat()
+    fun W() = boxSize.width.toFloat()
+    fun H() = boxSize.height.toFloat()
     fun setHint(s: String) { if (m.hint != s) { m.hint = s; hintText = s } }
     fun snd(n: String, v: Float = 1f, r: Float = 1f) { sm.play(n, volume = v, rate = r) }
     fun skinNeed(id: String) = KC_SKINS.firstOrNull { it.id == id }?.need ?: 0
@@ -522,7 +522,7 @@ fun KastrulyaScreen(
 
     // ── обновление кадра ──
     fun update(dt: Float) {
-        if (size.width == 0) return
+        if (boxSize.width == 0) return
         val w = W(); val h = H()
         val g = pot()
         m.clock += dt
@@ -728,7 +728,7 @@ fun KastrulyaScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .onSizeChanged { size = it }
+            .onSizeChanged { boxSize = it }
     ) {
         Canvas(
             modifier = Modifier

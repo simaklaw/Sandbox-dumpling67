@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -1064,16 +1065,16 @@ fun KastrulyaScreen(
 
 // ───────────────────────── вспомогательные рисовалки ─────────────────────────
 
-private inline fun DrawScope.withTranslate(dx: Float, block: DrawScope.() -> Unit) {
-    androidx.compose.ui.graphics.drawscope.withTransform({ translate(dx, 0f) }) { block() }
+private fun DrawScope.withTranslate(dx: Float, block: DrawScope.() -> Unit) {
+    withTransform({ translate(dx, 0f) }) { block() }
 }
 
-private inline fun DrawScope.withRot(c: Offset, deg: Float, block: DrawScope.() -> Unit) {
-    androidx.compose.ui.graphics.drawscope.withTransform({ translate(c.x, c.y); rotate(deg, Offset.Zero) }) { block() }
+private fun DrawScope.withRot(c: Offset, deg: Float, block: DrawScope.() -> Unit) {
+    withTransform({ translate(c.x, c.y); rotate(deg, Offset.Zero) }) { block() }
 }
 
-private inline fun DrawScope.withTransformPot(g: KcPot, sx: Float, sy: Float, dx: Float, block: DrawScope.() -> Unit) {
-    androidx.compose.ui.graphics.drawscope.withTransform({
+private fun DrawScope.withTransformPot(g: KcPot, sx: Float, sy: Float, dx: Float, block: DrawScope.() -> Unit) {
+    withTransform({
         translate(dx, 0f)
         scale(sx, sy, Offset(g.cx, g.bottom))
     }) { block() }

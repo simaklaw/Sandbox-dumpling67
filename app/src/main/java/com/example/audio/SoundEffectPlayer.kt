@@ -65,6 +65,134 @@ class SoundEffectPlayer(private val context: Context) {
         }
     var hapticsEnabled: Boolean = true
 
+    private val fxPreloadNames = listOf(
+        "fx_animal_chorus",
+        "fx_arcade_button",
+        "fx_arrow_carrot",
+        "fx_arrow_carrot_bullseye",
+        "fx_arrow_sucker",
+        "fx_arrow_sucker_bullseye",
+        "fx_arrow_vibration_buzz",
+        "fx_arrow_wooden",
+        "fx_arrow_wooden_bullseye",
+        "fx_baby_giggle",
+        "fx_bear_growl",
+        "fx_belly_inhale_pop",
+        "fx_bicycle_bell",
+        "fx_boing",
+        "fx_bow_shot",
+        "fx_bowstring_tension",
+        "fx_box_pop_open",
+        "fx_box_rattle",
+        "fx_box_tension_hum",
+        "fx_bumper_hit",
+        "fx_bunny_hop",
+        "fx_butt_fall_laugh",
+        "fx_cartoon_yelp",
+        "fx_cat_meow",
+        "fx_cat_purr",
+        "fx_catapult_crash_land",
+        "fx_catapult_flying_scream",
+        "fx_catapult_launch",
+        "fx_catapult_stretch",
+        "fx_chime",
+        "fx_clean_sponge",
+        "fx_coin_shower",
+        "fx_comical_fall_wobble",
+        "fx_cow_moo",
+        "fx_crow_caw",
+        "fx_cute_character",
+        "fx_dial_0",
+        "fx_dial_1",
+        "fx_dial_2",
+        "fx_dial_3",
+        "fx_dial_4",
+        "fx_dial_5",
+        "fx_dial_6",
+        "fx_dial_7",
+        "fx_dial_8",
+        "fx_dial_9",
+        "fx_dog_bark",
+        "fx_dog_woof",
+        "fx_door_open",
+        "fx_eat_crunch",
+        "fx_fanfare",
+        "fx_flipper_snap",
+        "fx_freeze_ice",
+        "fx_frog_ribbit",
+        "fx_gear_ratchet",
+        "fx_goose_honk",
+        "fx_grain_pour",
+        "fx_grain_rustle",
+        "fx_gulp",
+        "fx_head_dizzy_spin",
+        "fx_hiccup_series",
+        "fx_horse_neigh",
+        "fx_idle_chuckle",
+        "fx_jackpot_fanfare",
+        "fx_jar_glass_clink",
+        "fx_kiss",
+        "fx_legendary_fanfare",
+        "fx_lever_down",
+        "fx_lever_up",
+        "fx_lock_off",
+        "fx_lock_on",
+        "fx_magic_sparkle",
+        "fx_mold_stamp",
+        "fx_munch_crunch",
+        "fx_munch_yucky",
+        "fx_patter_l",
+        "fx_patter_r",
+        "fx_pelmen_giggle_run",
+        "fx_pelmen_tag_caught",
+        "fx_phone_hangup",
+        "fx_phone_ringtone",
+        "fx_pig_oink",
+        "fx_pinball_plunger",
+        "fx_pinwheel_tick",
+        "fx_rooster_crow",
+        "fx_sand_crunch",
+        "fx_scarecrow_grunt",
+        "fx_scarecrow_recoil_spring",
+        "fx_sheep_baa",
+        "fx_shield_chime",
+        "fx_sneeze",
+        "fx_sparkle_chime",
+        "fx_speed_dash",
+        "fx_splash",
+        "fx_squeak",
+        "fx_squish",
+        "fx_squish_elastic",
+        "fx_stir",
+        "fx_switch_off",
+        "fx_switch_on",
+        "fx_tea_whistle",
+        "fx_tickle_laughter",
+        "fx_tongue_bleee",
+        "fx_vortex_swirl",
+        "fx_xylo_0",
+        "fx_xylo_1",
+        "fx_xylo_2",
+        "fx_xylo_3",
+        "fx_xylo_4",
+        "fx_xylo_5",
+        "fx_xylo_6",
+        "fx_xylo_7",
+        "fx_xyloc_0",
+        "fx_xyloc_1",
+        "fx_xyloc_2",
+        "fx_xyloc_3",
+        "fx_xyloc_4",
+        "fx_xyloc_5",
+        "fx_xyloc_6",
+        "fx_xyloc_7",
+        "fx_zone_transition"
+    )
+
+    init {
+        scope.launch { try { soundManager.preloadRaw(fxPreloadNames) } catch (_: Throwable) {} }
+    }
+
     // ==========================================
     // 🎈 BALLOON & BUBBLE POP SOUNDS
     // ==========================================
@@ -121,6 +249,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playSquish(pitchMultiplier: Float = 1.0f) {
         if (!soundEnabled) return
         vibrateSquish()
+        if (soundManager.playFxRaw("fx_squish")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 130
@@ -141,6 +270,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBoing(pitchMultiplier: Float = 1.0f) {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_boing")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 280
@@ -163,6 +293,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playSqueak() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_squeak")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 120
@@ -187,6 +318,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playTeaWhistle() {
         if (!soundEnabled) return
         vibrateSeries()
+        if (soundManager.playFxRaw("fx_tea_whistle")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 450
@@ -209,6 +341,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playSplash() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_splash")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 120
@@ -230,6 +363,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playStir() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_stir")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 260
@@ -253,6 +387,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playGulpDrink() {
         if (!soundEnabled) return
         vibrateSeries()
+        if (soundManager.playFxRaw("fx_gulp")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 380
@@ -279,6 +414,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playChime(pitchMultiplier: Float = 1.0f) {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_chime")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 160
@@ -298,6 +434,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playMagicSparkle() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_magic_sparkle")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 280
@@ -322,6 +459,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playCleanSponge() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_clean_sponge")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 180
@@ -345,6 +483,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playLeverClunk(isDown: Boolean = true) {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw((if (isDown) "fx_lever_down" else "fx_lever_up"))) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 90
@@ -367,6 +506,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playArcadeButton() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_arcade_button")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 110
@@ -388,6 +528,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playSwitchClick(isOn: Boolean = true) {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw((if (isOn) "fx_switch_on" else "fx_switch_off"))) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 45
@@ -409,6 +550,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playGearRatchet() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_gear_ratchet")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 35
@@ -428,6 +570,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playDoorOpen() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_door_open")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 180
@@ -448,6 +591,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBicycleBell() {
         if (!soundEnabled) return
         vibrateSeries()
+        if (soundManager.playFxRaw("fx_bicycle_bell")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 240
@@ -484,6 +628,7 @@ class SoundEffectPlayer(private val context: Context) {
             1046.50f // C6 (До)
         )
         val note = frequencies[noteIndex.coerceIn(0, 7)]
+        if (soundManager.playFxRaw("fx_xylo_${noteIndex.coerceIn(0, 7)}")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 240
@@ -530,6 +675,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playDogWoof(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_dog_woof")) return
         val durationMs = 230
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -547,6 +693,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playCatMeow(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_cat_meow")) return
         val durationMs = 380
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -569,6 +716,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playCowMoo(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_cow_moo")) return
         val durationMs = 520
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -585,6 +733,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playHorseNeigh(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_horse_neigh")) return
         val durationMs = 480
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -609,6 +758,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playPigOink(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_pig_oink")) return
         val durationMs = 260
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -627,6 +777,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playSheepBaa(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_sheep_baa")) return
         val durationMs = 450
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -647,6 +798,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playGooseHonk(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_goose_honk")) return
         val durationMs = 280
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -666,6 +818,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playRoosterCrow(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_rooster_crow")) return
         val durationMs = 620
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -698,6 +851,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playFrogRibbit(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_frog_ribbit")) return
         val durationMs = 280
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -715,6 +869,7 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     fun playCrowCaw(sampleRate: Int = 22050) {
+        if (soundManager.playFxRaw("fx_crow_caw")) return
         val durationMs = 340
         val numSamples = (durationMs * sampleRate) / 1000
         val buffer = ShortArray(numSamples)
@@ -736,6 +891,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playAnimalChorus() {
         if (!soundEnabled) return
         vibrateSeries()
+        if (soundManager.playFxRaw("fx_animal_chorus")) return
         scope.launch {
             playDogWoof()
             kotlinx.coroutines.delay(160)
@@ -757,6 +913,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playZoneTransition() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_zone_transition")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 260
@@ -789,6 +946,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playCatPurr() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_cat_purr")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 380
@@ -811,6 +969,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playDogBark() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_dog_bark")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 200
@@ -833,6 +992,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBunnyHop() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_bunny_hop")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 150
@@ -854,6 +1014,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBearGrowl() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_bear_growl")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 320
@@ -877,6 +1038,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playTickleLaughter() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_tickle_laughter")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 300
@@ -900,6 +1062,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playKissSound() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_kiss")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 120
@@ -921,6 +1084,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playEatCrunch() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_eat_crunch")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 140
@@ -944,6 +1108,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playSquishElastic(pitchMultiplier: Float = 1.0f) {
         if (!soundEnabled) return
         vibrateSquishDeform()
+        if (soundManager.playFxRaw("fx_squish_elastic")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 150
@@ -967,6 +1132,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playBoxTensionHum() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_box_tension_hum")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 320
@@ -989,6 +1155,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playMunchCrunchSound() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_munch_crunch")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 380
@@ -1012,6 +1179,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playMunchYuckySound() {
         if (!soundEnabled) return
         vibrateSquishDeform()
+        if (soundManager.playFxRaw("fx_munch_yucky")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 280
@@ -1035,6 +1203,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playCoinRewardShower() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_coin_shower")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 450
@@ -1059,6 +1228,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBoxRattle(tapCount: Int = 1) {
         if (!soundEnabled) return
         vibrateSquish()
+        if (soundManager.playFxRaw("fx_box_rattle")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 120
@@ -1081,6 +1251,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBoxPopOpen() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_box_pop_open")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 280
@@ -1103,6 +1274,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playSparkleChime() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_sparkle_chime")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 380
@@ -1128,6 +1300,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playLegendaryFanfare() {
         if (!soundEnabled) return
         vibrateSeries()
+        if (soundManager.playFxRaw("fx_legendary_fanfare")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 680
@@ -1153,6 +1326,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playCuteCharacterSound(pitchMultiplier: Float = 1.0f) {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_cute_character", rate = pitchMultiplier)) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 240
@@ -1179,6 +1353,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playFanfare() {
         if (!soundEnabled) return
         vibrateSeries()
+        if (soundManager.playFxRaw("fx_fanfare")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 460
@@ -1199,6 +1374,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playBabyGiggle() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_baby_giggle")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 360
@@ -1450,6 +1626,7 @@ class SoundEffectPlayer(private val context: Context) {
     // ==========================================
 
     fun playPouringGrain(grainTypeId: String = "rice") {
+        if (soundManager.playFxRaw("fx_grain_pour")) return
         playGrainRustle(grainTypeId = grainTypeId, intensity = 1.0f)
     }
 
@@ -1461,6 +1638,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playGrainRustle(grainTypeId: String = "rice", intensity: Float = 1.0f) {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_grain_rustle")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = (180 + (intensity * 120)).toInt()
@@ -1517,6 +1695,7 @@ class SoundEffectPlayer(private val context: Context) {
      */
     fun playJarGlassClink() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_jar_glass_clink")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 110
@@ -1541,6 +1720,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playPatterStep(isLeft: Boolean = true) {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw((if (isLeft) "fx_patter_l" else "fx_patter_r"))) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 45
@@ -1564,6 +1744,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playCartoonYelp(pitchMultiplier: Float = 1.0f) {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_cartoon_yelp")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 190
@@ -1591,6 +1772,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playComicalFallWobble() {
         if (!soundEnabled) return
         vibrateSeries()
+        if (soundManager.playFxRaw("fx_comical_fall_wobble")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 380
@@ -1619,6 +1801,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playCatapultStretch() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_catapult_stretch")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 130
@@ -1640,6 +1823,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playCatapultLaunch() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_catapult_launch")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 240
@@ -1663,6 +1847,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playCatapultFlyingScream() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_catapult_flying_scream")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 520
@@ -1690,6 +1875,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playCatapultCrashLand() {
         if (!soundEnabled) return
         vibrateSeries()
+        if (soundManager.playFxRaw("fx_catapult_crash_land")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 320
@@ -1721,6 +1907,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBowstringTension() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_bowstring_tension")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 230
@@ -1754,6 +1941,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBowShot() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_bow_shot")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 150
@@ -1780,6 +1968,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playDullHeavyArrowImpact(arrowType: String = "WOODEN", isBullseye: Boolean = false) {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_arrow_${arrowType.lowercase()}" + (if (isBullseye) "_bullseye" else ""))) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = if (isBullseye) 360 else 260
@@ -1840,6 +2029,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playScarecrowRecoilSpring(intensity: Float = 1.0f) {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_scarecrow_recoil_spring")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 310
@@ -1869,6 +2059,7 @@ class SoundEffectPlayer(private val context: Context) {
      */
     fun playArrowVibrationBuzz() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_arrow_vibration_buzz")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 180
@@ -1894,6 +2085,7 @@ class SoundEffectPlayer(private val context: Context) {
      */
     fun playScarecrowGruntReaction() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_scarecrow_grunt")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 160
@@ -1928,6 +2120,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playLockClick(isLocked: Boolean) {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw((if (isLocked) "fx_lock_on" else "fx_lock_off"))) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 110
@@ -1949,6 +2142,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playShieldChime() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_shield_chime")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 240
@@ -1977,6 +2171,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playPinballPlungerRelease() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_pinball_plunger")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 280
@@ -2003,6 +2198,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playBumperHit(pitchMult: Float = 1.0f) {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_bumper_hit")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 190
@@ -2029,6 +2225,7 @@ class SoundEffectPlayer(private val context: Context) {
      */
     fun playPinwheelTick() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_pinwheel_tick")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 60
@@ -2052,6 +2249,7 @@ class SoundEffectPlayer(private val context: Context) {
      */
     fun playXylophoneChime(noteIndex: Int) {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_xyloc_${noteIndex.coerceIn(0, 7)}")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 220
@@ -2077,6 +2275,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playFlipperSnap() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_flipper_snap")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 120
@@ -2099,6 +2298,7 @@ class SoundEffectPlayer(private val context: Context) {
      */
     fun playVortexSwirl() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_vortex_swirl")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 300
@@ -2123,6 +2323,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playJackpotFanfare() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_jackpot_fanfare")) return
         scope.launch {
             val sampleRate = 22050
             val notes = listOf(523.25f, 659.25f, 783.99f, 1046.50f)
@@ -2148,6 +2349,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playPelmenTagCaught(pitch: Float = 1.0f) {
         if (!soundEnabled) return
         vibrateSquishDeform()
+        if (soundManager.playFxRaw("fx_pelmen_tag_caught")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 180
@@ -2173,6 +2375,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playPelmenGiggleRun() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_pelmen_giggle_run")) return
         scope.launch {
             val sampleRate = 22050
             val notes = listOf(580f, 720f, 650f, 880f)
@@ -2197,6 +2400,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playFreezeIceCrystal() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_freeze_ice")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 300
@@ -2220,6 +2424,7 @@ class SoundEffectPlayer(private val context: Context) {
      */
     fun playSpeedDashWhoosh() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_speed_dash")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 160
@@ -2246,6 +2451,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playSneezeApchhi() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_sneeze")) return
         scope.launch {
             val sampleRate = 22050
             // Inhale then explosive sneeze
@@ -2280,6 +2486,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playBellyInhalePop() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_belly_inhale_pop")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 650
@@ -2311,6 +2518,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playTongueBleee() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_tongue_bleee")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 450
@@ -2335,6 +2543,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playHeadDizzySpin() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_head_dizzy_spin")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 600
@@ -2358,6 +2567,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playButtFallLaugh() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_butt_fall_laugh")) return
         scope.launch {
             val sampleRate = 22050
             // Heavy soft thud
@@ -2383,6 +2593,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playHiccupSeries() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_hiccup_series")) return
         scope.launch {
             for (step in 0 until 4) {
                 val sampleRate = 22050
@@ -2407,6 +2618,7 @@ class SoundEffectPlayer(private val context: Context) {
 
     fun playIdleChuckle() {
         if (!soundEnabled) return
+        if (soundManager.playFxRaw("fx_idle_chuckle")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 180
@@ -2432,6 +2644,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playSandCrunch() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_sand_crunch")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 120
@@ -2455,6 +2668,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playMoldStamp() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_mold_stamp")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 160
@@ -2482,6 +2696,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playPhoneDialTone(digit: Int) {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_dial_${digit.coerceIn(0, 9)}")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 110
@@ -2508,6 +2723,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playPhoneRingtone() {
         if (!soundEnabled) return
         vibrateMedium()
+        if (soundManager.playFxRaw("fx_phone_ringtone")) return
         scope.launch {
             val sampleRate = 22050
             val durationMs = 350
@@ -2530,6 +2746,7 @@ class SoundEffectPlayer(private val context: Context) {
     fun playPhoneHangup() {
         if (!soundEnabled) return
         triggerLightTapPulse()
+        if (soundManager.playFxRaw("fx_phone_hangup")) return
         scope.launch {
             val sampleRate = 22050
             for (step in 0 until 3) {

@@ -257,6 +257,21 @@ class SoundManager(
         for (n in names) { try { loadRawSoundFile(n) } catch (_: Throwable) {} }
     }
 
+    /**
+     * Играет готовый OGG (res/raw/<name>.ogg) без каталога и без процедурного запасного звука.
+     * Возвращает false, если файла нет или он ещё не загрузился — тогда вызывающий код играет синтез.
+     */
+    fun playFxRaw(name: String, volume: Float = 1.0f, rate: Float = 1.0f): Boolean {
+        if (isMuted || masterVolume <= 0.001f) return false
+        if (!isCategoryEnabled(SoundCategory.SFX)) return false
+        val id = soundIdMap[name] ?: loadRawSoundFile(name) ?: return false
+        if (!loadedSoundIds.contains(id)) return false
+        requestAudioFocus()
+        val v = (volume * masterVolume).coerceIn(0f, 1f)
+        val sid = soundPool?.play(id, v, v, 1, 0, rate.coerceIn(0.5f, 2.0f)) ?: 0
+        return sid > 0
+    }
+
     private val noEnglishVariant: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     /** Все озвученные фразы (русские и английские) — загружаются заранее, чтобы звучали с первого нажатия. */

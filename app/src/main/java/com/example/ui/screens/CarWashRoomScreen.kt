@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.LocalAgeProfile
+import com.example.shared.LoopHandle
 import com.example.shared.SoundManager
 import com.example.shared.i18n.Text
 import com.example.shared.rememberHaptics
@@ -154,6 +155,8 @@ private class CwModel {
     var tScrub = 0f
     var tSpray = 0f
     var tBlow = 0f
+    var tRinse = 0f
+    var tFoam = 0f
     var tSpark = 0f
     var tDrip = 0f
     var hint = ""
@@ -460,7 +463,8 @@ fun CarWashRoomScreen(
         sm.preloadRaw(
             listOf(
                 "fx_cw_scrub", "fx_cw_spray", "fx_cw_blow", "fx_cw_beep", "fx_cw_sigh", "fx_cw_drive",
-                "wl_sparkle", "wl_win", "wl_pin", "wl_pop"
+                "wl_pin", "wl_pop",
+                "cw2_arrive", "cw2_brush_loop", "cw2_dryer_loop", "cw2_foam", "cw2_honk", "cw2_reward", "cw2_rinse", "cw2_scrub", "cw2_sparkle", "cw2_spray"
             )
         )
     }
@@ -485,6 +489,28 @@ fun CarWashRoomScreen(
     fun W() = boxSize.width.toFloat()
     fun H() = boxSize.height.toFloat()
     fun snd(n: String, v: Float = 1f, r: Float = 1f) { sm.play(n, volume = v, rate = r) }
+
+    // зацикленные звуки (щётка, фен): живут, пока их «удерживают» каждый кадр, потом плавно гаснут
+    val loopH = remember { HashMap<String, LoopHandle>() }
+    val loopT = remember { HashMap<String, Float>() }
+    fun hold(name: String, vol: Float) {
+        loopT[name] = m.clock
+        val cur = loopH[name]
+        if (cur != null && cur.streamId <= 0) { sm.stopLoop(cur, 0); loopH.remove(name) }
+        if (!loopH.containsKey(name)) {
+            sm.startLoop(name)?.let { sm.setLoopVolume(it, vol); loopH[name] = it }
+        }
+    }
+    fun tickLoops() {
+        val itr = loopH.entries.iterator()
+        while (itr.hasNext()) {
+            val e = itr.next()
+            if (m.clock - (loopT[e.key] ?: 0f) > 0.25f) { sm.stopLoop(e.value, 220); itr.remove() }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { loopH.values.forEach { sm.stopLoop(it, 40) }; loopH.clear() }
+    }
 
     // ── геометрия ──
     fun toyS() = W() * 0.36f
@@ -620,7 +646,10 @@ fun CarWashRoomScreen(
                     m.gridDirty = true
                     if (rub > 0.1f) {
                         m.tScrub -= dt
-                        if (m.tScrub <= 0f) { m.tScrub = 0.4f; snd("fx_cw_scrub", 0.55f); if (real) haptics.vibrateWater() }
+                        hold("cw2_brush_loop", 0.5f)
+                        m.tFoam -= dt
+                        if (m.tFoam <= 0f) { m.tFoam = 3f; snd("cw2_foam", 0.35f) }
+                        if (m.tScrub <= 0f) { m.tScrub = 1.25f; snd("cw2_scrub", 0.45f); if (real) haptics.vibrateWater() }
                         if (Random.nextFloat() < 0.6f) burst(0, px + (Random.nextFloat() - 0.5f) * s * 0.4f, py, 1, Color.White, s * 0.25f, s * 0.06f, up = s * 0.3f, life = 0.8f)
                     }
                 }
@@ -631,7 +660,9 @@ fun CarWashRoomScreen(
                 val nx = m.cx
                 val ny = m.cy - H() * 0.03f
                 m.tSpray -= dt
-                if (m.tSpray <= 0f) { m.tSpray = 0.5f; snd("fx_cw_spray", 0.5f); if (real) haptics.vibrateWater() }
+                if (m.tSpray <= 0f) { m.tSpray = 1.0f; snd("cw2_spray", 0.5f); if (real) haptics.vibrateWater() }
+                m.tRinse -= dt
+                if (over && m.tRinse <= 0f) { m.tRinse = 1.8f; snd("cw2_rinse", 0.4f) }
                 repeat(2) {
                     m.parts.add(
                         CwPart(1, nx + (Random.nextFloat() - 0.5f) * W() * 0.12f, ny, (Random.nextFloat() - 0.5f) * 20f, H() * 0.15f, 1f, 1f, W() * 0.011f, Color(0xFF5CC0FF), 0f, 0f, py + (Random.nextFloat() - 0.5f) * H() * 0.04f)
@@ -651,7 +682,8 @@ fun CarWashRoomScreen(
             else -> {
                 m.using = true
                 m.tBlow -= dt
-                if (m.tBlow <= 0f) { m.tBlow = 0.7f; snd("fx_cw_blow", 0.5f); if (real) haptics.vibrateShort() }
+                hold("cw2_dryer_loop", 0.5f)
+                if (m.tBlow <= 0f) { m.tBlow = 0.7f; if (real) haptics.vibrateShort() }
                 if (Random.nextFloat() < 0.7f) {
                     m.parts.add(CwPart(3, px - W() * 0.12f + Random.nextFloat() * W() * 0.12f, py - H() * 0.07f + Random.nextFloat() * H() * 0.05f, W() * 0.5f, H() * 0.12f, 0.35f, 0.35f, W() * 0.06f, Color.White, 0f, 0f, 1e9f))
                 }
@@ -682,7 +714,7 @@ fun CarWashRoomScreen(
             haptics.vibrateShort()
         } else {
             m.hop = 1f
-            snd("fx_cw_beep", 0.7f)
+            snd("cw2_honk", 0.7f)
             burst(2, toyPx(0f), toyPy(-0.5f), 5, Color(0xFFFFF3A0), toyS() * 0.5f, toyS() * 0.1f, life = 0.7f)
             haptics.vibratePop()
         }
@@ -731,8 +763,8 @@ fun CarWashRoomScreen(
         m.phaseT = 0f
         m.rewardChecked = false
         burst(2, toyPx(0f), toyPy(-0.3f), 18, Color(0xFFFFF3A0), toyS() * 1.4f, toyS() * 0.14f, up = toyS() * 0.4f, life = 1.0f)
-        snd("wl_sparkle", 0.9f)
-        snd("fx_cw_beep", 0.9f)
+        snd("cw2_sparkle", 0.9f)
+        snd("cw2_honk", 0.8f)
         haptics.vibratePop()
         if (m.toyReal) {
             washed += 1
@@ -788,6 +820,7 @@ fun CarWashRoomScreen(
             if (!m.demo) m.lastTouch = clock
         }
         if (m.carry >= 0 && !(a != null && a.t < 0.7f)) applyTool(dt) else { m.using = false }
+        tickLoops()
 
         // игрушка
         m.brushSpin += dt * (if (m.using && m.carry == CW_SPONGE) 6f else 1.2f)
@@ -805,7 +838,7 @@ fun CarWashRoomScreen(
                 m.offX = cwLerp(-W() * 1.3f, 0f, k)
                 m.wheelRot += dt * 14f * (1f - k + 0.1f)
                 m.barrier = if (m.phaseT < 1.1f) 1f else 0f
-                if (m.phaseT < dt * 1.5f) snd("fx_cw_drive", 0.7f)
+                if (m.phaseT < dt * 1.5f) snd("cw2_arrive", 0.8f)
                 if (m.phaseT >= d) { m.phase = 1; m.phaseT = 0f; m.offX = 0f; snd("fx_cw_sigh", 0.8f); m.sadShake = 0.8f }
             }
             1 -> {
@@ -817,16 +850,16 @@ fun CarWashRoomScreen(
                 m.barrier = 0f
                 hopY = -abs(sin(m.phaseT * 9f)) * toyS() * 0.14f
                 if (Random.nextFloat() < 0.25f) burst(2, toyPx(Random.nextFloat() * 2f - 1f), toyPy(-0.7f + Random.nextFloat() * 0.8f), 1, Color(0xFFFFF3A0), toyS() * 0.2f, toyS() * 0.12f, life = 0.7f)
-                if (m.phaseT in 0.55f..0.6f && m.tSpark < 0f) { snd("fx_cw_beep", 0.9f); m.tSpark = 1f }
+                if (m.phaseT in 0.55f..0.6f && m.tSpark < 0f) { snd("cw2_honk", 0.8f); m.tSpark = 1f }
                 if (m.phaseT >= 2.3f && !m.rewardChecked) {
                     m.rewardChecked = true
                     val st = CW_STICKERS.firstOrNull { it.need == washed }
                     if (m.toyReal && st != null) {
                         rewardSticker = st
-                        snd("wl_win", 0.9f)
+                        snd("cw2_reward", 0.9f)
                     }
                 }
-                if (m.phaseT >= 2.3f && !overlay) { m.phase = 3; m.phaseT = 0f; snd("fx_cw_drive", 0.7f) }
+                if (m.phaseT >= 2.3f && !overlay) { m.phase = 3; m.phaseT = 0f; snd("cw2_arrive", 0.8f) }
             }
             else -> {
                 val d = 1.3f
@@ -868,7 +901,7 @@ fun CarWashRoomScreen(
             m.wetF > 0.1f -> 3
             else -> 4
         }
-        if (m.phase == 1 && m.stage != oldStage && m.stage in 2..3) { snd("wl_sparkle", 0.6f); burst(2, toyPx(0f), toyPy(-0.2f), 6, Color(0xFFFFF3A0), toyS() * 0.8f, toyS() * 0.1f, life = 0.7f) }
+        if (m.phase == 1 && m.stage != oldStage && m.stage in 2..3) { snd("cw2_sparkle", 0.6f); burst(2, toyPx(0f), toyPy(-0.2f), 6, Color(0xFFFFF3A0), toyS() * 0.8f, toyS() * 0.1f, life = 0.7f) }
         if (m.phase == 1 && m.stage == 4) finishToy()
         val prog = 0.4f * (1f - m.dirtF) +
             0.3f * (if (m.dirtF < 0.1f) 1f - m.foamF else 0f) +

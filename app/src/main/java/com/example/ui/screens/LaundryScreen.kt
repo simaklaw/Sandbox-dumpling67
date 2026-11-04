@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
+import kotlinx.coroutines.awaitCancellation
 import com.example.shared.LocalAgeProfile
 import com.example.shared.SoundManager
 import com.example.shared.i18n.Text
@@ -239,7 +240,8 @@ fun LaundryScreen(
         sm.preloadRaw(
             listOf(
                 "wl_drop", "wl_open", "wl_pin", "wl_pop", "wl_pop2", "wl_powder",
-                "wl_sparkle", "wl_splash", "wl_wash", "wl_win"
+                "wl_sparkle", "wl_splash", "wl_wash", "wl_win",
+                "lw2_drop", "lw2_open", "lw2_pin", "lw2_powder", "lw2_start", "lw2_stain", "lw2_success", "lw2_reward", "lw2_wash_loop"
             )
         )
     }
@@ -362,14 +364,15 @@ fun LaundryScreen(
         m.bubT = 0f
         m.spinning = false
         setStage(ST_WASH)
-        snd("wl_splash", 0.8f)
+        snd("lw2_start", 0.9f)
+        snd("wl_splash", 0.6f)
     }
 
     fun finishWash() {
         setStage(ST_OPEN)
         m.boomT = 1f
         m.released = false
-        snd("wl_open", 1f)
+        snd("lw2_open", 1f)
         haptics.vibratePop()
         val c = drumC()
         burst(2, c.x, c.y, 18, Color(0xFFFFFFFF), W() * 0.5f, W() * 0.02f, up = 40f)
@@ -661,13 +664,13 @@ fun LaundryScreen(
                     item.x = item.fx1; item.y = item.fy1
                     when (item.landState) {
                         IS_DRUM -> {
-                            snd("wl_drop", 0.9f)
+                            snd("lw2_drop", 0.9f)
                             haptics.vibrateWater()
                             m.drumShake = 0.3f
                             burst(0, c.x, c.y, 8, Color(0xFFBFE6FF), w * 0.3f, w * 0.012f, up = 80f, life = 0.6f)
                         }
                         IS_HUNG -> {
-                            snd("wl_pin", 1f)
+                            snd("lw2_pin", 1f)
                             haptics.vibrateShort()
                             burst(2, item.x, lineYAt(item.x), 6, Color(0xFFFFE27A), w * 0.2f, w * 0.015f, life = 0.7f)
                         }
@@ -707,7 +710,7 @@ fun LaundryScreen(
                 if (pouring) {
                     m.powderAmt = min(1f, m.powderAmt + dt * 0.55f)
                     m.pourT -= dt
-                    if (m.pourT <= 0f) { snd("wl_powder", 0.7f); m.pourT = 0.9f }
+                    if (m.pourT <= 0f) { snd("lw2_powder", 0.7f); m.pourT = 0.9f }
                     repeat(2) {
                         val lx = m.cupX - cupSz() * 0.35f
                         val ly = m.cupY + cupSz() * 0.1f
@@ -761,7 +764,7 @@ fun LaundryScreen(
                         item.clean = 1f
                         val p = drumPos(item)
                         burst(2, p.x, p.y, 9, Color(0xFFFFF3A0), w * 0.35f, w * 0.022f, life = 0.8f)
-                        snd("wl_sparkle", 0.6f, 0.9f + item.idx * 0.08f)
+                        snd("lw2_stain", 0.6f, 0.9f + item.idx * 0.05f)
                     }
                 }
                 if (m.progress >= 1f) {
@@ -783,7 +786,8 @@ fun LaundryScreen(
                     washed = nw
                     prefs.edit().putInt("washed", nw).apply()
                     setStage(ST_DONE)
-                    snd("wl_win", 1f)
+                    snd("lw2_success", 1f)
+                    snd("lw2_reward", 0.7f)
                     burst(3, w * 0.5f, h * 0.3f, 60, Color(0xFFFFC93C), w * 0.8f, w * 0.018f, up = 200f, life = 1.6f)
                     LW_STICKERS.firstOrNull { it.need == nw }?.let { rewardSticker = it }
                 }
@@ -841,9 +845,15 @@ fun LaundryScreen(
     // звук стирки: короткий фрагмент повторяется, пока идёт стирка (отменяется при смене этапа/выходе)
     LaunchedEffect(uiStage) {
         if (uiStage == ST_WASH) {
-            while (true) {
-                snd("wl_wash", 0.45f)
-                delay(1500)
+            val h = sm.startLoop("lw2_wash_loop")
+            if (h != null) {
+                sm.setLoopVolume(h, 0.3f)
+                try { awaitCancellation() } finally { sm.stopLoop(h, 300) }
+            } else {
+                while (true) {
+                    snd("wl_wash", 0.45f)
+                    delay(1500)
+                }
             }
         }
     }

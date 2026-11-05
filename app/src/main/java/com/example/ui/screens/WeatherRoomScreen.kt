@@ -37,6 +37,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.LocalAgeProfile
@@ -93,6 +96,14 @@ private val WR_STICKERS = listOf(
 private val WR_NEED = intArrayOf(3, 40, 6, 7, 4)
 private val WR_NEED_T = intArrayOf(2, 18, 4, 4, 3)
 
+private val WR_PUDX = floatArrayOf(0.18f, 0.36f, 0.76f, 0.92f)
+private val WR_PUDY = floatArrayOf(0.84f, 0.955f, 0.865f, 0.96f)
+private val WR_FLX = floatArrayOf(0.06f, 0.12f, 0.27f, 0.30f, 0.47f, 0.66f, 0.70f, 0.86f, 0.95f)
+private val WR_FLY = floatArrayOf(0.84f, 0.92f, 0.80f, 0.90f, 0.81f, 0.80f, 0.94f, 0.85f, 0.91f)
+private val WR_FLC = intArrayOf(0xFFFF6B8A.toInt(), 0xFFFFD43B.toInt(), 0xFFFFFFFF.toInt(), 0xFFB77BE8.toInt(), 0xFFFF9F43.toInt())
+
+private class WrMan(var x: Float, var y: Float, var s: Float) { val s0 = s; var wob = 0f }
+
 private class WrP(var kind: Int, var x: Float, var y: Float, var vx: Float, var vy: Float, var s: Float, var life: Float) {
     var maxLife = life
     var rot = 0f
@@ -121,6 +132,15 @@ private class WrModel {
     var snowA = 0f
     var rainbow = 0f
     var rbForce = 0f
+    var dusk = 0f
+    var duskTarget = 0f
+    var tod = 0
+    var bloom = 0f
+    var bdT = 0f
+    var bdX = 0f
+    var bdY = 0f
+    var bdNext = 9f
+    val men = ArrayList<WrMan>()
 
     val cx = floatArrayOf(0.10f, 0.34f, 0.58f, 0.80f, 0.22f, 0.68f, 0.46f)
     val cy = floatArrayOf(0.10f, 0.15f, 0.09f, 0.16f, 0.22f, 0.24f, 0.05f)
@@ -675,6 +695,67 @@ private fun DrawScope.wrHand(c: Offset, r: Float, down: Float, t: Float) {
     drawOval(Color(0xFFFFC27A), Offset(c.x - r * 0.34f, c.y + r * 0.2f), Size(r * 0.68f, r * 1.5f))
 }
 
+private fun DrawScope.wrFlower(x: Float, y: Float, s: Float, col: Int, sway: Float, alpha: Float) {
+    if (s < 1f || alpha <= 0.01f) return
+    val hx = x + sway; val hy = y - s * 1.7f
+    val st = Path().apply { moveTo(x, y); quadraticTo(x + sway * 0.2f, y - s * 0.9f, hx, hy) }
+    drawPath(st, Color(0xFF3F9A3F).wrA(alpha), style = Stroke(s * 0.14f, cap = StrokeCap.Round))
+    drawOval(Color(0xFF4DB04A).wrA(alpha), Offset(x - s * 0.5f, y - s * 0.85f), Size(s * 0.5f, s * 0.24f))
+    for (k in 0 until 5) {
+        val a = k * 1.2566f + sway * 0.05f
+        drawCircle(Color(col).wrA(alpha), s * 0.34f, Offset(hx + cos(a) * s * 0.42f, hy + sin(a) * s * 0.42f))
+    }
+    drawCircle(Color(0xFFFFC93C).wrA(alpha), s * 0.28f, Offset(hx, hy))
+}
+
+private fun DrawScope.wrBird(x: Float, y: Float, s: Float, flap: Float) {
+    val p = Path().apply {
+        moveTo(x - s, y - flap * s * 0.7f); quadraticTo(x - s * 0.5f, y - s * 0.35f - flap * s * 0.2f, x, y)
+        quadraticTo(x + s * 0.5f, y - s * 0.35f - flap * s * 0.2f, x + s, y - flap * s * 0.7f)
+    }
+    drawPath(p, Color(0xFF37475A), style = Stroke(s * 0.2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+}
+
+private fun DrawScope.wrSnowman(x: Float, y: Float, s: Float, t: Float, wob: Float) {
+    withTransform({ rotate(sin(t * 14f) * wob * 9f, Offset(x, y)) }) {
+        val sh = Color(0xFFCADCF0)
+        drawOval(Color(0x22304A70), Offset(x - s * 1.1f, y - s * 0.12f), Size(s * 2.2f, s * 0.35f))
+        drawCircle(sh, s * 1.0f, Offset(x, y - s * 0.9f)); drawCircle(Color.White, s * 0.94f, Offset(x - s * 0.04f, y - s * 0.94f))
+        drawCircle(sh, s * 0.74f, Offset(x, y - s * 2.1f)); drawCircle(Color.White, s * 0.7f, Offset(x - s * 0.03f, y - s * 2.13f))
+        drawCircle(sh, s * 0.54f, Offset(x, y - s * 3.12f)); drawCircle(Color.White, s * 0.5f, Offset(x - s * 0.02f, y - s * 3.14f))
+        val coal = Color(0xFF2B2F4A)
+        drawCircle(coal, s * 0.07f, Offset(x - s * 0.18f, y - s * 3.22f)); drawCircle(coal, s * 0.07f, Offset(x + s * 0.18f, y - s * 3.22f))
+        val nose = Path().apply { moveTo(x, y - s * 3.1f); lineTo(x + s * 0.5f, y - s * 3.0f); lineTo(x, y - s * 2.95f); close() }
+        drawPath(nose, Color(0xFFFF8A2B))
+        drawArc(coal, 20f, 140f, false, Offset(x - s * 0.18f, y - s * 3.0f), Size(s * 0.36f, s * 0.2f), style = Stroke(s * 0.04f, cap = StrokeCap.Round))
+        drawRoundRect(Color(0xFFE5566D), Offset(x - s * 0.5f, y - s * 2.66f), Size(s * 1.0f, s * 0.2f), CornerRadius(s * 0.1f))
+        for (k in 0..2) drawCircle(coal, s * 0.07f, Offset(x, y - s * (1.75f - k * 0.38f)))
+        drawRoundRect(coal, Offset(x - s * 0.55f, y - s * 3.55f), Size(s * 1.1f, s * 0.12f), CornerRadius(s * 0.04f))
+        drawRoundRect(coal, Offset(x - s * 0.34f, y - s * 4.0f), Size(s * 0.68f, s * 0.5f), CornerRadius(s * 0.06f))
+        drawLine(Color(0xFF8A5A2B), Offset(x - s * 0.72f, y - s * 2.2f), Offset(x - s * 1.4f, y - s * 2.7f), s * 0.07f, StrokeCap.Round)
+        drawLine(Color(0xFF8A5A2B), Offset(x + s * 0.72f, y - s * 2.2f), Offset(x + s * 1.4f, y - s * 2.7f), s * 0.07f, StrokeCap.Round)
+    }
+}
+
+private fun DrawScope.wrTodIcon(c: Offset, r: Float, tod: Int) {
+    when (tod) {
+        0 -> {
+            drawCircle(Color(0xFFFFD43B), r * 0.45f, c)
+            for (i in 0 until 8) { val a = i * PI.toFloat() / 4f; drawLine(Color(0xFFFFD43B), Offset(c.x + cos(a) * r * 0.64f, c.y + sin(a) * r * 0.64f), Offset(c.x + cos(a) * r * 0.9f, c.y + sin(a) * r * 0.9f), r * 0.14f, StrokeCap.Round) }
+        }
+        1 -> {
+            drawArc(Color(0xFFFFE066), 180f, 180f, true, Offset(c.x - r * 0.55f, c.y - r * 0.1f), Size(r * 1.1f, r * 1.1f))
+            for (i in 0 until 5) { val a = PI.toFloat() + i * PI.toFloat() / 4f; drawLine(Color(0xFFFFE066), Offset(c.x + cos(a) * r * 0.7f, c.y + r * 0.45f + sin(a) * r * 0.7f), Offset(c.x + cos(a) * r * 0.95f, c.y + r * 0.45f + sin(a) * r * 0.95f), r * 0.12f, StrokeCap.Round) }
+            drawLine(Color.White, Offset(c.x - r * 0.9f, c.y + r * 0.46f), Offset(c.x + r * 0.9f, c.y + r * 0.46f), r * 0.12f, StrokeCap.Round)
+        }
+        else -> {
+            drawCircle(Color(0xFFFFF0A0), r * 0.55f, c)
+            drawCircle(Color(0xFF3B4A9A), r * 0.46f, Offset(c.x + r * 0.28f, c.y - r * 0.14f))
+            wrSpark4(c.x + r * 0.55f, c.y + r * 0.45f, r * 0.2f, Color(0xFFFFF0A0))
+        }
+    }
+}
+
 // ───────────────────────── экран ─────────────────────────
 
 @Composable
@@ -696,7 +777,8 @@ fun WeatherRoomScreen(
                 "fx_wr_drop1", "fx_wr_drop2", "fx_wr_drop3", "fx_wr_splash", "fx_wr_puddle", "fx_wr_umbrella",
                 "fx_wr_crunch1", "fx_wr_crunch2", "fx_wr_pile", "fx_wr_whoosh1", "fx_wr_whoosh2", "fx_wr_rustle",
                 "fx_wr_wink", "fx_wr_glint", "fx_wr_star", "fx_wr_shoot", "fx_wr_cloud", "fx_wr_giggle1", "fx_wr_giggle2",
-                "fx_wr_bird1", "fx_wr_bird2", "fx_wr_reward"
+                "fx_wr_bird1", "fx_wr_bird2", "fx_wr_reward",
+                "fx_wr_p_change", "fx_wr_p_drop", "fx_wr_p_crunch", "fx_wr_p_whoosh", "fx_wr_p_happy"
             )
         )
     }
@@ -719,7 +801,7 @@ fun WeatherRoomScreen(
     var rewardSticker by remember { mutableStateOf<WrSticker?>(null) }
     var demoOn by remember { mutableStateOf(false) }
     var selW by remember { mutableIntStateOf(W_SUN) }
-    var nightUi by remember { mutableStateOf(false) }
+    var todUi by remember { mutableIntStateOf(0) }
     var stickersUi by remember { mutableIntStateOf(Integer.bitCount(m.mask)) }
 
     val loopH = remember { HashMap<String, LoopHandle>() }
@@ -727,6 +809,14 @@ fun WeatherRoomScreen(
     val lastSnd = remember { HashMap<String, Float>() }
     DisposableEffect(Unit) {
         onDispose { loopH.values.forEach { sm.stopLoop(it, 40) }; loopH.clear() }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val ob = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_PAUSE) { loopH.values.forEach { sm.stopLoop(it, 60) }; loopH.clear(); loopV.clear() }
+        }
+        lifecycleOwner.lifecycle.addObserver(ob)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(ob) }
     }
 
     fun W() = boxSize.width.toFloat()
@@ -738,6 +828,10 @@ fun WeatherRoomScreen(
         val last = lastSnd[n] ?: -9f
         if (m.clock - last >= gap) { lastSnd[n] = m.clock; sm.play(n, volume = v, rate = r) }
     }
+    fun dropName() = if (Random.nextFloat() < 0.25f) "fx_wr_p_drop" else "fx_wr_drop${1 + Random.nextInt(3)}"
+    fun crunchName() = when (Random.nextInt(3)) { 0 -> "fx_wr_crunch1"; 1 -> "fx_wr_crunch2"; else -> "fx_wr_p_crunch" }
+    fun whooshName() = when (Random.nextInt(3)) { 0 -> "fx_wr_whoosh1"; 1 -> "fx_wr_whoosh2"; else -> "fx_wr_p_whoosh" }
+    fun giggleName() = when (Random.nextInt(3)) { 0 -> "fx_wr_giggle1"; 1 -> "fx_wr_giggle2"; else -> "fx_wr_p_happy" }
     fun need(i: Int) = if (toddler) WR_NEED_T[i] else WR_NEED[i]
 
     // ── геометрия ──
@@ -756,8 +850,8 @@ fun WeatherRoomScreen(
     fun pelR() = min(W() * 0.095f, GH() * 0.085f)
     fun pelX() = W() * 0.55f
     fun pelY() = GH() * 0.93f - pelR() * 0.9f
-    fun pudX(i: Int) = W() * floatArrayOf(0.18f, 0.36f, 0.76f, 0.92f)[i]
-    fun pudY(i: Int) = GH() * floatArrayOf(0.84f, 0.955f, 0.865f, 0.96f)[i]
+    fun pudX(i: Int) = W() * WR_PUDX[i]
+    fun pudY(i: Int) = GH() * WR_PUDY[i]
     fun pudRx(i: Int) = W() * 0.085f * m.pud[i]
     fun pudRy(i: Int) = GH() * 0.024f * m.pud[i]
     fun fr() = max(dp(30f), W() * 0.07f) * (if (toddler) 1.25f else 1f)
@@ -831,10 +925,10 @@ fun WeatherRoomScreen(
 
     // ── смена погоды ──
     fun setWeather(w: Int, real: Boolean) {
-        if (w == m.weather) { m.hop = 1f; m.giggle = 0.8f; snd(if (Random.nextBoolean()) "fx_wr_giggle1" else "fx_wr_giggle2", 0.8f); return }
+        if (w == m.weather) { m.hop = 1f; m.giggle = 0.8f; snd(giggleName(), 0.8f); return }
         m.prev = m.weather; m.weather = w; m.skyBlend = 0f
         selW = w
-        snd(when (w) { W_SUN -> "fx_wr_change_sun"; W_RAIN -> "fx_wr_change_rain"; W_SNOW -> "fx_wr_change_snow"; else -> "fx_wr_change_wind" }, 0.9f)
+        snd(if (Random.nextFloat() < 0.25f) "fx_wr_p_change" else when (w) { W_SUN -> "fx_wr_change_sun"; W_RAIN -> "fx_wr_change_rain"; W_SNOW -> "fx_wr_change_snow"; else -> "fx_wr_change_wind" }, 0.9f)
         if (w == W_RAIN) snd("fx_wr_umbrella", 0.8f)
         m.emoteT = 0.45f
         m.hop = 0.6f
@@ -842,10 +936,12 @@ fun WeatherRoomScreen(
         if (real) { m.switches++; m.visited = m.visited or (1 shl w); save() }
         if (w == W_SUN) m.bT = 3f
     }
-    fun setNight(on: Boolean, real: Boolean) {
-        m.nightTarget = if (on) 1f else 0f
-        nightUi = on
-        snd(if (on) "fx_wr_night" else "fx_wr_day", 0.85f)
+    fun setTod(k: Int, real: Boolean) {
+        m.tod = k
+        m.nightTarget = if (k == 2) 1f else if (k == 1) 0.25f else 0f
+        m.duskTarget = if (k == 1) 1f else 0f
+        todUi = k
+        snd(if (k == 0) "fx_wr_day" else "fx_wr_night", 0.85f, if (k == 1) 0.9f else 1f)
         m.hop = 0.5f
     }
     fun spawnBunny() {
@@ -906,7 +1002,7 @@ fun WeatherRoomScreen(
     }
     fun pelTap() {
         m.hop = 1f; m.giggle = 1f
-        snd(if (Random.nextBoolean()) "fx_wr_giggle1" else "fx_wr_giggle2", 0.95f)
+        snd(giggleName(), 0.95f)
         haptics.vibrateSquish()
         spark(pelX(), pelY() - pelR(), 6, 0xFFFFE066.toInt(), W() * 0.15f, 0.7f)
     }
@@ -926,11 +1022,19 @@ fun WeatherRoomScreen(
             pm.y += (m.fy - pm.rad * 0.1f - pm.y) * 0.5f
             pm.rad = min(W() * 0.12f, pm.rad + d * 0.05f)
             pm.h = min(1f, pm.h + d * 0.004f)
+            if (pm.rad >= W() * 0.085f && pm.h >= 0.85f && m.men.size < 2) {
+                m.mounds.remove(pm); m.plowM = null
+                m.men.add(WrMan(pm.x, pm.y + pm.rad * 0.3f, W() * 0.04f))
+                spark(pm.x, pm.y - pm.rad, 16, 0xFFFFFFFF.toInt(), W() * 0.3f, 1.0f)
+                snd("fx_wr_glint", 0.9f); snd("fx_wr_pile", 0.8f); haptics.vibratePop()
+                m.giggle = 0.9f; m.hop = 0.8f
+                count(2, 2)
+            }
         }
         m.plowed = true
         if (m.clock - m.lastCrunch > 0.13f) {
             m.lastCrunch = m.clock
-            snd(if (Random.nextBoolean()) "fx_wr_crunch1" else "fx_wr_crunch2", 0.8f, 0.9f + Random.nextFloat() * 0.25f)
+            snd(crunchName(), 0.8f, 0.9f + Random.nextFloat() * 0.25f)
             haptics.vibrateShort()
         }
         if (Random.nextFloat() < 0.5f) spark(m.fx, m.fy, 2, 0xFFFFFFFF.toInt(), W() * 0.12f, 0.6f)
@@ -959,6 +1063,12 @@ fun WeatherRoomScreen(
                 if (bi >= 0) { starTap(bi); return }
             }
         }
+        if (m.bdT > 0f && (hypot(x - m.bdX, y - m.bdY) < dp(38f) || hypot(x - (m.bdX - W() * 0.06f), y - (m.bdY + gh * 0.03f)) < dp(38f))) {
+            snd(if (Random.nextBoolean()) "fx_wr_bird1" else "fx_wr_bird2", 0.8f, 1.1f)
+            spark(m.bdX, m.bdY, 8, 0xFFFFF3A0.toInt(), W() * 0.2f, 0.7f)
+            haptics.vibrateShort(); m.hop = 0.6f
+            return
+        }
         for (i in 0 until WR_NCLOUD) {
             if (cloudA(i) > 0.5f && abs(x - m.cx[i] * W()) < m.cs[i] * W() * 1.1f && abs(y - m.cy[i] * gh) < m.cs[i] * W() * 0.7f) { cloudTap(i); return }
         }
@@ -966,14 +1076,28 @@ fun WeatherRoomScreen(
         if (hypot(x - pelX(), y - pelY()) < pelR() * 1.25f) { pelTap(); return }
         val pi = inPuddle(x, y)
         if (pi >= 0 && m.weather != W_SNOW) { puddleTap(pi); return }
+        for (mn in m.men) {
+            if (hypot(x - mn.x, y - (mn.y - mn.s * 2f)) < mn.s * 2.2f) {
+                mn.wob = 1f; spark(mn.x, mn.y - mn.s * 3f, 8, 0xFFFFFFFF.toInt(), W() * 0.15f, 0.8f)
+                snd("fx_wr_cloud", 0.7f, 1.4f); snd(giggleName(), 0.6f, 1.15f); haptics.vibrateSquish(); return
+            }
+        }
         for (mo in m.mounds) {
             if (hypot(x - mo.x, y - mo.y) < mo.rad) {
                 mo.sq = 1f; spawnFlakes(mo.x, mo.y - mo.rad * 0.4f, 8, mo.rad); snd("fx_wr_pile", 0.9f); haptics.vibrateSquish(); return
             }
         }
+        if (m.bloom > 0.5f && m.snowA < 0.5f) {
+            for (k in WR_FLX.indices) {
+                if (hypot(x - W() * WR_FLX[k], y - (gh * WR_FLY[k] - dp(14f))) < dp(30f)) {
+                    spark(W() * WR_FLX[k], gh * WR_FLY[k] - dp(14f), 8, WR_FLC[k % 5], W() * 0.15f, 0.8f)
+                    snd("fx_wr_star", 0.55f, 1.3f + 0.1f * (k % 3)); haptics.vibrateShort(); return
+                }
+            }
+        }
         when (m.weather) {
             W_RAIN -> {
-                snd("fx_wr_drop${1 + Random.nextInt(3)}", 0.8f, 0.9f + Random.nextFloat() * 0.3f)
+                snd(dropName(), 0.8f, 0.9f + Random.nextFloat() * 0.3f)
                 if (y > yL(x)) addRip(x, y, dp(46f))
                 droplets(x, y, 5, gh * 0.7f)
             }
@@ -986,7 +1110,7 @@ fun WeatherRoomScreen(
             } else { spawnFlakes(x, y, 6, dp(40f)); snd("fx_wr_star", 0.35f, 1.3f) }
             W_WIND -> {
                 for (k in 0 until 5) spawnLeaf(x, y, W() * (0.15f + 0.2f * Random.nextFloat()), -gh * 0.08f)
-                m.gust += 0.7f; snd("fx_wr_whoosh${1 + Random.nextInt(2)}", 0.7f)
+                m.gust += 0.7f; snd(whooshName(), 0.7f)
             }
             else -> { spark(x, y, 8, 0xFFFFE066.toInt(), W() * 0.2f, 0.8f); snd("fx_wr_glint", 0.35f, 1.2f) }
         }
@@ -1005,7 +1129,7 @@ fun WeatherRoomScreen(
                 if (m.lastTrail > dp(44f)) {
                     m.lastTrail = 0f
                     spawnLeaf(x, y, dx * 6f, dy * 4f - GH() * 0.05f)
-                    sndT("fx_wr_whoosh${1 + Random.nextInt(2)}", 0.4f, 0.55f)
+                    sndT(whooshName(), 0.4f, 0.55f)
                 }
             }
             W_SUN -> {
@@ -1039,11 +1163,11 @@ fun WeatherRoomScreen(
         if (!m.dDone) {
             m.dDone = true; m.dT = 0f; m.dTapped = false
             when (m.dStep) {
-                0 -> { if (m.nightTarget > 0.5f) setNight(false, false); setWeather(W_SUN, false) }
+                0 -> { if (m.tod != 0) setTod(0, false); setWeather(W_SUN, false) }
                 1 -> setWeather(W_RAIN, false)
                 3 -> setWeather(W_SNOW, false)
                 4 -> setWeather(W_WIND, false)
-                5 -> { setWeather(W_SUN, false); setNight(true, false) }
+                5 -> { setWeather(W_SUN, false); setTod(2, false) }
             }
         }
         m.dT += dt
@@ -1113,6 +1237,7 @@ fun WeatherRoomScreen(
 
         m.skyBlend = min(1f, m.skyBlend + dt / 1.4f)
         m.night += (m.nightTarget - m.night).coerceIn(-dt / 1.2f, dt / 1.2f)
+        m.dusk += (m.duskTarget - m.dusk).coerceIn(-dt / 1.2f, dt / 1.2f)
 
         // ветер
         val wt = when (m.weather) { W_WIND -> 1f; W_RAIN -> 0.28f; W_SNOW -> 0.14f; else -> 0.08f }
@@ -1134,6 +1259,7 @@ fun WeatherRoomScreen(
         for (i in 0 until WR_NPUD) m.pud[i] = (m.pud[i] + dt * (if (rain) 0.09f else if (sun) -0.05f else if (m.weather == W_WIND) -0.03f else 0f)).coerceIn(0f, 1f)
         m.snowA = (m.snowA + dt * (if (snow) 0.07f else if (sun) -0.05f else if (rain) -0.09f else -0.012f)).coerceIn(0f, 1f)
         m.rbForce = max(0f, m.rbForce - dt)
+        m.bloom = (m.bloom + dt * (if (m.wetness > 0.25f) 0.15f else if (snow) -0.2f else 0f)).coerceIn(0f, 1f)
         val rbT = if (sun && m.night < 0.5f && (m.wetness > 0.12f || m.rbForce > 0f)) 1f else 0f
         m.rainbow += (rbT - m.rainbow) * min(1f, dt * 1.1f)
 
@@ -1149,7 +1275,7 @@ fun WeatherRoomScreen(
         m.nextBlink -= dt
         if (m.nextBlink <= 0f) { m.blink = 0.13f; m.nextBlink = 2f + Random.nextFloat() * 2.5f }
         m.blink = max(0f, m.blink - dt)
-        if (m.emoteT > 0f) { m.emoteT -= dt; if (m.emoteT <= 0f) { m.giggle = 0.9f; snd(if (Random.nextBoolean()) "fx_wr_giggle1" else "fx_wr_giggle2", 0.85f) } }
+        if (m.emoteT > 0f) { m.emoteT -= dt; if (m.emoteT <= 0f) { m.giggle = 0.9f; snd(giggleName(), 0.85f) } }
         var lx = 0f; var ly = 0f
         if (m.fDown) { lx = m.fx - pelX(); ly = m.fy - pelY() } else if (m.bAlive) { lx = m.bx - pelX(); ly = m.by - pelY() }
         val ld = max(1f, hypot(lx, ly))
@@ -1189,6 +1315,8 @@ fun WeatherRoomScreen(
         if (m.shT > 0f) { m.shT -= dt * 1.1f; m.shX += w * 0.55f * dt; m.shY += gh * 0.22f * dt }
 
         // птицы
+        if (m.bdT > 0f) { m.bdX += w * 0.11f * dt; m.bdY += sin(m.clock * 2f) * gh * 0.02f * dt; if (m.bdX > w * 1.12f) m.bdT = 0f }
+        else if (sun && m.night < 0.4f && !overlay) { m.bdNext -= dt; if (m.bdNext <= 0f) { m.bdT = 1f; m.bdX = -w * 0.08f; m.bdY = gh * (0.25f + 0.15f * Random.nextFloat()); m.bdNext = 14f + Random.nextFloat() * 10f; snd("fx_wr_bird1", 0.4f) } }
         if (sun && m.night < 0.4f && !overlay) { m.birdT -= dt; if (m.birdT <= 0f) { m.birdT = 5f + Random.nextFloat() * 6f; snd(if (Random.nextBoolean()) "fx_wr_bird1" else "fx_wr_bird2", 0.45f) } }
 
         // рождение частиц
@@ -1218,7 +1346,7 @@ fun WeatherRoomScreen(
                     p.x += p.vx * dt; p.y += p.vy * dt
                     if (m.fDown && abs(p.x - m.fx) < f && abs(p.y - m.fy) < f && hypot(p.x - m.fx, p.y - m.fy) < f) {
                         droplets(p.x, p.y, 3, gh * 0.6f)
-                        sndT("fx_wr_drop${1 + Random.nextInt(3)}", 0.07f, 0.55f, 0.9f + Random.nextFloat() * 0.35f)
+                        sndT(dropName(), 0.07f, 0.55f, 0.9f + Random.nextFloat() * 0.35f)
                         if (m.clock - m.lastDrop > 0.3f) { m.lastDrop = m.clock; haptics.vibrateWater() }
                         count(1)
                         dead = true
@@ -1229,7 +1357,7 @@ fun WeatherRoomScreen(
                     }
                     if (!dead && p.y >= p.gy) {
                         val pi = inPuddle(p.x, p.y)
-                        if (pi >= 0) { addRip(p.x, p.y, dp(22f), 0.6f); if (Random.nextFloat() < 0.08f) sndT("fx_wr_drop${1 + Random.nextInt(3)}", 0.12f, 0.25f, 1f + Random.nextFloat() * 0.3f) }
+                        if (pi >= 0) { addRip(p.x, p.y, dp(22f), 0.6f); if (Random.nextFloat() < 0.08f) sndT(dropName(), 0.12f, 0.25f, 1f + Random.nextFloat() * 0.3f) }
                         else if (Random.nextFloat() < 0.5f) droplets(p.x, p.y, 2, gh * 0.25f)
                         dead = true
                     }
@@ -1276,6 +1404,14 @@ fun WeatherRoomScreen(
             if (mo.h < 0.06f) m.mounds.removeAt(mi)
             mi--
         }
+        var ni = m.men.size - 1
+        while (ni >= 0) {
+            val mn = m.men[ni]
+            mn.wob = max(0f, mn.wob - dt * 1.8f)
+            if (sun) mn.s -= dt * mn.s0 * 0.012f else if (rain) mn.s -= dt * mn.s0 * 0.006f
+            if (mn.s < mn.s0 * 0.45f) m.men.removeAt(ni)
+            ni--
+        }
         var li = m.lanes.size - 1
         while (li >= 0) { val p = m.lanes[li]; p.age += dt * (if (snow) 2f else 1f); if (p.age > 30f) m.lanes.removeAt(li); li-- }
 
@@ -1294,7 +1430,7 @@ fun WeatherRoomScreen(
                 m.night > 0.6f && (sun || m.weather == W_WIND) -> "Ночь! Потрогай звёздочки"
                 sun -> if (m.bAlive) "Поймай солнечного зайчика!" else "Тапни солнышко — оно подмигнёт!"
                 rain -> if (mx > 0.3f) "Води пальцем по дождику и топай по лужам!" else "Води пальцем по дождику!"
-                snow -> "Сгребай снег пальцем в сугробы!"
+                snow -> if (m.men.isEmpty()) "Сгребай снег пальцем — вырастет снеговик!" else "Тапни снеговика!"
                 else -> "Тапни по дереву и проведи пальцем — подует ветер!"
             }
             if (h != hintText) hintText = h
@@ -1355,6 +1491,8 @@ fun WeatherRoomScreen(
             // небо
             var top = lerp(wrSkyTop(m.prev), wrSkyTop(m.weather), b)
             var bot = lerp(wrSkyBot(m.prev), wrSkyBot(m.weather), b)
+            top = lerp(top, Color(0xFF6A5AB0), m.dusk * 0.8f)
+            bot = lerp(bot, Color(0xFFFFA25F), m.dusk * 0.9f)
             top = lerp(top, lerp(Color(0xFF0B1433), top, 0.22f), night)
             bot = lerp(bot, lerp(Color(0xFF2A3875), bot, 0.2f), night)
             drawRect(Brush.verticalGradient(listOf(top, bot), 0f, gh * 0.7f), Offset.Zero, Size(w, h))
@@ -1374,10 +1512,23 @@ fun WeatherRoomScreen(
 
             // солнце и луна
             val sunVis = (if (m.weather == W_SUN) b else if (m.prev == W_SUN) 1f - b else 0f) * (1f - night)
-            val sc = Offset(sunX(), sunY() + sin(t * 1.2f) * dp(3f))
+            val sc = Offset(sunX(), sunY() + sin(t * 1.2f) * dp(3f) + m.dusk * gh * 0.3f)
             wrSun(sc, sunR(), t, sunVis, m.sunWink)
             val moonVis = night * (1f - ((m.cloudAmt - 0.35f) / 0.65f).coerceIn(0f, 1f) * 0.75f)
             wrMoon(sc, sunR() * 0.9f, t, moonVis, m.moonT)
+            if (sunVis > 0.05f) {
+                for (k in 0 until 5) {
+                    val a0 = t * 0.08f + k * 1.2566f + 0.4f
+                    val ln = gh * 1.1f
+                    val p = Path().apply {
+                        moveTo(sc.x, sc.y)
+                        lineTo(sc.x + cos(a0 - 0.07f) * ln, sc.y + sin(a0 - 0.07f) * ln)
+                        lineTo(sc.x + cos(a0 + 0.07f) * ln, sc.y + sin(a0 + 0.07f) * ln)
+                        close()
+                    }
+                    drawPath(p, Color(0xFFFFF3A0).wrA(0.09f * sunVis))
+                }
+            }
 
             // радуга
             if (m.rainbow > 0.02f) {
@@ -1396,6 +1547,13 @@ fun WeatherRoomScreen(
                 val a = cloudA(i)
                 val face = if (i == 0) (if (m.weather == W_SUN || m.weather == W_WIND) 2 else 1) else 0
                 wrCloud(m.cx[i] * w, m.cy[i] * gh, m.cs[i] * w * (0.9f + 0.25f * m.cloudAmt), cc, cs2, m.csq[i], t, a, face)
+            }
+
+            // птицы
+            if (m.bdT > 0f) {
+                val fl = sin(t * 12f)
+                wrBird(m.bdX, m.bdY, dp(11f), fl)
+                wrBird(m.bdX - w * 0.06f, m.bdY + gh * 0.03f, dp(9f), sin(t * 12f + 1.5f))
             }
 
             // холмы
@@ -1458,8 +1616,17 @@ fun WeatherRoomScreen(
                 }
             }
 
+            // цветы после дождя
+            if (m.bloom > 0.02f) {
+                val fe = wrSm(m.bloom)
+                for (k in WR_FLX.indices) {
+                    val fxp = w * WR_FLX[k]; val fyp = gh * WR_FLY[k]
+                    wrFlower(fxp, fyp, dp(9f) * fe * (0.8f + 0.2f * ((k * 0.37f) % 1f)), WR_FLC[k % 5], sin(t * 1.8f + k) * (dp(1.5f) + abs(m.wind) * dp(6f)), 1f - sa)
+                }
+            }
+
             // домик и дерево
-            wrHouse(houseX(), houseG(), houseW(), sa, wet, night, t)
+            wrHouse(houseX(), houseG(), houseW(), sa, wet, max(night, m.dusk * 0.8f), t)
             wrTree(treeX(), treeG(), treeS(), m.ang, sa, wet, night)
 
             // сугробы (дальние), пельмешек, сугробы (ближние)
@@ -1474,9 +1641,11 @@ fun WeatherRoomScreen(
                 drawOval(Color(0xFFF2F8FF), Offset(mo.x - rw * 0.4f, mo.y - rh * 0.9f), Size(rw * 0.7f, rh * 0.4f))
             }
             for (mo in m.mounds) if (mo.y < pelY()) moundDraw(mo)
+            for (mn in m.men) if (mn.y < pelY()) wrSnowman(mn.x, mn.y, mn.s, t, mn.wob)
             wrPelmen(pelX(), pelY() - hopY, pr, t, m.weather, night, m.mask, m.umb, m.hop, m.blink, m.giggle,
                 m.wind * 0.10f + sin(t * 1.1f) * 0.01f, m.lookX, m.lookY, if (m.weather == W_SNOW && b > 0.5f) 1f else 0f, m.wind)
             for (mo in m.mounds) if (mo.y >= pelY()) moundDraw(mo)
+            for (mn in m.men) if (mn.y >= pelY()) wrSnowman(mn.x, mn.y, mn.s, t, mn.wob)
 
             // частицы
             for (p in m.parts) {
@@ -1519,6 +1688,8 @@ fun WeatherRoomScreen(
                     }
                 }
             }
+
+            if (m.dusk > 0.02f) drawRect(Color(0xFFFF8C42).wrA(0.13f * m.dusk), Offset.Zero, Size(w, h))
 
             // солнечный зайчик
             if (m.bAlive) {
@@ -1582,12 +1753,12 @@ fun WeatherRoomScreen(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(if (nightUi) Color(0xFF3B4A9A) else Color(0xFF8FD3FF))
+                    .background(if (todUi == 2) Color(0xFF3B4A9A) else if (todUi == 1) Color(0xFFFF9F5A) else Color(0xFF8FD3FF))
                     .border(3.dp, Color.White, CircleShape)
-                    .clickable { stopDemo(); m.lastTouch = m.clock; setNight(!nightUi, true) },
+                    .clickable { stopDemo(); m.lastTouch = m.clock; setTod((todUi + 1) % 3, true) },
                 contentAlignment = Alignment.Center
             ) {
-                Canvas(Modifier.size(38.dp)) { frame.hashCode(); wrMoonIcon(Offset(size.width / 2, size.height / 2), size.width * 0.5f, m.night) }
+                Canvas(Modifier.size(38.dp)) { frame.hashCode(); wrTodIcon(Offset(size.width / 2, size.height / 2), size.width * 0.5f, todUi) }
             }
             Box(
                 modifier = Modifier

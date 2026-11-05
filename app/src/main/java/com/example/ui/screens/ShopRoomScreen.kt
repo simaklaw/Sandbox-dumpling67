@@ -152,6 +152,7 @@ private class ShCoin(var x: Float, var y: Float, val col: Int) {
     var sy = 0f
     var tx = 0f
     var ty = 0f
+    var big = false
     var state = 0       // 0 вылетает, 1 лежит, 2 летит в кошелёк
     var t = 0f
     var delay = 0f
@@ -210,6 +211,10 @@ private class ShModel {
     var hintTimer = 0f
     var lookX = 0f
     var lookY = 0f
+    var downX = 0f
+    var downY = 0f
+    var downT = 0f
+    var orderT = 0f
 }
 
 private fun shEase(t: Float): Float { val x = t.coerceIn(0f, 1f); return x * x * (3f - 2f * x) }
@@ -418,7 +423,8 @@ fun ShopRoomScreen(
             listOf(
                 "fx_sh_hello_bear", "fx_sh_hello_bunny", "fx_sh_hello_cat", "fx_sh_bell", "fx_sh_plate", "fx_sh_pick",
                 "fx_sh_wrong", "fx_sh_ready", "fx_sh_cash", "fx_sh_coin1", "fx_sh_coin2", "fx_sh_coin3",
-                "fx_sh_yum", "fx_sh_bye", "fx_sh_gold", "fx_sh_reward"
+                "fx_sh_yum", "fx_sh_bye", "fx_sh_gold", "fx_sh_reward",
+                "fx_sh_p_hello", "fx_sh_p_plate", "fx_sh_p_cash", "fx_sh_p_coin", "fx_sh_p_yum"
             )
         )
     }
@@ -436,6 +442,8 @@ fun ShopRoomScreen(
     fun W() = boxSize.width.toFloat()
     fun H() = boxSize.height.toFloat()
     fun snd(n: String, v: Float = 1f, r: Float = 1f) { sm.play(n, volume = v, rate = r) }
+    fun coinName(): String { val k = Random.nextInt(4); return if (k == 3) "fx_sh_p_coin" else "fx_sh_coin${k + 1}" }
+    fun either(a: String, b: String): String = if (Random.nextBoolean()) a else b
 
     // ── геометрия ──
     fun r() = min(W() * 0.075f, H() * 0.06f)
@@ -531,14 +539,17 @@ fun ShopRoomScreen(
         m.thinkT = 0f; m.mouth = 0f; m.wave = 0f; m.hop = 0f
         m.carry = -1
         m.wasReady = false
+        m.orderT = 0f
         m.dStep = 0; m.dWait = 0f
     }
 
     fun spawnCoins() {
-        val n = max(2, m.order.size + 1)
+        val tip = m.real && m.orderT < 16f
+        val n = max(2, m.order.size + 1) + (if (tip) 1 else 0)
         for (k in 0 until n) {
             val c = ShCoin(regX(), regY() - r() * 0.8f, (k + Random.nextInt(2)) % 4)
             c.sx = c.x; c.sy = c.y
+            if (tip && k == n - 1) { c.big = true }
             val u = (k + 0.5f) / n
             c.tx = W() * 0.40f + W() * 0.5f * u
             c.ty = H() * (0.715f + 0.035f * (k % 2))
@@ -552,7 +563,7 @@ fun ShopRoomScreen(
         if (isReady()) {
             m.phase = PH_COINS
             m.phaseT = 0f
-            snd("fx_sh_cash", 1f)
+            snd(either("fx_sh_cash", "fx_sh_p_cash"), 1f)
             if (real) haptics.vibratePop()
             burst(1, regX(), regY() - r(), 8, Color(0xFFFFF3A0), r() * 2.4f, r() * 0.3f, up = r() * 1.5f, life = 0.7f)
             spawnCoins()
@@ -566,9 +577,31 @@ fun ShopRoomScreen(
     fun collectCoin(c: ShCoin, real: Boolean) {
         if (c.state != 1) return
         c.state = 2; c.t = 0f; c.sx = c.x; c.sy = c.y
-        snd("fx_sh_coin${1 + Random.nextInt(3)}", 0.8f, 0.95f + Random.nextFloat() * 0.2f)
+        snd(coinName(), 0.8f, 0.95f + Random.nextFloat() * 0.2f)
         if (real) haptics.vibrateShort()
         burst(1, c.x, c.y, 4, Color(0xFFFFF3A0), r() * 1.6f, r() * 0.2f, life = 0.5f)
+    }
+
+    fun addToPlate(type: Int, x: Float, y: Float, real: Boolean) {
+        val it = ShItem(type)
+        m.plate.add(it)
+        val pos = plateItemPos(m.plate.size - 1, m.plate.size)
+        it.dx += x - pos.x
+        it.dy += y - pos.y
+        it.squash = 1f
+        snd(either("fx_sh_plate", "fx_sh_p_plate"), 0.9f, 0.95f + Random.nextFloat() * 0.1f)
+        if (real) haptics.vibrateSquish()
+        burst(1, pos.x, pos.y - r() * 0.6f, 4, Color(0xFFFFF3A0), r() * 1.4f, r() * 0.2f, life = 0.5f)
+        if (countPlate(type) > countOrder(type)) {
+            m.thinkT = 1.3f
+            snd("fx_sh_wrong", 0.45f)
+            if (toddler) it.retT = 1.0f
+        } else if (isReady() && !m.wasReady) {
+            m.wasReady = true
+            snd("fx_sh_ready", 0.9f)
+            m.hop = 1f
+            burst(2, custX(), custY() - cs() * 0.4f, 8, Color(0xFFFFF3A0), cs() * 1.2f, cs() * 0.16f, life = 0.8f)
+        }
     }
 
     fun dropCarry(x: Float, y: Float, real: Boolean) {
@@ -577,25 +610,7 @@ fun ShopRoomScreen(
         val fromPlate = m.carryPlate
         m.carry = -1; m.carryPlate = false
         if (onPlate(x, y) && m.phase == PH_ORDER) {
-            val it = ShItem(type)
-            m.plate.add(it)
-            val pos = plateItemPos(m.plate.size - 1, m.plate.size)
-            it.dx += x - pos.x
-            it.dy += y - pos.y
-            it.squash = 1f
-            snd("fx_sh_plate", 0.9f, 0.95f + Random.nextFloat() * 0.1f)
-            if (real) haptics.vibrateSquish()
-            burst(1, pos.x, pos.y - r() * 0.6f, 4, Color(0xFFFFF3A0), r() * 1.4f, r() * 0.2f, life = 0.5f)
-            if (countPlate(type) > countOrder(type)) {
-                m.thinkT = 1.3f
-                snd("fx_sh_wrong", 0.45f)
-                if (toddler) it.retT = 1.0f
-            } else if (isReady() && !m.wasReady) {
-                m.wasReady = true
-                snd("fx_sh_ready", 0.9f)
-                m.hop = 1f
-                burst(2, custX(), custY() - cs() * 0.4f, 8, Color(0xFFFFF3A0), cs() * 1.2f, cs() * 0.16f, life = 0.8f)
-            }
+            addToPlate(type, x, y, real)
         } else {
             val s = slotOf(type)
             m.flies.add(ShFly(type, x, y, s.x, s.y))
@@ -622,6 +637,7 @@ fun ShopRoomScreen(
 
     fun onDown(x: Float, y: Float, real: Boolean) {
         if (real) m.real = true
+        m.downX = x; m.downY = y; m.downT = m.clock
         when (m.phase) {
             PH_COINS -> {
                 for (c in m.coins) if (c.state == 1 && hypot(x - c.x, y - c.y) < r() * 1.5f) collectCoin(c, real)
@@ -658,7 +674,20 @@ fun ShopRoomScreen(
     }
 
     fun onUp() {
-        if (m.carry >= 0) dropCarry(m.cx, m.cy, true)
+        if (m.carry < 0) return
+        val tap = hypot(m.cx - m.downX, m.cy - m.downY) < r() * 0.35f && m.clock - m.downT < 0.45f
+        if (tap && m.phase == PH_ORDER) {
+            // короткий тап: с витрины — сразу на тарелку, с тарелки — обратно на витрину
+            val type = m.carry
+            val fromPlate = m.carryPlate
+            m.carry = -1; m.carryPlate = false
+            val s = slotOf(type)
+            if (fromPlate) {
+                m.flies.add(ShFly(type, m.cx, m.cy, s.x, s.y))
+                m.wasReady = isReady()
+                snd("fx_sh_pick", 0.6f, 0.8f)
+            } else addToPlate(type, s.x, s.y, true)
+        } else dropCarry(m.cx, m.cy, true)
     }
 
     fun startDemo() {
@@ -685,7 +714,7 @@ fun ShopRoomScreen(
             m.plate.isEmpty() -> if (toddler) "Положи на тарелку то, что в облачке" else "Собери заказ: положи на тарелку пельмешки из облачка"
             else -> "Отлично! Добавь ещё пельмешки из облачка"
         }
-        PH_COINS -> "Собери монетки!"
+        PH_COINS -> if (m.coins.any { it.big }) "Быстрый заказ! Забери чаевые!" else "Собери монетки!"
         PH_EAT -> "Приятного аппетита!"
         else -> "До свидания! Приходите ещё!"
     }
@@ -713,6 +742,7 @@ fun ShopRoomScreen(
         m.regShake = max(0f, m.regShake - dt * 2.2f)
         m.walletBump = max(0f, m.walletBump - dt * 3f)
         m.phaseT += dt
+        if (m.phase == PH_ORDER && !m.demo) m.orderT += dt
 
         // взгляд зверушки
         val hxc = custX(); val hyc = custY()
@@ -757,7 +787,7 @@ fun ShopRoomScreen(
                 if (m.phaseT < dt * 1.5f) snd("fx_sh_bell", 0.7f)
                 if (!m.greeted && m.phaseT > 0.9f) {
                     m.greeted = true
-                    snd("fx_sh_hello_${listOf("bear", "bunny", "cat")[m.kind]}", 0.9f)
+                    snd(if (Random.nextFloat() < 0.3f) "fx_sh_p_hello" else "fx_sh_hello_${listOf("bear", "bunny", "cat")[m.kind]}", 0.9f)
                     m.hop = 1f
                 }
                 if (m.phaseT >= d) { m.phase = PH_ORDER; m.phaseT = 0f; m.offX = 0f }
@@ -777,7 +807,7 @@ fun ShopRoomScreen(
                                 c.y = shLerp(c.sy, c.ty, k) - sin(min(1f, u) * PI.toFloat()) * H() * 0.1f
                                 if (u >= 1f) {
                                     c.state = 1; c.t = 0f
-                                    snd("fx_sh_coin${1 + Random.nextInt(3)}", 0.5f, 1f)
+                                    snd(coinName(), 0.5f, 1f)
                                 }
                             }
                         }
@@ -806,7 +836,7 @@ fun ShopRoomScreen(
                 }
             }
             PH_EAT -> {
-                if (!m.yumDone && m.phaseT > 0.35f) { m.yumDone = true; snd("fx_sh_yum", 0.9f) }
+                if (!m.yumDone && m.phaseT > 0.35f) { m.yumDone = true; snd(either("fx_sh_yum", "fx_sh_p_yum"), 0.9f) }
                 if (m.plate.isNotEmpty()) {
                     m.mouth = if (m.phaseT > 0.3f) 0.5f + 0.5f * abs(sin(m.phaseT * 9f)) else 0f
                     if (m.phaseT >= 0.5f + 0.6f * m.eaten) {
@@ -1054,6 +1084,10 @@ fun ShopRoomScreen(
 
             // тарелка
             val px = plateX(); val py = plateY()
+            if (m.carry >= 0 && m.phase == PH_ORDER) {
+                val near = onPlate(m.cx, m.cy)
+                drawOval(Color(0xFFFFF3A0).shA(if (near) 0.55f else 0.2f + 0.08f * sin(t * 6f)), Offset(px - rr * 3.4f, py - rr * 1.25f), Size(rr * 6.8f, rr * 2.5f))
+            }
             drawOval(Color(0x33000000), Offset(px - rr * 3.0f + 6f, py - rr * 0.8f + 12f), Size(rr * 6f, rr * 1.8f))
             drawOval(Color(0xFFFFFFFF), Offset(px - rr * 3f, py - rr * 0.95f), Size(rr * 6f, rr * 1.8f))
             drawOval(Color(0xFF6CC3F5), Offset(px - rr * 3f, py - rr * 0.95f), Size(rr * 6f, rr * 1.8f), style = Stroke(rr * 0.12f))
@@ -1096,7 +1130,7 @@ fun ShopRoomScreen(
             for (c in m.coins) {
                 if (c.state == 0 && c.t < c.delay) continue
                 val flip = if (c.state == 0) cos(c.t * 14f) else if (c.state == 1) 1f - 0.12f * (sin(t * 3f + c.ph) * 0.5f + 0.5f) else 1f - shEase(c.t / 0.45f) * 0.35f
-                val rs = rr * 0.62f * (if (c.state == 2) 1f - 0.4f * shEase(c.t / 0.45f) else 1f + (if (c.state == 1) 0.05f * sin(t * 6f + c.ph) else 0f))
+                val rs = rr * 0.62f * (if (c.big) 1.45f else 1f) * (if (c.state == 2) 1f - 0.4f * shEase(c.t / 0.45f) else 1f + (if (c.state == 1) 0.05f * sin(t * 6f + c.ph) else 0f))
                 if (c.state == 1) drawCircle(Color(0x55FFF3A0), rs * 1.5f + sin(t * 5f + c.ph) * rs * 0.1f, Offset(c.x, c.y))
                 shCoin(c.x, c.y, rs, c.col, t, flip)
             }

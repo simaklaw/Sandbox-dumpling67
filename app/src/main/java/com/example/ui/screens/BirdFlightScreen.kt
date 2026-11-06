@@ -113,11 +113,45 @@ private class BfModel {
     val pending = ArrayList<Int>()
 }
 
+private class BfSheet(val img: ImageBitmap, val fw: Int, val fh: Int)
+
+// Пиксельная тема рисуется без сглаживания, мультяшная — со сглаживанием.
+private var bfFq: FilterQuality = FilterQuality.None
+
+private fun DrawScope.bfBird(s: BfSheet, frame: Int, dx: Float, dy: Float, dw: Float, dh: Float, alpha: Float = 1f) =
+    bfImg(s.img, frame * s.fw, 0, s.fw, s.fh, dx, dy, dw, dh, alpha)
+
+// Слой параллакса: зеркальная плитка, поэтому стыков не видно.
+private fun DrawScope.bfLayer(img: ImageBitmap, scroll: Float, bottom: Float, hh: Float, alpha: Float = 1f) {
+    val tw = hh * img.width / img.height
+    val off = -(scroll % (2f * tw))
+    var i = 0
+    while (off + i * tw < size.width) {
+        val x = off + i * tw
+        if (x + tw > 0f) {
+            if (i % 2 == 1) withTransform({ scale(-1f, 1f, Offset(x + tw / 2f, 0f)) }) { bfImg(img, 0, 0, img.width, img.height, x, bottom - hh, tw + 1f, hh, alpha) }
+            else bfImg(img, 0, 0, img.width, img.height, x, bottom - hh, tw + 1f, hh, alpha)
+        }
+        i++
+    }
+}
+
+private fun DrawScope.bfThemeIcon(theme: Int) {
+    val w = size.width; val h = size.height
+    if (theme == 0) {
+        val u = w / 5f
+        for (a in 0..2) for (b in 0..2) if ((a + b) % 2 == 0) drawRect(Color(0xFF3F8FE0), Offset(u * (0.5f + a), u * (0.5f + b)), Size(u, u)) else drawRect(Color(0xFF9CCBF2), Offset(u * (0.5f + a), u * (0.5f + b)), Size(u, u))
+    } else {
+        drawCircle(Color(0xFF3F8FE0), w * 0.2f, Offset(w * 0.36f, h * 0.55f)); drawCircle(Color(0xFF3F8FE0), w * 0.26f, Offset(w * 0.55f, h * 0.45f))
+        drawCircle(Color(0xFF3F8FE0), w * 0.18f, Offset(w * 0.72f, h * 0.58f)); drawRect(Color(0xFF3F8FE0), Offset(w * 0.3f, h * 0.55f), Size(w * 0.5f, h * 0.2f))
+    }
+}
+
 private fun DrawScope.bfImg(img: ImageBitmap, sx: Int, sy: Int, sw: Int, sh: Int, dx: Float, dy: Float, dw: Float, dh: Float, alpha: Float = 1f) {
     drawImage(
         img, IntOffset(sx, sy), IntSize(sw, sh),
         IntOffset(Math.round(dx), Math.round(dy)), IntSize(max(1, Math.round(dw)), max(1, Math.round(dh))),
-        alpha, filterQuality = FilterQuality.None
+        alpha, filterQuality = bfFq
     )
 }
 
@@ -140,7 +174,7 @@ private fun DrawScope.bfCrown(cx: Float, cy: Float, s: Float) {
     drawCircle(Color(0xFFE5566D), s * 0.14f, Offset(cx, cy - s * 0.45f))
 }
 
-private fun DrawScope.bfStickerArt(id: Int, c: Offset, r: Float, birds: List<ImageBitmap>, coin: ImageBitmap) {
+private fun DrawScope.bfStickerArt(id: Int, c: Offset, r: Float, birds: List<BfSheet>, coin: ImageBitmap) {
     val bg = when (id) {
         0 -> listOf(Color(0xFFBFF0C8), Color(0xFF5DBE6E)); 1 -> listOf(Color(0xFFFFF0A0), Color(0xFFFFB400))
         2 -> listOf(Color(0xFFFFE0B8), Color(0xFFFF9F43)); 3 -> listOf(Color(0xFFD0E8FF), Color(0xFF4FA0E8))
@@ -149,20 +183,20 @@ private fun DrawScope.bfStickerArt(id: Int, c: Offset, r: Float, birds: List<Ima
     drawCircle(Color(0x22000000), r * 1.02f, Offset(c.x, c.y + r * 0.06f))
     drawCircle(Brush.verticalGradient(bg, c.y - r, c.y + r), r, c)
     drawCircle(Color.White, r, c, style = Stroke(r * 0.07f))
-    val bw = r * 1.2f; val bh = bw * 58f / 60f
+    val bw = r * 1.2f; val bh = bw * birds[0].fh / birds[0].fw
     when (id) {
-        0 -> bfImg(birds[1], 60, 0, 60, 58, c.x - bw / 2, c.y - bh / 2, bw, bh)
-        1 -> for (k in 0..2) { val s = r * 0.62f; bfImg(coin, 0, 0, 64, 64, c.x - s / 2 + (k - 1) * r * 0.4f, c.y - s / 2 + (1 - k % 2) * r * 0.15f, s, s) }
-        2 -> bfImg(birds[2], 60, 0, 60, 58, c.x - bw / 2, c.y - bh / 2, bw, bh)
+        0 -> bfBird(birds[1], 0, c.x - bw / 2, c.y - bh / 2, bw, bh)
+        1 -> for (k in 0..2) { val s = r * 0.62f; bfImg(coin, 0, 0, coin.width, coin.height, c.x - s / 2 + (k - 1) * r * 0.4f, c.y - s / 2 + (1 - k % 2) * r * 0.15f, s, s) }
+        2 -> bfBird(birds[2], 0, c.x - bw / 2, c.y - bh / 2, bw, bh)
         3 -> {
             drawRect(Color(0xFF6BBE45), Offset(c.x - r * 0.62f, c.y - r * 0.8f), Size(r * 0.28f, r * 0.55f))
             drawRect(Color(0xFF6BBE45), Offset(c.x - r * 0.62f, c.y + r * 0.25f), Size(r * 0.28f, r * 0.55f))
             drawRect(Color(0xFF6BBE45), Offset(c.x + r * 0.34f, c.y - r * 0.8f), Size(r * 0.28f, r * 0.45f))
             drawRect(Color(0xFF6BBE45), Offset(c.x + r * 0.34f, c.y + r * 0.15f), Size(r * 0.28f, r * 0.65f))
-            val s = r * 0.7f; bfImg(birds[0], 60, 0, 60, 58, c.x - s / 2, c.y - s / 2, s, s)
+            val s = r * 0.7f; bfBird(birds[0], 0, c.x - s / 2, c.y - s / 2, s, s)
         }
-        4 -> { val s = r * 0.8f; bfImg(coin, 0, 0, 64, 64, c.x - s / 2, c.y - s * 0.3f, s, s); bfCrown(c.x, c.y - r * 0.15f, r * 0.34f) }
-        else -> { bfImg(birds[2], 60, 0, 60, 58, c.x - bw / 2, c.y - bh * 0.35f, bw, bh); bfCrown(c.x, c.y - r * 0.28f, r * 0.34f) }
+        4 -> { val s = r * 0.8f; bfImg(coin, 0, 0, coin.width, coin.height, c.x - s / 2, c.y - s * 0.3f, s, s); bfCrown(c.x, c.y - r * 0.15f, r * 0.34f) }
+        else -> { bfBird(birds[2], 0, c.x - bw / 2, c.y - bh * 0.35f, bw, bh); bfCrown(c.x, c.y - r * 0.28f, r * 0.34f) }
     }
 }
 
@@ -180,11 +214,34 @@ fun BirdFlightScreen(
     val bgImg = ImageBitmap.imageResource(com.example.R.drawable.bd_bg)
     val floorImg = ImageBitmap.imageResource(com.example.R.drawable.bd_floor)
     val pipeImg = ImageBitmap.imageResource(com.example.R.drawable.bd_pipe)
-    val coinImg = ImageBitmap.imageResource(com.example.R.drawable.bd_coin)
+    var theme by remember { mutableIntStateOf(prefs.getInt("theme", 0)) }
+    val coinPix = ImageBitmap.imageResource(com.example.R.drawable.bd_coin)
+    val coin2 = ImageBitmap.imageResource(com.example.R.drawable.bd2_coin)
+    val skyImg = ImageBitmap.imageResource(com.example.R.drawable.bd2_sky)
+    val m1Img = ImageBitmap.imageResource(com.example.R.drawable.bd2_m1)
+    val m2Img = ImageBitmap.imageResource(com.example.R.drawable.bd2_m2)
+    val cl1Img = ImageBitmap.imageResource(com.example.R.drawable.bd2_cl1)
+    val cl2Img = ImageBitmap.imageResource(com.example.R.drawable.bd2_cl2)
+    val groundImg = ImageBitmap.imageResource(com.example.R.drawable.bd2_ground)
+    val towerTop = ImageBitmap.imageResource(com.example.R.drawable.bd2_tower_top)
+    val towerBot = ImageBitmap.imageResource(com.example.R.drawable.bd2_tower_bot)
+    val bushes = listOf(
+        ImageBitmap.imageResource(com.example.R.drawable.bd2_bush1),
+        ImageBitmap.imageResource(com.example.R.drawable.bd2_bush2),
+        ImageBitmap.imageResource(com.example.R.drawable.bd2_bush3)
+    )
+    val cb0 = ImageBitmap.imageResource(com.example.R.drawable.bd2_bird0)
+    val cb1 = ImageBitmap.imageResource(com.example.R.drawable.bd2_bird1)
+    val cb2 = ImageBitmap.imageResource(com.example.R.drawable.bd2_bird2)
+    val coinImg = if (theme == 1) coin2 else coinPix
+    bfFq = if (theme == 1) FilterQuality.Medium else FilterQuality.None
     val birdRed = ImageBitmap.imageResource(com.example.R.drawable.bd_bird_red)
     val birdGreen = ImageBitmap.imageResource(com.example.R.drawable.bd_bird_green)
     val birdYellow = ImageBitmap.imageResource(com.example.R.drawable.bd_bird_yellow)
-    val birds = remember(birdRed, birdGreen, birdYellow) { listOf(birdRed, birdGreen, birdYellow) }
+    val birds = remember(birdRed, birdGreen, birdYellow, cb0, cb1, cb2, theme) {
+        if (theme == 1) listOf(BfSheet(cb0, 128, 128), BfSheet(cb1, 128, 128), BfSheet(cb2, 128, 128))
+        else listOf(BfSheet(birdRed, 60, 58), BfSheet(birdGreen, 60, 58), BfSheet(birdYellow, 60, 58))
+    }
     val pixelFont = remember { FontFamily(Font(com.example.R.font.jersey10_regular)) }
 
     LaunchedEffect(Unit) {
@@ -436,17 +493,40 @@ fun BirdFlightScreen(
             val t = m.clock
 
             // небо и город
-            drawRect(Brush.verticalGradient(listOf(Color(0xFF8CC4EA), Color(0xFFB9DDF2)), 0f, pf), Offset.Zero, Size(w, h))
-            val bgW = pf * 0.5f
-            val bgOff = -((m.dist * 0.12f) % bgW)
-            var bxp = bgOff
-            while (bxp < w) { bfImg(bgImg, 0, 0, 256, 512, bxp, 0f, bgW + 1f, pf); bxp += bgW }
+            if (theme == 0) {
+                drawRect(Brush.verticalGradient(listOf(Color(0xFF8CC4EA), Color(0xFFB9DDF2)), 0f, pf), Offset.Zero, Size(w, h))
+                val bgW = pf * 0.5f
+                val bgOff = -((m.dist * 0.12f) % bgW)
+                var bxp = bgOff
+                while (bxp < w) { bfImg(bgImg, 0, 0, 256, 512, bxp, 0f, bgW + 1f, pf); bxp += bgW }
+            } else {
+                bfImg(skyImg, 0, 0, skyImg.width, skyImg.height, 0f, 0f, w, pf)
+                bfLayer(cl1Img, m.dist * 0.03f, pf * 0.75f, pf * 0.30f)
+                bfLayer(m2Img, m.dist * 0.07f, pf, pf * 0.36f)
+                bfLayer(cl2Img, m.dist * 0.10f, pf * 0.90f, pf * 0.20f, 0.9f)
+                bfLayer(m1Img, m.dist * 0.14f, pf, pf * 0.25f)
+                val spanW = pf * 0.85f; val sc = m.dist * 0.45f
+                for (j in 0..((w / spanW).toInt() + 2)) {
+                    val k = j + (sc / spanW).toInt()
+                    val bi = bushes[k % 3]
+                    val bhh = pf * 0.075f; val bww = bhh * bi.width / bi.height
+                    bfImg(bi, 0, 0, bi.width, bi.height, k * spanW - sc, pf - bhh + 3f, bww, bhh)
+                }
+            }
 
             // трубы
             val pwv = pw() * 18f / 17f
             val capH = pwv * 6f / 18f
             for (p in m.pipes) {
                 val top = p.gy - gap() / 2f; val bot = p.gy + gap() / 2f
+                if (theme == 1) {
+                    val tw2 = pw() * 1.22f; val cap2 = tw2 * 92f / 144f; val capB = tw2 * 100f / 144f; val tx = p.x - tw2 / 2f
+                    if (top - cap2 > 0f) bfImg(towerTop, 0, 40, 144, 430, tx, -1f, tw2, top - cap2 + 2f)
+                    bfImg(towerTop, 0, 470, 144, 92, tx, top - cap2, tw2, cap2)
+                    bfImg(towerBot, 0, 0, 144, 100, tx, bot, tw2, capB)
+                    if (pf - bot - capB > 0f) bfImg(towerBot, 0, 100, 144, 370, tx, bot + capB - 1f, tw2, pf - bot - capB + 1f)
+                    continue
+                }
                 val x0 = p.x - pwv / 2f
                 // нижняя
                 bfImg(pipeImg, 0, 0, 18, 6, x0, bot, pwv, capH)
@@ -460,14 +540,15 @@ fun BirdFlightScreen(
                 if (c.taken) continue
                 val sc = abs(cos(t * 4f + c.ph)).coerceAtLeast(0.25f)
                 val s = b * 1.5f
-                bfImg(coinImg, 0, 0, 64, 64, c.x - s * sc / 2f, c.y - s / 2f + sin(t * 3f + c.ph) * b * 0.15f, s * sc, s)
+                bfImg(coinImg, 0, 0, coinImg.width, coinImg.height, c.x - s * sc / 2f, c.y - s / 2f + sin(t * 3f + c.ph) * b * 0.15f, s * sc, s)
             }
 
             // пол
             val tw = fh * 128f / 118f
             val fOff = -((m.dist) % tw)
             var fxp = fOff
-            while (fxp < w) { bfImg(floorImg, 0, 0, 128, 118, fxp, pf, tw + 1f, fh + 1f); fxp += tw }
+            if (theme == 1) { val gw = fh * 960f / 105f; var gx = -(m.dist % gw); while (gx < w) { bfImg(groundImg, 0, 0, 960, 105, gx, pf - fh * 0.12f, gw + 1f, fh * 1.12f + 1f); gx += gw } }
+            else while (fxp < w) { bfImg(floorImg, 0, 0, 128, 118, fxp, pf, tw + 1f, fh + 1f); fxp += tw }
 
             // частицы
             for (p in m.parts) {
@@ -479,11 +560,12 @@ fun BirdFlightScreen(
             // птичка
             val blink = m.inv > 0f && ((t * 12f).toInt() % 2 == 0)
             val frameIdx = if (m.flapT > 0f) (((0.35f - m.flapT) * 14f).toInt() % 4).let { if (it == 3) 1 else it } else if (m.state == BF_READY) ((t * 6f).toInt() % 3) else 1
-            val bw = b * 3.3f; val bh = bw * 58f / 60f
+            val sheet = birds[m.bird.coerceIn(0, 2)]
+            val bw = b * (if (theme == 1) 3.7f else 3.3f); val bh = bw * sheet.fh / sheet.fw
             val bc = Offset(bx(), m.by)
             drawOval(Color(0x22000000), Offset(bc.x - b, min(pf - 4f, bc.y + b * 2.2f)), Size(b * 2f, b * 0.3f))
-            withTransform({ rotate(m.tilt, bc) }) {
-                bfImg(birds[m.bird.coerceIn(0, 2)], frameIdx * 60, 0, 60, 58, bc.x - bw / 2f, bc.y - bh / 2f, bw, bh, if (blink) 0.4f else 1f)
+            withTransform({ rotate(m.tilt, bc); scale(1f, if (theme == 1 && m.flapT > 0f) 1f + 0.10f * sin(m.flapT * 30f) else 1f, bc) }) {
+                bfBird(sheet, frameIdx, bc.x - bw / 2f, bc.y - bh / 2f, bw, bh, if (blink) 0.4f else 1f)
                 if ((m.mask and 16) != 0 || (m.mask and 32) != 0) bfCrown(bc.x + b * 0.1f, bc.y - bh * 0.42f, b * 0.7f)
             }
             if (m.demo) {
@@ -503,7 +585,7 @@ fun BirdFlightScreen(
                 .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Canvas(Modifier.size(26.dp)) { bfImg(coinImg, 0, 0, 64, 64, 0f, 0f, size.width, size.height) }
+            Canvas(Modifier.size(26.dp)) { bfImg(coinImg, 0, 0, coinImg.width, coinImg.height, 0f, 0f, size.width, size.height) }
             Spacer(Modifier.width(6.dp))
             Text("$coinsUi", fontSize = 26.sp, fontFamily = pixelFont, color = Color(0xFFFFE066))
         }
@@ -566,11 +648,28 @@ fun BirdFlightScreen(
                             .clickable(enabled = open) { m.bird = k; birdUi = k; m.lastTouch = m.clock; save(); snd("fx_bd_pickup", 0.6f, 1.3f) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(Modifier.size(32.dp)) { bfImg(birds[k], 60, 0, 60, 58, 0f, 0f, size.width, size.height, if (open) 1f else 0.25f) }
+                        Canvas(Modifier.size(32.dp)) { bfBird(birds[k], 0, 0f, 0f, size.width, size.height, if (open) 1f else 0.25f) }
                     }
                 }
             }
         }
+
+        // переключатель мира
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 118.dp, end = 12.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xCCFFFFFF))
+                .border(2.dp, Color.White, RoundedCornerShape(12.dp))
+                .clickable {
+                    theme = 1 - theme; m.lastTouch = m.clock
+                    prefs.edit().putInt("theme", theme).apply()
+                    snd("fx_bd_whoosh", 0.7f)
+                },
+            contentAlignment = Alignment.Center
+        ) { Canvas(Modifier.size(28.dp)) { bfThemeIcon(theme) } }
 
         // альбом
         if (showAlbum) {

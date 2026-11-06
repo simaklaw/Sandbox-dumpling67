@@ -167,5 +167,22 @@ internal val CH_THEMES = listOf(
         ChItem("cf_food_vanilla_cake", "Ванильный торт"),
         ChItem("cf_food_vanilla_swiss_roll", "Ванильный рулет"),
         ChItem("cf_item_coffee_bean", "Кофейное зерно")
+    )),
+    ChTheme("pets", "Пушистики", "ci_pets_10", listOf(
+        ChItem("ci_pets_01", "Выдра-лежебока"),
+        ChItem("ci_pets_02", "Выдра машет лапкой"),
+        ChItem("ci_pets_03", "Котик с рыбкой"),
+        ChItem("ci_pets_04", "Хомяк радуется"),
+        ChItem("ci_pets_05", "Выдра спит на камне"),
+        ChItem("ci_pets_06", "Хомяк с яблоком"),
+        ChItem("ci_pets_07", "Выдра на камне"),
+        ChItem("ci_pets_08", "Хомяк-ура"),
+        ChItem("ci_pets_09", "Выдра с ракушкой"),
+        ChItem("ci_pets_10", "Котик сидит"),
+        ChItem("ci_pets_11", "Выдра под листом"),
+        ChItem("ci_pets_12", "Хомяк машет"),
+        ChItem("ci_pets_13", "Котик машет"),
+        ChItem("ci_pets_14", "Хомяк подмигивает"),
+        ChItem("ci_pets_15", "Котик потягивается")
     ))
 )

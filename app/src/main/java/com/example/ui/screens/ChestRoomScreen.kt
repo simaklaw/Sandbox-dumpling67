@@ -77,7 +77,7 @@ private class ChModel {
     var stars = 0
     var opens = 0
     var done = 0             // биты завершённых коллекций
-    val masks = LongArray(6)
+    val masks = LongArray(7)
     val parts = ArrayList<ChP>()
     var shownAt = 0f
 }
@@ -87,7 +87,7 @@ private fun chIsRare(res: String) = Regex("golden|ruby|diamond|rainbow|treasure|
 
 private val CH_BG = listOf(
     listOf(Color(0xFFB8E6A0), Color(0xFFF1F9D8)), listOf(Color(0xFF8ED8F5), Color(0xFFE3F6FF)), listOf(Color(0xFFFFE39A), Color(0xFFFFF6D6)),
-    listOf(Color(0xFF2A2060), Color(0xFF6B4BB8)), listOf(Color(0xFFBFE3FF), Color(0xFFF2FAFF)), listOf(Color(0xFFF3D9C0), Color(0xFFFFF1E4))
+    listOf(Color(0xFF2A2060), Color(0xFF6B4BB8)), listOf(Color(0xFFBFE3FF), Color(0xFFF2FAFF)), listOf(Color(0xFFF3D9C0), Color(0xFFFFF1E4)), listOf(Color(0xFFFFD6E8), Color(0xFFFFF6D9))
 )
 
 private fun DrawScope.chSpark(x: Float, y: Float, r: Float, col: Color) {
@@ -123,8 +123,8 @@ fun ChestRoomScreen(
     var frame by remember { mutableIntStateOf(0) }
     val m = remember {
         ChModel().also { md ->
-            for (i in 0..5) md.masks[i] = prefs.getLong("m$i", 0L)
-            md.stars = prefs.getInt("stars", 0); md.opens = prefs.getInt("opens", 0); md.done = prefs.getInt("done", 0); md.theme = prefs.getInt("theme", 0).coerceIn(0, 5)
+            for (i in 0..6) md.masks[i] = prefs.getLong("m$i", 0L)
+            md.stars = prefs.getInt("stars", 0); md.opens = prefs.getInt("opens", 0); md.done = prefs.getInt("done", 0); md.theme = prefs.getInt("theme", 0).coerceIn(0, 6)
         }
     }
     var themeUi by remember { mutableIntStateOf(m.theme) }
@@ -172,7 +172,7 @@ fun ChestRoomScreen(
     }
     fun save() {
         val e = prefs.edit()
-        for (i in 0..5) e.putLong("m$i", m.masks[i])
+        for (i in 0..6) e.putLong("m$i", m.masks[i])
         e.putInt("stars", m.stars).putInt("opens", m.opens).putInt("done", m.done).putInt("theme", m.theme).apply()
     }
     fun pick(): Int {
@@ -198,14 +198,14 @@ fun ChestRoomScreen(
         stateUi = 1; curUi = idx; newUi = isNew; rareUi = m.rare
         snd("fx_it_pck_${9 + Random.nextInt(4)}", 0.55f, 1.1f)
         snd("fx_it_pck_${13 + Random.nextInt(4)}", 0.9f)
-        if (m.rare) { snd("fx_it_dst_${9 + Random.nextInt(4)}", 0.5f); snd("fx_magic_sparkle", 0.8f) }
+        if (m.rare) { snd("fx_ui_unlock", 0.6f); snd("fx_it_dst_${9 + Random.nextInt(4)}", 0.5f); snd("fx_magic_sparkle", 0.8f) }
         snd(if (isNew) "fx_it_inv_${9 + Random.nextInt(4)}" else "fx_it_pck_${1 + Random.nextInt(4)}", 0.8f)
         haptics.vibratePop()
         val c = chestC()
         spark(c.x, c.y, if (m.rare) 40 else 22, W() * 0.55f, 1.2f, m.rare || isNew)
         if (chBits(m.masks[m.theme]) == th.items.size && (m.done and (1 shl m.theme)) == 0) {
             m.done = m.done or (1 shl m.theme); doneUi = m.done; cheerTheme = m.theme
-            snd("btn_tada", 0.95f)
+            snd("btn_tada", 0.95f); snd("fx_ui_levelup", 0.8f)
             spark(W() / 2f, H() * 0.3f, 40, W() * 0.6f, 1.5f, true)
         }
         save()
@@ -225,7 +225,7 @@ fun ChestRoomScreen(
     fun setTheme(i: Int) {
         if (m.theme == i) return
         m.theme = i; themeUi = i; m.state = 0; stateUi = 0; m.taps = 0; save()
-        snd("fx_it_inv_${5 + Random.nextInt(4)}", 0.6f)
+        snd("fx_ui_tab", 0.7f)
     }
 
     LaunchedEffect(Unit) {
@@ -324,13 +324,13 @@ fun ChestRoomScreen(
                 val si = cache["ci_sim_silver_trophy_cup"]
                 Canvas(Modifier.size(24.dp)) { if (si != null) drImg(si, size.width / 2, size.height / 2, size.width / si.width) }
                 Spacer(Modifier.width(6.dp))
-                Text("${Integer.bitCount(doneUi)}/6", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text("${Integer.bitCount(doneUi)}/${CH_THEMES.size}", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
         Box(
             Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 12.dp).size(52.dp).clip(CircleShape)
                 .background(Brush.verticalGradient(listOf(Color(0xFFFFE9A0), Color(0xFFFFB400)))).border(3.dp, Color.White, CircleShape)
-                .clickable { showAlbum = true; snd("fx_it_inv_${5 + Random.nextInt(4)}", 0.7f) },
+                .clickable { showAlbum = true; snd("fx_ui_menu_open", 0.7f) },
             Alignment.Center
         ) {
             val bi = cache["ci_fishing_bestiary_book_with_fish"]
@@ -365,7 +365,7 @@ fun ChestRoomScreen(
                 .border(3.dp, Color(0xFF6FB6E8), RoundedCornerShape(24.dp)).padding(vertical = 8.dp, horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            for (i in 0..5) {
+            for (i in 0..6) {
                 val tt = CH_THEMES[i]
                 Column(
                     Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (themeUi == i) Color(0xFFFFE9A0) else Color.Transparent).clickable { setTheme(i) }.padding(vertical = 4.dp),
@@ -384,7 +384,7 @@ fun ChestRoomScreen(
 
         // альбом
         if (showAlbum) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC102040)).clickable { showAlbum = false }, Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(Color(0xCC102040)).clickable { showAlbum = false; snd("fx_ui_menu_close", 0.7f) }, Alignment.Center) {
                 Column(
                     Modifier.padding(12.dp).fillMaxWidth().fillMaxHeight(0.88f).clip(RoundedCornerShape(28.dp)).background(Color(0xFFF2F8FF))
                         .border(5.dp, Color(0xFF6FB6E8), RoundedCornerShape(28.dp)).clickable(enabled = false) {}.padding(12.dp),

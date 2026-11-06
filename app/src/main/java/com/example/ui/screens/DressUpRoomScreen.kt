@@ -168,12 +168,12 @@ fun DressUpRoomScreen(
     val toddler = LocalAgeProfile.current.isToddler2
     val prefs = remember { context.getSharedPreferences(DR_PREFS, Context.MODE_PRIVATE) }
 
-    val heads = listOf(R.ch_h0, R.ch_h1, R.ch_h2, R.ch_h3, R.ch_h4, R.ch_h5, R.ch_h6, R.ch_h7, R.ch_h8).map { ImageBitmap.imageResource(it) }
-    val bodies = listOf(R.ch_b0, R.ch_b1, R.ch_b2, R.ch_b3, R.ch_b4, R.ch_b5, R.ch_b6, R.ch_b7, R.ch_b8).map { ImageBitmap.imageResource(it) }
-    val lfs = listOf(R.ch_lf0, R.ch_lf1, R.ch_lf2, R.ch_lf3, R.ch_lf4, R.ch_lf5, R.ch_lf6, R.ch_lf7, R.ch_lf8).map { ImageBitmap.imageResource(it) }
-    val rfs = listOf(R.ch_rf0, R.ch_rf1, R.ch_rf2, R.ch_rf3, R.ch_rf4, R.ch_rf5, R.ch_rf6, R.ch_rf7, R.ch_rf8).map { ImageBitmap.imageResource(it) }
-    val shadow = ImageBitmap.imageResource(R.ch_shadow)
-    val icons = listOf(R.ic_star, R.ic_heart, R.ic_gift, R.ic_gem, R.ic_bolt, R.ic_trophy).map { ImageBitmap.imageResource(it) }
+    val heads = listOf(R.drawable.ch_h0, R.drawable.ch_h1, R.drawable.ch_h2, R.drawable.ch_h3, R.drawable.ch_h4, R.drawable.ch_h5, R.drawable.ch_h6, R.drawable.ch_h7, R.drawable.ch_h8).map { ImageBitmap.imageResource(it) }
+    val bodies = listOf(R.drawable.ch_b0, R.drawable.ch_b1, R.drawable.ch_b2, R.drawable.ch_b3, R.drawable.ch_b4, R.drawable.ch_b5, R.drawable.ch_b6, R.drawable.ch_b7, R.drawable.ch_b8).map { ImageBitmap.imageResource(it) }
+    val lfs = listOf(R.drawable.ch_lf0, R.drawable.ch_lf1, R.drawable.ch_lf2, R.drawable.ch_lf3, R.drawable.ch_lf4, R.drawable.ch_lf5, R.drawable.ch_lf6, R.drawable.ch_lf7, R.drawable.ch_lf8).map { ImageBitmap.imageResource(it) }
+    val rfs = listOf(R.drawable.ch_rf0, R.drawable.ch_rf1, R.drawable.ch_rf2, R.drawable.ch_rf3, R.drawable.ch_rf4, R.drawable.ch_rf5, R.drawable.ch_rf6, R.drawable.ch_rf7, R.drawable.ch_rf8).map { ImageBitmap.imageResource(it) }
+    val shadow = ImageBitmap.imageResource(R.drawable.ch_shadow)
+    val icons = listOf(R.drawable.ic_star, R.drawable.ic_heart, R.drawable.ic_gift, R.drawable.ic_gem, R.drawable.ic_bolt, R.drawable.ic_trophy).map { ImageBitmap.imageResource(it) }
 
     LaunchedEffect(Unit) {
         sm.preloadRaw(listOf("fx_squeak", "btn_pop", "fx_boing", "fx_wr_giggle1", "fx_baby_giggle", "fx_magic_sparkle", "btn_tada", "star_collect", "whoosh_soft", "fx_sparkle_chime", "fx_popper"))

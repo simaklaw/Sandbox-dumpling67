@@ -57,7 +57,7 @@ private const val DR_PREFS = "dressup_prefs"
 private val DR_NAMES = listOf("Лучник", "Пещерный", "Клоун", "Монах", "Ниндзя", "Пират", "Каска", "Богатырь", "Волшебник")
 
 // смещения относительно центра тела: голова x,y; левая нога x,y; правая нога x,y (в пикселях исходных картинок)
-private val DR_OFF = arrayOf(
+internal val DR_OFF = arrayOf(
     intArrayOf(0, -63, -7, 38, 36, 38),
     intArrayOf(1, -67, -19, 37, 24, 36),
     intArrayOf(-2, -51, -17, 35, 25, 34),
@@ -99,12 +99,12 @@ private class DrModel {
     val pending = ArrayList<Int>()
 }
 
-private fun DrawScope.drImg(img: ImageBitmap, cx: Float, cy: Float, sc: Float, alpha: Float = 1f) {
+internal fun DrawScope.drImg(img: ImageBitmap, cx: Float, cy: Float, sc: Float, alpha: Float = 1f, tint: androidx.compose.ui.graphics.ColorFilter? = null) {
     val w = img.width * sc; val h = img.height * sc
     drawImage(
         img, IntOffset.Zero, IntSize(img.width, img.height),
         IntOffset(Math.round(cx - w / 2f), Math.round(cy - h / 2f)), IntSize(max(1, Math.round(w)), max(1, Math.round(h))),
-        alpha, filterQuality = FilterQuality.Medium
+        alpha, colorFilter = tint, filterQuality = FilterQuality.Medium
     )
 }
 

@@ -44,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.imageResource
 import com.example.R
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
@@ -75,7 +77,13 @@ private class RunOrb(var x: Float, val y: Float)
 private class RunFire(var x: Float, val y: Float, var t: Float = 0f)
 private class RunFx(val x: Float, val y: Float, val n: Int)
 /** Чудик: kind 0 — колобок, 1 — прыгун, 2 — здоровяк (2 попадания). */
-private class RunFoe(var x: Float, val kind: Int) {
+private val RUN_FOE_SKIN = arrayOf(intArrayOf(2, 1, 6), intArrayOf(0, 3, 4), intArrayOf(7, 8, 6), intArrayOf(5, 4, 1))
+/** Боссы по кругам: -1 — джинн, остальное — большие герои из набора. */
+private val RUN_BOSS_ORDER = intArrayOf(-1, 5, 8, 2, 7, 3, 1)
+private val RUN_BOSS_COL = longArrayOf(0xFFE040FB, 0xFF29B6F6, 0xFF7E57C2, 0xFFFF7043, 0xFF66BB6A, 0xFFFFCA28, 0xFFEC407A)
+
+private class RunFoe(var x: Float, val kind: Int, loc: Int = 0) {
+    val skin = RUN_FOE_SKIN[loc.coerceIn(0, 3)][kind.coerceIn(0, 2)]
     val w = if (kind == 2) 78f else 58f
     val h = if (kind == 2) 88f else 62f
     var hp = if (kind == 2) 2 else 1
@@ -177,8 +185,8 @@ private class RunWorld(val toddler: Boolean) {
                 nextX += w + 190f
             } else if (r < 0.84f) {
                 val fk = if (toddler) Random.nextInt(2) else Random.nextInt(3)
-                foes.add(RunFoe(nextX, fk))
-                if (!toddler && Random.nextFloat() < 0.35f) foes.add(RunFoe(nextX + 170f, Random.nextInt(2)))
+                foes.add(RunFoe(nextX, fk, loc))
+                if (!toddler && Random.nextFloat() < 0.35f) foes.add(RunFoe(nextX + 170f, Random.nextInt(2), loc))
             } else {
                 for (k in 0..5) items.add(RunCoin(nextX + k * 62f, 36f + (if (k % 2 == 0) 0f else 20f)))
             }
@@ -399,6 +407,22 @@ fun MonsterRunnerScreen(
     }
     var hudBoss by remember { mutableFloatStateOf(-1f) }
     val biomeGfx = rememberZBiomeGfx()
+    val chHeads = listOf(R.drawable.ch_h0, R.drawable.ch_h1, R.drawable.ch_h2, R.drawable.ch_h3, R.drawable.ch_h4, R.drawable.ch_h5, R.drawable.ch_h6, R.drawable.ch_h7, R.drawable.ch_h8).map { ImageBitmap.imageResource(it) }
+    val chBodies = listOf(R.drawable.ch_b0, R.drawable.ch_b1, R.drawable.ch_b2, R.drawable.ch_b3, R.drawable.ch_b4, R.drawable.ch_b5, R.drawable.ch_b6, R.drawable.ch_b7, R.drawable.ch_b8).map { ImageBitmap.imageResource(it) }
+    val chLf = listOf(R.drawable.ch_lf0, R.drawable.ch_lf1, R.drawable.ch_lf2, R.drawable.ch_lf3, R.drawable.ch_lf4, R.drawable.ch_lf5, R.drawable.ch_lf6, R.drawable.ch_lf7, R.drawable.ch_lf8).map { ImageBitmap.imageResource(it) }
+    val chRf = listOf(R.drawable.ch_rf0, R.drawable.ch_rf1, R.drawable.ch_rf2, R.drawable.ch_rf3, R.drawable.ch_rf4, R.drawable.ch_rf5, R.drawable.ch_rf6, R.drawable.ch_rf7, R.drawable.ch_rf8).map { ImageBitmap.imageResource(it) }
+    val chShadow = ImageBitmap.imageResource(R.drawable.ch_shadow)
+    // рисует героя-скин: cx — центр, feetY — линия ног; sc — масштаб; walk — фаза шага
+    fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSkin(sk: Int, cx: Float, feetY: Float, sc: Float, walk: Float, bob: Float, flash: Boolean) {
+        val o = DR_OFF[sk]
+        val tint = if (flash) androidx.compose.ui.graphics.ColorFilter.tint(Color(0xCCFFFFFF), androidx.compose.ui.graphics.BlendMode.SrcAtop) else null
+        val by = feetY - 52f * sc + bob
+        val st = sin(walk) * 6f * sc
+        drImg(chLf[sk], cx + o[2] * sc + st, by + o[3] * sc - bob + max(0f, -st) * 0.6f, sc, 1f, tint)
+        drImg(chRf[sk], cx + o[4] * sc - st, by + o[5] * sc - bob + max(0f, st) * 0.6f, sc, 1f, tint)
+        drImg(chBodies[sk], cx, by, sc, 1f, tint)
+        drImg(chHeads[sk], cx + o[0] * sc, by + o[1] * sc + sin(walk * 0.5f) * 1.5f * sc, sc, 1f, tint)
+    }
 
     var screen by remember { mutableStateOf(RunScreen.MENU) }
     var startLoc by remember { mutableIntStateOf(0) }
@@ -541,28 +565,9 @@ fun MonsterRunnerScreen(
                         if (f.dead || f.x > camX + wpx / z + 100f || f.x < camX - 100f) continue
                         val bob = sin(clock * 9f + f.x * 0.05f) * 3f
                         val base = gy - f.y
-                        val col = when (f.kind) { 0 -> Color(0xFF7CB342); 1 -> Color(0xFFAB47BC); else -> Color(0xFFE53935) }
-                        val body = if (f.flash > 0f) Color.White else col
                         drawOval(Color.Black.copy(alpha = 0.22f), Offset(f.x - f.w * 0.45f, gy - 6f), Size(f.w * 0.9f, 12f))
-                        // ножки
-                        val st = sin(clock * 12f + f.x) * 5f
-                        drawOval(Color(0xFF37474F), Offset(f.x - f.w * 0.32f + st, base - 10f), Size(18f, 12f))
-                        drawOval(Color(0xFF37474F), Offset(f.x + f.w * 0.32f - 18f - st, base - 10f), Size(18f, 12f))
-                        drawOval(body, Offset(f.x - f.w / 2f, base - f.h + bob), Size(f.w, f.h - 4f - bob))
-                        if (f.kind == 2) {
-                            drawCircle(Color(0xFFFFF59D), 7f, Offset(f.x - f.w * 0.3f, base - f.h + 6f + bob))
-                            drawCircle(Color(0xFFFFF59D), 7f, Offset(f.x + f.w * 0.3f, base - f.h + 6f + bob))
-                        }
-                        if (f.kind == 1) drawCircle(Color(0xFFCE93D8), 8f, Offset(f.x, base - f.h + 2f + bob))
-                        val ey = base - f.h * 0.62f + bob
-                        val ex = f.w * 0.19f
-                        drawCircle(Color.White, 9f, Offset(f.x - ex, ey))
-                        drawCircle(Color.White, 9f, Offset(f.x + ex, ey))
-                        drawCircle(Color(0xFF212121), 4.5f, Offset(f.x - ex - 2f, ey + 1f))
-                        drawCircle(Color(0xFF212121), 4.5f, Offset(f.x + ex - 2f, ey + 1f))
-                        drawRoundRect(Color(0xFF3E2723), Offset(f.x - f.w * 0.2f, ey + 15f), Size(f.w * 0.4f, 8f), androidx.compose.ui.geometry.CornerRadius(4f, 4f))
-                        drawRect(Color.White, Offset(f.x - 5f, ey + 15f), Size(4f, 4f))
-                        drawRect(Color.White, Offset(f.x + 4f, ey + 15f), Size(4f, 4f))
+                        val fsc = f.h * 1.35f / 165f
+                        drawSkin(f.skin, f.x, base, fsc, clock * 12f + f.x * 0.05f, bob * 0.5f, f.flash > 0f)
                         if (f.hp > 1) {
                             drawRoundRect(Color.Black.copy(alpha = 0.4f), Offset(f.x - 20f, base - f.h - 14f), Size(40f, 7f), androidx.compose.ui.geometry.CornerRadius(3f, 3f))
                             drawRoundRect(Color(0xFFFF7043), Offset(f.x - 20f, base - f.h - 14f), Size(40f * f.hp / 2f, 7f), androidx.compose.ui.geometry.CornerRadius(3f, 3f))
@@ -596,7 +601,28 @@ fun MonsterRunnerScreen(
                 drawCircle(Color(0xFFFFEB3B).copy(alpha = 0.9f * k), 22f * z, Offset(mx, my))
             }
             val pal = listOf(Color(0xFFFFD54F), Color(0xFFFF8A65), Color(0xFF4FC3F7), Color(0xFFAED581), Color(0xFFF06292))
-            if (running && world.bossState != 0 && genieFrames.isNotEmpty()) {
+            val bossSk = RUN_BOSS_ORDER[(world.bossLap.coerceAtLeast(0)) % RUN_BOSS_ORDER.size]
+            val bossCol = Color(RUN_BOSS_COL[(world.bossLap.coerceAtLeast(0)) % RUN_BOSS_COL.size])
+            if (running && world.bossState != 0 && bossSk >= 0) {
+                val dying = world.bossState == 2
+                val shrink = if (dying) (1f - world.bossT / 2f).coerceIn(0.05f, 1f) else 1f
+                val bxPx = world.bossSx() * z
+                val byPx = (gy - world.bossY()) * z
+                val sc2 = 1.6f * z * shrink
+                drawCircle(bossCol.copy(alpha = 0.20f + 0.08f * sin(clock * 6f)), 170f * z * shrink, Offset(bxPx, byPx))
+                withTransform({ rotate(if (dying) world.bossT * 240f else 0f, Offset(bxPx, byPx)) }) {
+                    drawSkin(bossSk, bxPx, byPx + 52f * sc2, sc2, clock * 5f, sin(clock * 4f) * 4f * z, world.bossFlash > 0f)
+                }
+                for (o in world.orbs) {
+                    val ox = (o.x - world.dist) * z
+                    val oy = (gy - o.y) * z
+                    drawCircle(bossCol.copy(alpha = 0.35f), 42f * z, Offset(ox, oy))
+                    drawCircle(bossCol, 26f * z, Offset(ox, oy))
+                    drawCircle(Color(0xFF80DEEA), 15f * z, Offset(ox + sin(clock * 12f) * 3f * z, oy))
+                    drawCircle(Color.White.copy(alpha = 0.8f), 6f * z, Offset(ox - 8f * z, oy - 8f * z))
+                }
+            }
+            if (running && world.bossState != 0 && bossSk < 0 && genieFrames.isNotEmpty()) {
                 val dying = world.bossState == 2
                 val shrink = if (dying) (1f - world.bossT / 2f).coerceIn(0.05f, 1f) else 1f
                 val bxPx = (world.bossSx()) * z

@@ -216,7 +216,7 @@ fun BirdFlightScreen(
     val pipeImg = ImageBitmap.imageResource(com.example.R.drawable.bd_pipe)
     var theme by remember { mutableIntStateOf(prefs.getInt("theme", 0)) }
     val coinPix = ImageBitmap.imageResource(com.example.R.drawable.bd_coin)
-    val coin2 = ImageBitmap.imageResource(com.example.R.drawable.bd2_coin)
+    val coin2 = ImageBitmap.imageResource(com.example.R.drawable.ic_coin)
     val skyImg = ImageBitmap.imageResource(com.example.R.drawable.bd2_sky)
     val m1Img = ImageBitmap.imageResource(com.example.R.drawable.bd2_m1)
     val m2Img = ImageBitmap.imageResource(com.example.R.drawable.bd2_m2)

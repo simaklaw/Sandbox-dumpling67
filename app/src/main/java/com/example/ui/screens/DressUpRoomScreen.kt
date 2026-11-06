@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.LocalAgeProfile
@@ -166,7 +167,6 @@ fun DressUpRoomScreen(
     val haptics = rememberHaptics()
     val toddler = LocalAgeProfile.current.isToddler2
     val prefs = remember { context.getSharedPreferences(DR_PREFS, Context.MODE_PRIVATE) }
-    val R = com.example.R.drawable
 
     val heads = listOf(R.ch_h0, R.ch_h1, R.ch_h2, R.ch_h3, R.ch_h4, R.ch_h5, R.ch_h6, R.ch_h7, R.ch_h8).map { ImageBitmap.imageResource(it) }
     val bodies = listOf(R.ch_b0, R.ch_b1, R.ch_b2, R.ch_b3, R.ch_b4, R.ch_b5, R.ch_b6, R.ch_b7, R.ch_b8).map { ImageBitmap.imageResource(it) }

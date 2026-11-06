@@ -97,7 +97,8 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
             FolderItem("Магазин пельменей", "🛒", 42, ColorPink),
             FolderItem("Погодная комната", "🌦️", 43, ColorBlue),
             FolderItem("Птичка-летунья", "🐦", 44, ColorGreen),
-            FolderItem("Гардероб героев", "🎭", 45, ColorBlue)
+            FolderItem("Гардероб героев", "🎭", 45, ColorBlue),
+            FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange)
         ))
     )
 )

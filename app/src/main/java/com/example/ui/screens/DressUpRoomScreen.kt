@@ -222,7 +222,7 @@ fun DressUpRoomScreen(
         if (m.pending.isEmpty()) return
         val id = m.pending.removeAt(0)
         rewardSticker = DR_STICKERS[id]
-        snd(if (id == 5) "btn_tada" else "fx_sparkle_chime", 0.95f)
+        snd(if (id == 5) "btn_tada" else "fx_sparkle_chime", 0.95f); snd("fx_it_pck_${13 + Random.nextInt(4)}", 0.8f)
         haptics.vibratePop()
         spark(W() / 2f, H() * 0.3f, 26, W() * 0.5f, 1.3f, true)
     }
@@ -250,12 +250,13 @@ fun DressUpRoomScreen(
     }
     fun cycle(row: Int, d: Int) {
         when (row) { 0 -> m.head = (m.head + d + 9) % 9; 1 -> m.body = (m.body + d + 9) % 9; else -> m.feet = (m.feet + d + 9) % 9 }
-        snd(if (row == 0) "btn_pop" else "fx_squeak", 0.8f, 0.9f + Random.nextFloat() * 0.3f)
+        snd(when (row) { 0 -> "fx_it_eqp_${5 + Random.nextInt(4)}"; 1 -> "fx_it_eqp_${1 + Random.nextInt(4)}"; else -> "fx_it_inv_${5 + Random.nextInt(4)}" }, 0.85f)
+        snd("btn_pop", 0.4f, 0.9f + Random.nextFloat() * 0.3f)
         afterChange()
     }
     fun shuffle() {
         m.head = Random.nextInt(9); m.body = Random.nextInt(9); m.feet = Random.nextInt(9)
-        snd("whoosh_soft", 0.8f); snd("fx_boing", 0.6f, 1.1f)
+        snd("whoosh_soft", 0.8f); snd("fx_boing", 0.6f, 1.1f); snd("fx_it_eqp_${9 + Random.nextInt(5)}", 0.7f)
         m.jumpT = 0f
         afterChange()
     }

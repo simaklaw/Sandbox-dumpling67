@@ -477,10 +477,10 @@ fun MonsterRunnerScreen(
             }
             "bossStart" -> {
                 soundManager.play("sw_rage", volume = 1f, rate = 0.8f)
-                banner = "⚠️ ДЖИНН-БОСС!"
+                banner = "⚠️ БОСС: " + listOf("ДЖИНН", "ПИРАТ", "ВОЛШЕБНИК", "КЛОУН", "БОГАТЫРЬ", "МОНАХ", "ПЕЩЕРНЫЙ")[world.bossLap.coerceAtLeast(0) % RUN_BOSS_ORDER.size] + "!"
             }
             "bossAtk" -> soundManager.play("sw_warn", volume = 0.7f, rate = 0.9f)
-            "bossHit" -> soundManager.play("zb_hurt", volume = 0.7f, rate = 0.7f)
+            "bossHit" -> { soundManager.play("zb_hurt", volume = 0.7f, rate = 0.7f); soundManager.play("fx_it_drp_${13 + Random.nextInt(4)}", volume = 0.6f) }
             "bossWin" -> {
                 soundPlayer.playFanfare()
                 soundManager.play("sw_boom", volume = 1f, rate = 0.7f)
@@ -489,11 +489,12 @@ fun MonsterRunnerScreen(
                 lottieTick++
             }
             "fire" -> soundManager.play("zb_rocket", volume = 0.6f, rate = 1.25f)
-            "foeHit" -> soundManager.play("zb_hurt", volume = 0.8f, rate = 1.2f)
+            "foeHit" -> { soundManager.play("zb_hurt", volume = 0.8f, rate = 1.2f); soundManager.play("fx_it_drp_${1 + Random.nextInt(5)}", volume = 0.6f) }
             "foeDie" -> {
                 soundManager.play("sw_boom", volume = 0.55f, rate = 1.3f)
                 soundManager.play("zb_down", volume = 0.5f, rate = 1.5f)
                 soundManager.play("zb_coin", volume = 0.6f, rate = 1.3f)
+                soundManager.play("fx_it_dst_${1 + Random.nextInt(4)}", volume = 0.6f)
             }
             "over" -> {
                 bank()

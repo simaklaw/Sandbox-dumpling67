@@ -341,7 +341,7 @@ fun BirdFlightScreen(
         m.inv = max(1.2f, (px + pw() / 2f + br() - bx()) / speed() + 0.25f)
         m.vy = -yF() * 0.32f
         m.streak = 0
-        snd("fx_bd_hit", 0.7f)
+        snd("fx_bd_hit", 0.7f); snd("fx_it_drp_${6 + Random.nextInt(6)}", 0.5f)
         haptics.vibrateSquish()
         spark(bx(), m.by, 10, 0xFFFFFFFF.toInt(), W() * 0.35f, 0.7f)
         spark(bx(), m.by, 6, 0xFFFFC93C.toInt(), W() * 0.3f, 0.7f)
@@ -410,7 +410,7 @@ fun BirdFlightScreen(
                     c.taken = true
                     m.runCoins++
                     if (real) { m.tc++; coinsUi = m.tc }
-                    snd("fx_bd_pickup", 0.8f, 0.95f + Random.nextFloat() * 0.2f)
+                    snd("fx_bd_pickup", 0.8f, 0.95f + Random.nextFloat() * 0.2f); snd("fx_it_inv_${13 + Random.nextInt(4)}", 0.45f)
                     if (real) haptics.vibrateShort()
                     spark(c.x, c.y, 8, 0xFFFFD84D.toInt(), W() * 0.2f, 0.6f)
                     if (real) checkRewards()

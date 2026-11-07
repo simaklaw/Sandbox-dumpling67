@@ -4,7 +4,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.*
@@ -31,7 +30,6 @@ val ColorGreen = Color(0xFF8EDC9D)
 val ColorOrange = Color(0xFFFFB36B)
 val ColorPurple = Color(0xFFB79CFF)
 val ColorWhite = Color(0xFFFFFFFF)
-val ColorSoftGrey = Color(0xFFC9B8A8)
 
 // ==========================================================
 // 📐 CORNER SHAPES

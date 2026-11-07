@@ -55,7 +55,6 @@ class BackgroundMusicManager {
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
     private val _currentTrackIndex = MutableStateFlow(0)
-    val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
 
     private val _currentTrackTitle = MutableStateFlow("")
     val currentTrackTitle: StateFlow<String> = _currentTrackTitle.asStateFlow()
@@ -196,23 +195,6 @@ class BackgroundMusicManager {
         if (!isEnabled) return
         _isPlaying.value = true
         ensureLoop()
-    }
-
-    fun nextTrack() {
-        selectTrack((_currentTrackIndex.value + 1) % playlist.size)
-    }
-
-    fun previousTrack() {
-        val prev = if (_currentTrackIndex.value - 1 < 0) playlist.size - 1 else _currentTrackIndex.value - 1
-        selectTrack(prev)
-    }
-
-    fun selectTrack(index: Int) {
-        val safeIndex = index.coerceIn(0, playlist.size - 1)
-        _currentTrackIndex.value = safeIndex
-        _currentTrackTitle.value = playlist[safeIndex].title
-        restartRequested = true // цикл заметит и начнёт новую мелодию
-        if (_isPlaying.value && isEnabled) ensureLoop()
     }
 
     /** Окончательная остановка: цикл сам освободит AudioTrack и завершит поток. */

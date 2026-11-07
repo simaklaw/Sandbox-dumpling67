@@ -1,12 +1,6 @@
 package com.example.screens.Squish
 
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import com.example.shared.ColorGreen
-import com.example.shared.ColorInk
-import com.example.shared.ColorOrange
-import com.example.shared.ColorPink
-import com.example.shared.ColorYellow
 
 /**
  * 🥟 Hero Skin Varieties for "Мялка":
@@ -94,17 +88,6 @@ data class WardrobeItem(
 )
 
 /**
- * Background Themes for the Room.
- */
-data class SquishBackgroundTheme(
-    val id: String,
-    val name: String,
-    val topColor: Color,
-    val bottomColor: Color,
-    val floorColor: Color
-)
-
-/**
  * Catalog of all 14 accessories and 3 background themes.
  */
 object SquishCatalog {
@@ -129,30 +112,6 @@ object SquishCatalog {
         WardrobeItem("neck_bell", WardrobeSlot.NECK, "Бубенчик", "🔔"),
         WardrobeItem("neck_scarf", WardrobeSlot.NECK, "Шарфик", "🧣")
     )
-
-    val BACKGROUND_THEMES = listOf(
-        SquishBackgroundTheme(
-            id = "bg_warm",
-            name = "Кремовый рассвет",
-            topColor = Color(0xFFFFF9E6),
-            bottomColor = Color(0xFFFFE0B2),
-            floorColor = Color(0xFFFFD180)
-        ),
-        SquishBackgroundTheme(
-            id = "bg_mint",
-            name = "Мятная сказка",
-            topColor = Color(0xFFE8F5E9),
-            bottomColor = Color(0xFFC8E6C9),
-            floorColor = Color(0xFFA5D6A7)
-        ),
-        SquishBackgroundTheme(
-            id = "bg_lavender",
-            name = "Лавандовый сон",
-            topColor = Color(0xFFEDE7F6),
-            bottomColor = Color(0xFFD1C4E9),
-            floorColor = Color(0xFFB39DDB)
-        )
-    )
 }
 
 /**
@@ -169,17 +128,4 @@ data class SquishParticle(
     var alpha: Float = 1.0f,
     var lifeSec: Float = 0.5f,
     var ageSec: Float = 0f
-)
-
-/**
- * Gift Box falling reward.
- */
-data class FallingGiftBox(
-    var x: Float,
-    var y: Float,
-    var vy: Float,
-    var swingAngle: Float = 0f,
-    var isFalling: Boolean = true,
-    var isOpened: Boolean = false,
-    var spawnTime: Long = System.currentTimeMillis()
 )

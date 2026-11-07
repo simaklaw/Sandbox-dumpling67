@@ -58,7 +58,6 @@ import com.example.shared.rememberHaptics
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.random.Random
@@ -146,7 +145,6 @@ private class SmWorld(val dp: Float) {
     var tickleT = 0f
     var tickleSfx = 0f
     var tickleHeart = 0f
-    var skinIdx = 0
     var taps = 0
 
     var sfx: (String, Float) -> Unit = { _, _ -> }

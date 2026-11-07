@@ -46,7 +46,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -820,14 +819,6 @@ private fun partCost(kind: String, idx: Int): Int = when (kind) {
 }
 
 private fun isFree(kind: String, idx: Int, un: Set<String>) = partCost(kind, idx) == 0 || "$kind:$idx" in un
-
-private fun nextFree(kind: String, cur: Int, count: Int, un: Set<String>): Int {
-    for (step in 1..count) {
-        val i = (cur + step) % count
-        if (isFree(kind, i, un)) return i
-    }
-    return cur
-}
 
 private fun randomFree(un: Set<String>): MonSpec {
     fun pick(kind: String, count: Int) = (0 until count).filter { isFree(kind, it, un) }.random()

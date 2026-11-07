@@ -83,12 +83,6 @@ class CatapultSoundHelper(
         if (!played) soundEffectPlayer.playChime()
     }
 
-    fun playFly() {
-        if (!canPlaySound()) return
-        val played = soundManager.play("fly")
-        if (!played) soundEffectPlayer.playBoing()
-    }
-
     fun playGift() {
         if (!canPlaySound()) return
         val played = soundManager.play("gift")

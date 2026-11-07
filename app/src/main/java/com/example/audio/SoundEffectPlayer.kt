@@ -547,26 +547,6 @@ class SoundEffectPlayer(private val context: Context) {
         }
     }
 
-    fun playGearRatchet() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_gear_ratchet")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 35
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress)
-                val woodClick = sin(2.0 * PI * 750.0 * (i.toFloat() / sampleRate)).toFloat() * 22000f
-                buffer[i] = (woodClick * env).toInt().toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
     fun playDoorOpen() {
         if (!soundEnabled) return
         vibrateMedium()
@@ -606,42 +586,6 @@ class SoundEffectPlayer(private val context: Context) {
                 val freq = 1760.0f + ring * 120f
                 val wave = sin(2.0 * PI * freq * t) * 0.7f + sin(2.0 * PI * (freq * 2.2f) * t) * 0.3f
                 buffer[i] = (wave * env * 25000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    /**
-     * Musical Xylophone note: noteIndex 0..7 (Do, Re, Mi, Fa, Sol, La, Ti, Do)
-     */
-    fun playXylophoneNote(noteIndex: Int) {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        val frequencies = floatArrayOf(
-            523.25f, // C5 (До)
-            587.33f, // D5 (Ре)
-            659.25f, // E5 (Ми)
-            698.46f, // F5 (Фа)
-            783.99f, // G5 (Соль)
-            880.00f, // A5 (Ля)
-            987.77f, // B5 (Си)
-            1046.50f // C6 (До)
-        )
-        val note = frequencies[noteIndex.coerceIn(0, 7)]
-        if (soundManager.playFxRaw("fx_xylo_${noteIndex.coerceIn(0, 7)}")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 240
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress) * (1.0f - progress * 0.5f)
-                val fundamental = sin(2.0 * PI * note * t).toFloat() * 0.75f
-                val harmonic = sin(2.0 * PI * (note * 3f) * t).toFloat() * 0.25f
-                buffer[i] = ((fundamental + harmonic) * env * 26000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
             }
             playPcm(buffer, sampleRate)
         }
@@ -888,21 +832,6 @@ class SoundEffectPlayer(private val context: Context) {
         playPcm(buffer, sampleRate)
     }
 
-    fun playAnimalChorus() {
-        if (!soundEnabled) return
-        vibrateSeries()
-        if (soundManager.playFxRaw("fx_animal_chorus")) return
-        scope.launch {
-            playDogWoof()
-            kotlinx.coroutines.delay(160)
-            playCatMeow()
-            kotlinx.coroutines.delay(180)
-            playRoosterCrow()
-            kotlinx.coroutines.delay(200)
-            playCowMoo()
-        }
-    }
-
     // ==========================================
     // 🎠 ZONE TRANSITION & PET REACTION SOUNDS
     // ==========================================
@@ -938,52 +867,6 @@ class SoundEffectPlayer(private val context: Context) {
                 // Subtle whoosh noise
                 val noise = ((Math.random() * 2.0 - 1.0) * 0.15f * (1f - progress)).toFloat()
                 buffer[i] = ((sumWave + noise) * env * 27000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playCatPurr() {
-        if (!soundEnabled) return
-        vibrateMedium()
-        if (soundManager.playFxRaw("fx_cat_purr")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 380
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val flutter = sin(2.0 * PI * 28.0 * t).toFloat()
-                val freq = 90f + flutter * 25f
-                val env = sin(progress * PI.toFloat())
-                val purr = sin(2.0 * PI * freq * t).toFloat() * 0.7f + sin(2.0 * PI * (freq * 2f) * t).toFloat() * 0.3f
-                buffer[i] = (purr * env * 24000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playDogBark() {
-        if (!soundEnabled) return
-        vibrateMedium()
-        if (soundManager.playFxRaw("fx_dog_bark")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 200
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val freq = 360f - 160f * progress
-                val env = (1.0f - progress) * (1.0f - progress)
-                val noise = ((Math.random() * 2.0 - 1.0) * 0.4f).toFloat()
-                val wave = sin(2.0 * PI * freq * t).toFloat() * 0.6f + noise
-                buffer[i] = (wave * env * 26000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
             }
             playPcm(buffer, sampleRate)
         }
@@ -1059,28 +942,6 @@ class SoundEffectPlayer(private val context: Context) {
         }
     }
 
-    fun playKissSound() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_kiss")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 120
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val progress = i.toFloat() / numSamples
-                val env = sin(progress * PI.toFloat())
-                val freq = 900f + 600f * (1f - progress)
-                val tone = sin(2.0 * PI * freq * (i.toFloat() / sampleRate)).toFloat() * 0.6f
-                val smack = ((Math.random() * 2.0 - 1.0) * 0.4f).toFloat()
-                buffer[i] = ((tone + smack) * env * 25000f).toInt().toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
     fun playEatCrunch() {
         if (!soundEnabled) return
         triggerLightTapPulse()
@@ -1130,28 +991,6 @@ class SoundEffectPlayer(private val context: Context) {
         }
     }
 
-    fun playBoxTensionHum() {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_box_tension_hum")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 320
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                // Rising frequency and swelling amplitude
-                val freq = 120f + progress * 240f + sin(2.0 * PI * 18.0 * t).toFloat() * 15f
-                val env = progress * (1.0f - progress * 0.15f)
-                val tone = sin(2.0 * PI * freq * t).toFloat() * 0.8f
-                buffer[i] = (tone * env * 24000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
     fun playMunchCrunchSound() {
         if (!soundEnabled) return
         triggerLightTapPulse()
@@ -1171,101 +1010,6 @@ class SoundEffectPlayer(private val context: Context) {
                 val tone = sin(2.0 * PI * (320f + crunchPulse * 80f) * t).toFloat() * 0.35f
                 val env = (1.0f - progress) * (if (crunchPulse > 0) 1.0f else 0.3f)
                 buffer[i] = ((tone + noise) * env * 25000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playMunchYuckySound() {
-        if (!soundEnabled) return
-        vibrateSquishDeform()
-        if (soundManager.playFxRaw("fx_munch_yucky")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 280
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                // Downward sliding yucky tone
-                val freq = 280f - progress * 160f
-                val env = (1.0f - progress)
-                val tone = sin(2.0 * PI * freq * t).toFloat() * 0.7f
-                val squelch = ((Math.random() * 2.0 - 1.0) * 0.3f).toFloat()
-                buffer[i] = ((tone + squelch) * env * 24000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playCoinRewardShower() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_coin_shower")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 450
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-            val coinNotes = floatArrayOf(1318.51f, 1567.98f, 2093.00f, 2637.02f)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val noteIdx = ((progress * 8).toInt()) % coinNotes.size
-                val freq = coinNotes[noteIdx]
-                val subProg = (progress * 8) - (progress * 8).toInt()
-                val env = (1.0f - subProg) * (1.0f - progress * 0.3f)
-                val wave = sin(2.0 * PI * freq * t).toFloat() * 0.8f
-                buffer[i] = (wave * env * 23000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playBoxRattle(tapCount: Int = 1) {
-        if (!soundEnabled) return
-        vibrateSquish()
-        if (soundManager.playFxRaw("fx_box_rattle")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 120
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-            val baseFreq = 180f + tapCount * 45f
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress) * (1.0f - progress)
-                val rattleNoise = ((Math.random() * 2.0 - 1.0) * 0.45f).toFloat()
-                val thudTone = sin(2.0 * PI * (baseFreq - progress * 60f) * t).toFloat() * 0.55f
-                buffer[i] = ((thudTone + rattleNoise) * env * 27000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playBoxPopOpen() {
-        if (!soundEnabled) return
-        vibrateMedium()
-        if (soundManager.playFxRaw("fx_box_pop_open")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 280
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                // Low pop followed by quick upward chime sweep
-                val popFreq = if (progress < 0.25f) 350f - progress * 400f else 600f + progress * 800f
-                val env = if (progress < 0.25f) (1f - progress / 0.25f) else (1f - (progress - 0.25f) / 0.75f)
-                val wave = sin(2.0 * PI * popFreq * t).toFloat() * 0.7f + sin(2.0 * PI * popFreq * 2f * t).toFloat() * 0.3f
-                buffer[i] = (wave * env * 27000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
             }
             playPcm(buffer, sampleRate)
         }
@@ -1540,59 +1284,6 @@ class SoundEffectPlayer(private val context: Context) {
         } catch (_: Exception) {}
     }
 
-    fun vibrateBoxTap(tapCount: Int) {
-        if (!hapticsEnabled || vibrator == null) return
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                when (tapCount) {
-                    1 -> vibrator.vibrate(VibrationEffect.createOneShot(28, 160))
-                    2 -> {
-                        val timings = longArrayOf(0, 30, 25, 45)
-                        val amplitudes = intArrayOf(0, 180, 0, 230)
-                        vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
-                    }
-                    else -> {
-                        val timings = longArrayOf(0, 35, 20, 45, 20, 60)
-                        val amplitudes = intArrayOf(0, 190, 0, 230, 0, 255)
-                        vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
-                    }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(35L * tapCount)
-            }
-        } catch (_: Exception) {}
-    }
-
-    fun vibrateBoxExplosion() {
-        if (!hapticsEnabled || vibrator == null) return
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // Energetic burst waveform: Initial strong crack followed by sparkling aftershocks
-                val timings = longArrayOf(0, 70, 30, 45, 30, 35, 40, 25)
-                val amplitudes = intArrayOf(0, 255, 0, 210, 0, 170, 0, 120)
-                vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(longArrayOf(0, 70, 30, 45, 30, 35, 40, 25), -1)
-            }
-        } catch (_: Exception) {}
-    }
-
-    fun vibratePurr() {
-        if (!hapticsEnabled || vibrator == null) return
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val timings = longArrayOf(0, 45, 45, 55, 45, 45)
-                val amplitudes = intArrayOf(0, 110, 0, 130, 0, 100)
-                vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(longArrayOf(0, 45, 45, 55, 45, 45), -1)
-            }
-        } catch (_: Exception) {}
-    }
-
     fun vibrateMedium() {
         if (!hapticsEnabled || vibrator == null) return
         try {
@@ -1718,29 +1409,6 @@ class SoundEffectPlayer(private val context: Context) {
     // 🏃‍♂️ COMICAL RUNNING & CARTOON SLAP SOUNDS
     // ==========================================
 
-    fun playPatterStep(isLeft: Boolean = true) {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw((if (isLeft) "fx_patter_l" else "fx_patter_r"))) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 45
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-            val baseFreq = if (isLeft) 440f else 520f
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress) * (1.0f - progress)
-                val freq = baseFreq - progress * 160f
-                val pop = sin(2.0 * PI * freq * t).toFloat() * 18000f
-                val clickNoise = ((Math.random() * 2.0 - 1.0) * 4500f * (1.0f - progress * 2f).coerceAtLeast(0f)).toFloat()
-                buffer[i] = ((pop + clickNoise) * env).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
     fun playCartoonYelp(pitchMultiplier: Float = 1.0f) {
         if (!soundEnabled) return
         vibrateMedium()
@@ -1840,33 +1508,6 @@ class SoundEffectPlayer(private val context: Context) {
                 val whoosh = ((Math.random() * 2.0 - 1.0) * sin(progress * PI).coerceAtLeast(0.0) * 0.35f).toFloat()
                 val total = ((twang + whoosh) * env * 25000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
                 buffer[i] = total
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playCatapultFlyingScream() {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_catapult_flying_scream")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 520
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress * 0.8f) * sin(progress * PI.toFloat()).coerceAtLeast(0.1f)
-                val screamPitch = if (progress < 0.25f) {
-                    800f + (progress / 0.25f) * 850f
-                } else {
-                    1650f - ((progress - 0.25f) / 0.75f) * 1150f
-                }
-                val wobble = sin(2.0 * PI * 32.0 * t).toFloat() * 70f
-                val freq = screamPitch + wobble
-                val wave = sin(2.0 * PI * freq * t).toFloat() * 0.75f + sin(2.0 * PI * (freq * 1.5f) * t).toFloat() * 0.25f
-                buffer[i] = (wave * env * 24000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
             }
             playPcm(buffer, sampleRate)
         }
@@ -2054,61 +1695,6 @@ class SoundEffectPlayer(private val context: Context) {
         }
     }
 
-    /**
-     * Fluttering spring buzz of the arrow shaft vibrating in the wood right after piercing.
-     */
-    fun playArrowVibrationBuzz() {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_arrow_vibration_buzz")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 180
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress * 0.9f)
-                val flutter = sin(2.0 * PI * 32.0 * t).toFloat() * 40f
-                val freq = 360f + flutter
-                val wave = sin(2.0 * PI * freq * t).toFloat() * 0.8f
-                val sample = (wave * env * 18000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-                buffer[i] = sample
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    /**
-     * Funny cartoon grunt / recoil vocal reaction from the scarecrow.
-     */
-    fun playScarecrowGruntReaction() {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_scarecrow_grunt")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 160
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = sin(progress * PI.toFloat()).coerceAtLeast(0f)
-                // Downward cartoon grunt: 420Hz down to 180Hz
-                val freq = 420f - progress * 240f + sin(2.0 * PI * 20.0 * t).toFloat() * 25f
-                val harmonic = sin(2.0 * PI * freq * t).toFloat() * 0.7f + sin(2.0 * PI * (freq * 2f) * t).toFloat() * 0.3f
-                buffer[i] = (harmonic * env * 23000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playArrowPierce(isBullseye: Boolean = false) {
-        playDullHeavyArrowImpact("WOODEN", isBullseye)
-    }
-
     fun playScarecrowWobble() {
         playScarecrowRecoilSpring(1.0f)
     }
@@ -2116,50 +1702,6 @@ class SoundEffectPlayer(private val context: Context) {
     // ==========================================
     // 🔒 TODDLER SAFETY & LOCK SOUNDS
     // ==========================================
-
-    fun playLockClick(isLocked: Boolean) {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw((if (isLocked) "fx_lock_on" else "fx_lock_off"))) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 110
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-            val freq = if (isLocked) 880f else 660f
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress).coerceAtLeast(0f)
-                val sample = (sin(2.0 * PI * freq * t) * env * 22000).toInt().toShort()
-                buffer[i] = sample
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playShieldChime() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_shield_chime")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 240
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress * 0.7f)
-                val freq = 523.25f + progress * 260f
-                val sample = (sin(2.0 * PI * freq * t) * env * 20000).toInt().toShort()
-                buffer[i] = sample
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
 
     // ==========================================
     // 🔮 PINBALL & MARBLE RUN SOUND EFFECTS
@@ -2221,55 +1763,6 @@ class SoundEffectPlayer(private val context: Context) {
     }
 
     /**
-     * Rapid spinning pinwheel gear clacking sound.
-     */
-    fun playPinwheelTick() {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_pinwheel_tick")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 60
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress)
-                val freq = 880f + (Math.random() * 200.0 - 100.0).toFloat()
-                val wave = sin(2.0 * PI * freq * t).toFloat() * 0.7f
-                buffer[i] = (wave * env * 18000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    /**
-     * Musical xylophone note on stair ramps (C, D, E, F, G, A, B, High C).
-     */
-    fun playXylophoneChime(noteIndex: Int) {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_xyloc_${noteIndex.coerceIn(0, 7)}")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 220
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-            val scaleFreqs = floatArrayOf(523.25f, 587.33f, 659.25f, 698.46f, 783.99f, 880.00f, 987.77f, 1046.50f)
-            val freq = scaleFreqs[noteIndex.coerceIn(0, scaleFreqs.size - 1)]
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = (1.0f - progress * 0.85f) * (1.0f - progress)
-                val tone = sin(2.0 * PI * freq * t).toFloat() * 0.75f + sin(2.0 * PI * (freq * 2.76f) * t).toFloat() * 0.25f
-                buffer[i] = (tone * env * 24000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    /**
      * Flipper paddle snap kick.
      */
     fun playFlipperSnap() {
@@ -2293,253 +1786,9 @@ class SoundEffectPlayer(private val context: Context) {
         }
     }
 
-    /**
-     * Vortex swirling pipe slide sound.
-     */
-    fun playVortexSwirl() {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_vortex_swirl")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 300
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = sin(progress * PI.toFloat()).coerceAtLeast(0f)
-                val freq = 680f - progress * 420f + sin(2.0 * PI * 18.0 * t).toFloat() * 60f
-                val tone = sin(2.0 * PI * freq * t).toFloat() * 0.7f
-                buffer[i] = (tone * env * 21000f).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    /**
-     * Big Jackpot celebration when ball reaches the golden bucket or trigger jackpot.
-     */
-    fun playJackpotFanfare() {
-        if (!soundEnabled) return
-        vibrateMedium()
-        if (soundManager.playFxRaw("fx_jackpot_fanfare")) return
-        scope.launch {
-            val sampleRate = 22050
-            val notes = listOf(523.25f, 659.25f, 783.99f, 1046.50f)
-            for (f in notes) {
-                val numSamples = (90 * sampleRate) / 1000
-                val buffer = ShortArray(numSamples)
-                for (i in 0 until numSamples) {
-                    val t = i.toFloat() / sampleRate
-                    val progress = i.toFloat() / numSamples
-                    val env = (1.0f - progress)
-                    val tone = sin(2.0 * PI * f * t).toFloat() * 0.8f
-                    buffer[i] = (tone * env * 24000f).toInt().toShort()
-                }
-                playPcm(buffer, sampleRate)
-                kotlinx.coroutines.delay(70)
-            }
-        }
-    }
-
-    /**
-     * Pelmen caught in tag game - squish-pop with musical chime.
-     */
-    fun playPelmenTagCaught(pitch: Float = 1.0f) {
-        if (!soundEnabled) return
-        vibrateSquishDeform()
-        if (soundManager.playFxRaw("fx_pelmen_tag_caught")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 180
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-            val baseFreq = 520f * pitch.coerceIn(0.7f, 1.8f)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val freq = baseFreq + 400f * sin(progress * PI.toFloat()).toFloat()
-                val env = (1.0f - progress * 0.8f)
-                val sample = (sin(2.0 * PI * freq * t) * env * 24000).toInt().toShort()
-                buffer[i] = sample
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    /**
-     * Funny rapid giggle and cheer sound when Pelmen runs and escapes.
-     */
-    fun playPelmenGiggleRun() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_pelmen_giggle_run")) return
-        scope.launch {
-            val sampleRate = 22050
-            val notes = listOf(580f, 720f, 650f, 880f)
-            for (freq in notes) {
-                val numSamples = (45 * sampleRate) / 1000
-                val buffer = ShortArray(numSamples)
-                for (i in 0 until numSamples) {
-                    val t = i.toFloat() / sampleRate
-                    val env = sin((i.toFloat() / numSamples) * PI.toFloat())
-                    val sample = (sin(2.0 * PI * freq * t) * env * 20000).toInt().toShort()
-                    buffer[i] = sample
-                }
-                playPcm(buffer, sampleRate)
-                kotlinx.coroutines.delay(35)
-            }
-        }
-    }
-
-    /**
-     * Power-up freeze ice crystal sound.
-     */
-    fun playFreezeIceCrystal() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_freeze_ice")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 300
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val freq = 1200f + sin(2.0 * PI * 28.0 * t).toFloat() * 250f + progress * 600f
-                val env = (1.0f - progress)
-                val sample = (sin(2.0 * PI * freq * t) * env * 22000).toInt().toShort()
-                buffer[i] = sample
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    /**
-     * Cartoon speed dash whoosh.
-     */
-    fun playSpeedDashWhoosh() {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_speed_dash")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 160
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val freq = 200f + progress * 700f
-                val noise = (kotlin.random.Random.nextFloat() * 2f - 1f) * 0.25f
-                val tone = sin(2.0 * PI * freq * t).toFloat() * 0.75f
-                val env = sin(progress * PI.toFloat())
-                buffer[i] = ((tone + noise) * env * 23000f).toInt().toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
     // ==========================================
     // 🤪 СМЕШИНКИ (FUNNY TODDLER SOUNDS)
     // ==========================================
-
-    fun playSneezeApchhi() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_sneeze")) return
-        scope.launch {
-            val sampleRate = 22050
-            // Inhale then explosive sneeze
-            val durationMs = 500
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val sample = if (progress < 0.35f) {
-                    // Inhale: rising whistling hiss
-                    val p = progress / 0.35f
-                    val freq = 400f + p * 800f
-                    val noise = (kotlin.random.Random.nextFloat() * 2f - 1f) * 0.4f
-                    val tone = sin(2.0 * PI * freq * t).toFloat() * 0.6f
-                    ((tone + noise) * p * 16000f).toInt()
-                } else {
-                    // Explosive ACHOO + decay
-                    val p = (progress - 0.35f) / 0.65f
-                    val freq = 750f - p * 450f
-                    val noise = (kotlin.random.Random.nextFloat() * 2f - 1f) * 0.6f
-                    val tone = sin(2.0 * PI * freq * t).toFloat() * 0.4f
-                    val env = (1.0f - p) * (1.0f - p)
-                    ((tone + noise) * env * 28000f).toInt()
-                }
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playBellyInhalePop() {
-        if (!soundEnabled) return
-        if (soundManager.playFxRaw("fx_belly_inhale_pop")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 650
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val sample = if (progress < 0.75f) {
-                    // Long puff expansion
-                    val p = progress / 0.75f
-                    val freq = 120f + p * 180f
-                    val wave = sin(2.0 * PI * freq * t).toFloat()
-                    (wave * p * 18000f).toInt()
-                } else {
-                    // Sharp pop / release
-                    val p = (progress - 0.75f) / 0.25f
-                    val freq = 600f - p * 350f
-                    val env = (1.0f - p) * (1.0f - p)
-                    (sin(2.0 * PI * freq * t).toFloat() * env * 26000f).toInt()
-                }
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playTongueBleee() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_tongue_bleee")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 450
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                // Springy tongue raspberry with rapid amplitude flutter
-                val flutter = sin(2.0 * PI * 28.0 * t).toFloat()
-                val freq = 220f + 50f * sin(2.0 * PI * 12.0 * t).toFloat()
-                val noise = (kotlin.random.Random.nextFloat() * 2f - 1f) * 0.35f
-                val tone = sin(2.0 * PI * freq * t).toFloat()
-                val env = sin(progress * PI.toFloat()) * (0.6f + 0.4f * flutter)
-                val sample = ((tone + noise) * env * 24000f).toInt()
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
 
     fun playHeadDizzySpin() {
         if (!soundEnabled) return
@@ -2561,58 +1810,6 @@ class SoundEffectPlayer(private val context: Context) {
                 buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
             }
             playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playButtFallLaugh() {
-        if (!soundEnabled) return
-        vibrateMedium()
-        if (soundManager.playFxRaw("fx_butt_fall_laugh")) return
-        scope.launch {
-            val sampleRate = 22050
-            // Heavy soft thud
-            val durationMs = 280
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val freq = 140f - progress * 90f
-                val env = (1.0f - progress) * (1.0f - progress)
-                val noise = (kotlin.random.Random.nextFloat() * 2f - 1f) * 0.2f
-                val sample = ((sin(2.0 * PI * freq * t).toFloat() + noise) * env * 27000f).toInt()
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-            kotlinx.coroutines.delay(200)
-            playBabyGiggle()
-        }
-    }
-
-    fun playHiccupSeries() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_hiccup_series")) return
-        scope.launch {
-            for (step in 0 until 4) {
-                val sampleRate = 22050
-                val durationMs = 80
-                val numSamples = (durationMs * sampleRate) / 1000
-                val buffer = ShortArray(numSamples)
-                val baseFreq = 480f + step * 40f
-
-                for (i in 0 until numSamples) {
-                    val t = i.toFloat() / sampleRate
-                    val progress = i.toFloat() / numSamples
-                    val freq = baseFreq + progress * 260f
-                    val env = (1.0f - progress) * (1.0f - progress)
-                    val sample = (sin(2.0 * PI * freq * t).toFloat() * env * 25000f).toInt()
-                    buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-                }
-                playPcm(buffer, sampleRate)
-                kotlinx.coroutines.delay(220)
-            }
         }
     }
 
@@ -2641,167 +1838,9 @@ class SoundEffectPlayer(private val context: Context) {
     // 🏖️ КИНЕТИЧЕСКИЙ ПЕСОК (KINETIC SAND ASMR)
     // ==========================================
 
-    fun playSandCrunch() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_sand_crunch")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 120
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                // Soft ASMR grain texture crunch
-                val noise = (kotlin.random.Random.nextFloat() * 2f - 1f) * 0.7f
-                val tone = sin(2.0 * PI * 180.0 * t).toFloat() * 0.3f
-                val env = (1.0f - progress) * (1.0f - progress)
-                val sample = ((noise + tone) * env * 22000f).toInt()
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playMoldStamp() {
-        if (!soundEnabled) return
-        vibrateMedium()
-        if (soundManager.playFxRaw("fx_mold_stamp")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 160
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val freq = 220f - progress * 100f
-                val noise = (kotlin.random.Random.nextFloat() * 2f - 1f) * 0.3f
-                val tone = sin(2.0 * PI * freq * t).toFloat() * 0.7f
-                val env = sin(progress * PI.toFloat())
-                val sample = ((tone + noise) * env * 25000f).toInt()
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
     // ==========================================
     // 📱 ДЕТСКИЙ ТЕЛЕФОНЧИК (BABY PHONE AUDIO)
     // ==========================================
-
-    fun playPhoneDialTone(digit: Int) {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_dial_${digit.coerceIn(0, 9)}")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 110
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            // Musical dial tone frequencies for toddler keys
-            val lowFreq = 697f + (digit % 3) * 80f
-            val highFreq = 1209f + (digit / 3) * 110f
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val env = sin(progress * PI.toFloat())
-                val wave = sin(2.0 * PI * lowFreq * t).toFloat() * 0.5f +
-                           sin(2.0 * PI * highFreq * t).toFloat() * 0.5f
-                val sample = (wave * env * 24000f).toInt()
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playPhoneRingtone() {
-        if (!soundEnabled) return
-        vibrateMedium()
-        if (soundManager.playFxRaw("fx_phone_ringtone")) return
-        scope.launch {
-            val sampleRate = 22050
-            val durationMs = 350
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                // Joyful telephone bell oscillation
-                val bellFreq = if (progress < 0.5f) 850f else 1050f
-                val env = sin(progress * PI.toFloat())
-                val sample = (sin(2.0 * PI * bellFreq * t).toFloat() * env * 24000f).toInt()
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-        }
-    }
-
-    fun playPhoneHangup() {
-        if (!soundEnabled) return
-        triggerLightTapPulse()
-        if (soundManager.playFxRaw("fx_phone_hangup")) return
-        scope.launch {
-            val sampleRate = 22050
-            for (step in 0 until 3) {
-                val durationMs = 80
-                val numSamples = (durationMs * sampleRate) / 1000
-                val buffer = ShortArray(numSamples)
-                for (i in 0 until numSamples) {
-                    val t = i.toFloat() / sampleRate
-                    val progress = i.toFloat() / numSamples
-                    val env = sin(progress * PI.toFloat())
-                    val sample = (sin(2.0 * PI * 425.0 * t).toFloat() * env * 20000f).toInt()
-                    buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-                }
-                playPcm(buffer, sampleRate)
-                kotlinx.coroutines.delay(120)
-            }
-        }
-    }
-
-    fun playAlloGreeting(animal: String) {
-        if (!soundEnabled) return
-        scope.launch {
-            // First: cute high-pitched "Allo-allo!" cheerful chime tone
-            val sampleRate = 22050
-            val durationMs = 240
-            val numSamples = (durationMs * sampleRate) / 1000
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / sampleRate
-                val progress = i.toFloat() / numSamples
-                val freq = 520f + sin(progress * PI.toFloat() * 2f) * 160f
-                val env = sin(progress * PI.toFloat())
-                val sample = (sin(2.0 * PI * freq * t).toFloat() * env * 22000f).toInt()
-                buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            }
-            playPcm(buffer, sampleRate)
-
-            kotlinx.coroutines.delay(260)
-
-            // Then: corresponding animal sound
-            when (animal.lowercase()) {
-                "dog", "собачка", "щенок" -> playDogBark()
-                "cat", "котик", "котёнок" -> playCatMeow()
-                "cow", "коровка" -> playCowMoo()
-                "frog", "лягушка" -> playFrogRibbit()
-                "duck", "утёнок", "утка" -> playGooseHonk()
-                "bear", "мишка" -> playBearGrowl()
-                else -> playTickleLaughter()
-            }
-
-            kotlinx.coroutines.delay(350)
-            playBabyGiggle()
-        }
-    }
 
     // ==========================================
     // ⚙️ PCM RAW AUDIO SINK (STREAMING AUDIOTRACK)

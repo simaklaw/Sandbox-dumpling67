@@ -55,7 +55,6 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
-import kotlin.math.sqrt
 import kotlin.random.Random
 
 // Комната «Погодная комната» (облачко-дождик 2.0).
@@ -160,7 +159,6 @@ private class WrModel {
     var bTy = 0f
     var bT = 1.2f
     var bRetarget = 0f
-    var bPop = 0f
     val trail = FloatArray(24)
 
     val stX = FloatArray(WR_NSTAR)
@@ -184,7 +182,6 @@ private class WrModel {
     var lookX = 0f
     var lookY = 0f
     var zzzT = 0f
-    var sneezeShake = 0f
 
     var fx = 0f
     var fy = 0f
@@ -196,7 +193,6 @@ private class WrModel {
     var plowM: WrMound? = null
     var lastCrunch = 0f
     var lastDrop = 0f
-    var lastWhoosh = 0f
     var lastTrail = 0f
     var real = false
 
@@ -232,7 +228,6 @@ private class WrModel {
 }
 
 private fun Color.wrA(a: Float) = copy(alpha = a.coerceIn(0f, 1f))
-private fun wrLerp(a: Float, b: Float, t: Float) = a + (b - a) * t.coerceIn(0f, 1f)
 private fun wrSm(t: Float): Float { val u = t.coerceIn(0f, 1f); return u * u * (3f - 2f * u) }
 
 private fun wrSkyTop(w: Int) = when (w) { W_SUN -> Color(0xFF4FB4F2); W_RAIN -> Color(0xFF5B6B88); W_SNOW -> Color(0xFF8FA2BC); else -> Color(0xFF63C6C0) }
@@ -629,20 +624,6 @@ private fun DrawScope.wrIcon(kind: Int, c: Offset, r: Float, t: Float) {
             val p3 = Path().apply { moveTo(c.x - r * 0.5f, c.y + r * 0.4f); lineTo(c.x + r * 0.1f + sh, c.y + r * 0.4f); cubicTo(c.x + r * 0.5f, c.y + r * 0.4f, c.x + r * 0.5f, c.y + r * 0.85f, c.x + r * 0.1f, c.y + r * 0.8f) }
             drawPath(p1, Color.White, style = st); drawPath(p2, Color.White, style = st); drawPath(p3, Color.White, style = st)
         }
-    }
-}
-
-private fun DrawScope.wrMoonIcon(c: Offset, r: Float, night: Float) {
-    if (night < 0.5f) {
-        drawCircle(Color(0xFFFFD43B), r * 0.45f, c)
-        for (i in 0 until 8) {
-            val a = i * PI.toFloat() / 4f
-            drawLine(Color(0xFFFFD43B), Offset(c.x + cos(a) * r * 0.64f, c.y + sin(a) * r * 0.64f), Offset(c.x + cos(a) * r * 0.9f, c.y + sin(a) * r * 0.9f), r * 0.14f, StrokeCap.Round)
-        }
-    } else {
-        drawCircle(Color(0xFFFFF0A0), r * 0.55f, c)
-        drawCircle(Color(0xFF3B4A9A), r * 0.46f, Offset(c.x + r * 0.28f, c.y - r * 0.14f))
-        wrSpark4(c.x + r * 0.55f, c.y + r * 0.45f, r * 0.2f, Color(0xFFFFF0A0))
     }
 }
 

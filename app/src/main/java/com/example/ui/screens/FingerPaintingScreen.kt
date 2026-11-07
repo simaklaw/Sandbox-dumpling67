@@ -7,14 +7,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,7 +23,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.audio.SoundEffectPlayer
@@ -79,15 +74,6 @@ data class SpongeBubble(
     var size: Float,
     val color: Color
 )
-
-@Composable
-fun CanvasZone(
-    repository: GameRepository,
-    soundPlayer: SoundEffectPlayer,
-    modifier: Modifier = Modifier
-) {
-    FingerPaintingScreen(repository = repository, soundPlayer = soundPlayer, modifier = modifier)
-}
 
 @Composable
 fun FingerPaintingScreen(

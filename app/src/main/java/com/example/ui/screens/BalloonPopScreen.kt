@@ -46,7 +46,6 @@ import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.LocalAgeProfile
 import com.example.shared.SoundManager
-import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -500,12 +499,4 @@ fun BalloonPopScreen(
             }
         }
     }
-}
-
-@Composable
-fun BalloonZone(
-    repository: GameRepository,
-    soundPlayer: SoundEffectPlayer
-) {
-    BalloonPopScreen(repository = repository, soundPlayer = soundPlayer)
 }

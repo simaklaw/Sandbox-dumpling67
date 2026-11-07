@@ -2,24 +2,19 @@ package com.example.shared
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.content.res.AssetFileDescriptor
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
 import android.util.Log
 import com.example.audio.SoundCategory
 import com.example.audio.SoundCatalog
-import com.example.audio.SoundEntry
 import com.example.audio.SoundEffectPlayer
 import com.example.audio.SoundResourceResolver
 import kotlinx.coroutines.*
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.random.Random
 
 /**
@@ -143,15 +138,6 @@ class SoundManager(
         private set
     private var _isMuted: Boolean = prefs.getBoolean(KEY_MUTED, false)
     val isMuted: Boolean get() = _isMuted
-
-    fun setMuted(muted: Boolean) {
-        _isMuted = muted
-        prefs.edit().putBoolean(KEY_MUTED, muted).apply()
-        applyMuteState()
-        if (muted) {
-            stopAll()
-        }
-    }
 
     data class StreamInfo(
         val name: String,
@@ -726,7 +712,6 @@ class SoundManager(
 
     // Backward-compatible volume wrappers
     fun setVolume(vol: Float) = setMasterVolume(vol)
-    fun getVolume(): Float = masterVolume
 
     @Volatile
     private var isSyncingSoundEnabled = false

@@ -64,7 +64,6 @@ private class AqFish(val kind: Int, var x: Float, var y: Float) {
     var vy = 0f
     var tx = x
     var ty = y
-    var retarget = 0f
     var scared = 0f
     var puff = 0f
     var face = 1f

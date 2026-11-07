@@ -42,8 +42,6 @@ val KC_SKINS = listOf(
     KcSkin("cosmo", "Пельмень-космонавт", 14)
 )
 
-private val INK = Color(0xFF4A2E1A)
-
 // ───────────────────────── ингредиенты ─────────────────────────
 
 fun DrawScope.kcIngredient(type: KcIng, c: Offset, r: Float, rot: Float = 0f) {

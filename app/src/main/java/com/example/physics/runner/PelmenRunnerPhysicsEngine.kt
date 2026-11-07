@@ -9,14 +9,11 @@ import org.jbox2d.common.Vec2
 import org.jbox2d.dynamics.Body
 import org.jbox2d.dynamics.BodyDef
 import org.jbox2d.dynamics.BodyType
-import org.jbox2d.dynamics.Fixture
 import org.jbox2d.dynamics.FixtureDef
 import org.jbox2d.dynamics.World
 import org.jbox2d.dynamics.contacts.Contact
-import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sin
 import kotlin.random.Random
 
 /**
@@ -164,9 +161,6 @@ class PelmenRunnerPhysicsEngine(
         private set
     var totalDistanceSlidOnIce: Float = 0f
         private set
-
-    val isIceChamberActive: Boolean
-        get() = currentBiome == RunnerBiome.ICE_FREEZER
 
     var currentBiome: RunnerBiome = RunnerBiome.KITCHEN
         private set

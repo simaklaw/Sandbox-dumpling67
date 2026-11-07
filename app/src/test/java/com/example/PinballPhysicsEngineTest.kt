@@ -185,7 +185,7 @@ class PinballLauncherTest {
         assertEquals(e.launcherPos.y, b.py, 1e-4f)
         assertTrue(e.launchBall(0.5f))
         repeat(30) { t += 16_666_666L; e.step(t) }
-        assertTrue("ball must move after launch", b.py > e.launcherPos.y + 0.3f)
+        assertTrue("ball must move after launch", hypot(b.px - e.launcherPos.x, b.py - e.launcherPos.y) > 0.5f)
         assertTrue(!e.hasHeldBall())
     }
 

@@ -26,6 +26,9 @@ class PinBall(var px: Float, var py: Float, var vx: Float, var vy: Float) {
     var roll = 0f
         internal set
     internal var restT = 0f
+    /** Шарик ждёт запуска в пушке (режим с жизнями). */
+    var held = false
+        internal set
 }
 
 /**
@@ -53,6 +56,16 @@ class PinballPhysicsEngine(
     var onAllGemsLit: () -> Unit = {}
     var onSaucer: (Boolean) -> Unit = {}   // true — захват, false — выстрел
     var onMultiplier: (Int) -> Unit = {}
+    /** Последний шарик слетел в слив (вызывается до выдачи нового). */
+    var onBallLost: () -> Unit = {}
+    /** Сработала рогатка (номер) и попадание в кристалл — для всплывающих очков. */
+    var onSlingHit: (Int) -> Unit = {}
+    /**
+     * true — режим «с пушкой»: новый шарик ждёт запуска [launchBall], лишние шарики мультибола
+     * при сливе исчезают. false (по умолчанию) — шарик сразу летит и слив просто возвращает его наверх.
+     */
+    var holdOnSpawn = false
+    val launcherPos = PinVec(4.5f, 2.35f)
 
     private class Seg(
         val ax: Float, val ay: Float, val bx: Float, val by: Float,
@@ -186,10 +199,11 @@ class PinballPhysicsEngine(
 
     private fun startPos(): PinVec = PinVec(if (rng.nextBoolean()) 2.7f else 6.3f, 2.6f)
 
-    fun spawnBall(initialPos: PinVec = startPos()) {
+    fun spawnBall(initialPos: PinVec = startPos(), hold: Boolean = holdOnSpawn) {
         if (balls.size >= 3) balls.removeAt(0)
         val b = PinBall(initialPos.x, initialPos.y, (rng.nextFloat() - 0.5f) * 2f, 0.5f + rng.nextFloat())
         b.anchorT = simT
+        if (hold) holdInLauncher(b)
         balls.add(b)
         onSoundTriggered("spawn")
     }
@@ -201,6 +215,38 @@ class PinballPhysicsEngine(
         multiplier = 1
         bumperHits = 0
         spawnBall()
+    }
+
+    private fun holdInLauncher(b: PinBall) {
+        b.px = launcherPos.x; b.py = launcherPos.y; b.vx = 0f; b.vy = 0f
+        b.held = true; b.captured = 0f
+        b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT
+    }
+
+    /** Выстрелить ждущим шариком; power 0..1 — сила (скорость вниз 5..11). */
+    fun launchBall(power: Float = 0.6f): Boolean {
+        var any = false
+        for (b in balls) if (b.held) {
+            b.held = false
+            b.vx = (rng.nextFloat() - 0.5f) * 3f
+            b.vy = 5f + 6f * power.coerceIn(0f, 1f)
+            b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT
+            any = true
+        }
+        if (any) onSoundTriggered("boing")
+        return any
+    }
+
+    fun hasHeldBall(): Boolean = balls.any { it.held }
+
+    /** Слив шарика: в режиме с пушкой лишние шарики пропадают, последний ждёт новой подачи. */
+    private fun drain(b: PinBall) {
+        onSoundTriggered("blub")
+        if (holdOnSpawn) {
+            if (balls.size > 1) { balls.remove(b); return }
+            onBallLost()
+            holdInLauncher(b)
+        } else respawn(b)
     }
 
     private fun respawn(b: PinBall) {
@@ -237,6 +283,7 @@ class PinballPhysicsEngine(
         updateFlippers(dt)
         val g = currentSpeedMode.gravity
         for (b in balls.toList()) {
+            if (b.held) continue
             if (b.captured > 0f) {
                 b.captured -= dt
                 b.px += (saucerPos.x - b.px) * 0.2f; b.py += (saucerPos.y - b.py) * 0.2f
@@ -259,7 +306,7 @@ class PinballPhysicsEngine(
             if (sp > maxRecordedSpeed) maxRecordedSpeed = min(sp, 15f)
             b.roll += (b.vx * dt) / ballR
             sensors(b, sp)
-            if (b.py > 17.7f) { onSoundTriggered("blub"); respawn(b) }
+            if (b.py > 17.7f) drain(b)
         }
         ballBall()
         for (i in coolBumper.indices) coolBumper[i] -= dt
@@ -313,7 +360,7 @@ class PinballPhysicsEngine(
     private fun autoPaws() {
         val lt = flipperTip(true); val rt = flipperTip(false)
         for (b in balls) {
-            if (b.captured > 0f || b.vy < -1.0f) { b.restT = 0f; continue }
+            if (b.held || b.captured > 0f || b.vy < -1.0f) { b.restT = 0f; continue }
             if (b.py < 13.8f) { b.restT = 0f; continue }
             val dl = distToSeg(b.px, b.py, leftPivot.x, leftPivot.y, lt.x, lt.y)
             val dr = distToSeg(b.px, b.py, rightPivot.x, rightPivot.y, rt.x, rt.y)
@@ -379,7 +426,7 @@ class PinballPhysicsEngine(
                         gemLit.fill(false)
                         addScore(100)
                         onSoundTriggered("fanfare_short"); onAllGemsLit()
-                        if (balls.size < 3) spawnBall() // мультибол!
+                        if (balls.size < 3) spawnBall(hold = false) // мультибол!
                     }
                 } else if (vn < -1f) { gemFlash[i] = 0.6f; onSoundTriggered("tap") }
             }
@@ -418,7 +465,7 @@ class PinballPhysicsEngine(
                 val kick = 7.0f
                 val on = b.vx * nx + b.vy * ny
                 if (on < kick) { b.vx += nx * (kick - on); b.vy += ny * (kick - on) }
-                addScore(5); onSoundTriggered("sling")
+                addScore(5); onSoundTriggered("sling"); onSlingHit(id)
             }
         } else if (s != null && coolWall <= 0f && abs(vn) > 1.8f) {
             coolWall = 0.1f
@@ -431,7 +478,7 @@ class PinballPhysicsEngine(
         if (balls.size < 2) return
         for (i in 0 until balls.size) for (j in i + 1 until balls.size) {
             val a = balls[i]; val c = balls[j]
-            if (a.captured > 0f || c.captured > 0f) continue
+            if (a.held || c.held || a.captured > 0f || c.captured > 0f) continue
             var nx = c.px - a.px; var ny = c.py - a.py
             val d = hypot(nx, ny)
             val R = ballR * 2f
@@ -483,7 +530,7 @@ class PinballPhysicsEngine(
     // ---------------- защита от застревания (страховка) ----------------
     private fun antiStuck() {
         for (b in balls.toList()) {
-            if (b.captured > 0f) { b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT; continue }
+            if (b.held || b.captured > 0f) { b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT; continue }
             if (b.px < -1f || b.px > worldWidth + 1f || b.py < -1.5f || b.py > worldHeight + 1.5f) {
                 unstuckOutOfBoundsCount++; respawn(b); continue
             }

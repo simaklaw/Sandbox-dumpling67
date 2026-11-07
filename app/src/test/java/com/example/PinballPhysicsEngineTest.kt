@@ -169,3 +169,42 @@ class PinballFieldTest {
         }
     }
 }
+
+class PinballLauncherTest {
+    private fun newEngine() = PinballPhysicsEngine({}, {}, {}, {}, {}, Random(3)).also { it.holdOnSpawn = true; it.clearAllAndReset() }
+
+    /** Шарик ждёт в пушке неподвижно и вылетает только после запуска. */
+    @Test
+    fun ballWaitsInLauncherUntilLaunched() {
+        val e = newEngine()
+        val b = e.getBalls().first()
+        var t = 100_000_000L
+        e.step(t)
+        repeat(120) { t += 16_666_666L; e.step(t) }
+        assertTrue(e.hasHeldBall())
+        assertEquals(e.launcherPos.y, b.py, 1e-4f)
+        assertTrue(e.launchBall(0.5f))
+        repeat(30) { t += 16_666_666L; e.step(t) }
+        assertTrue("ball must move after launch", b.py > e.launcherPos.y + 0.3f)
+        assertTrue(!e.hasHeldBall())
+    }
+
+    /** Слив последнего шарика сообщает о потере жизни и снова ставит шарик в пушку. */
+    @Test
+    fun lastBallDrainReportsLossAndReloads() {
+        var lost = 0
+        val e = PinballPhysicsEngine({}, {}, {}, {}, {}, Random(5))
+        e.holdOnSpawn = true
+        e.onBallLost = { lost++ }
+        e.autoPawsEnabled = false
+        e.clearAllAndReset()
+        val b = e.getBalls().first()
+        e.launchBall(0.5f)
+        b.px = 4.5f; b.py = 17.5f; b.vx = 0f; b.vy = 6f
+        var t = 100_000_000L
+        e.step(t)
+        repeat(30) { t += 16_666_666L; e.step(t) }
+        assertEquals(1, lost)
+        assertTrue(e.hasHeldBall())
+    }
+}

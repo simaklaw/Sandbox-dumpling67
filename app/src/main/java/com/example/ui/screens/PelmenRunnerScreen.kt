@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import com.example.BuildConfig
 import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -133,7 +134,7 @@ fun PelmenRunnerScreen(
     var isSpinning by remember { mutableStateOf(false) }
 
     // High Score from GameState
-    val gameState by repository.gameState.collectAsState()
+    val gameState by repository.gameState.collectAsStateWithLifecycle()
     val currentHighScore = gameState.runnerHighScore
 
     // 📖 Interactive Sticker Book & Biome States
@@ -1000,37 +1001,39 @@ fun PelmenRunnerScreen(
                             }
                         }
                     }
-                    // 🔬 JBox2D Physics Debug Overlay Toggle (72dp)
-                    Surface(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onTap = {
-                                        showPhysicsDebugOverlay = !showPhysicsDebugOverlay
-                                        runnerSoundManager.playUiTap()
-                                    }
-                                )
-                            }
-                            .testTag("runner_debug_toggle"),
-                        shape = CircleShape,
-                        color = if (showPhysicsDebugOverlay) Color(0xFF00E676) else ColorWhite,
-                        border = BorderStroke(3.dp, if (showPhysicsDebugOverlay) Color(0xFF00C853) else ColorInk),
-                        shadowElevation = 6.dp
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text(text = "🔬", fontSize = 24.sp)
-                                Text(
-                                    text = if (showPhysicsDebugOverlay) "СЕТКА" else "ТЕСТ",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (showPhysicsDebugOverlay) Color(0xFF1B5E20) else ColorInk
-                                )
+                    // 🔬 Отладочная сетка JBox2D: только в debug-сборках (малышам не показываем)
+                    if (BuildConfig.DEBUG) {
+                        Surface(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            showPhysicsDebugOverlay = !showPhysicsDebugOverlay
+                                            runnerSoundManager.playUiTap()
+                                        }
+                                    )
+                                }
+                                .testTag("runner_debug_toggle"),
+                            shape = CircleShape,
+                            color = if (showPhysicsDebugOverlay) Color(0xFF00E676) else ColorWhite,
+                            border = BorderStroke(3.dp, if (showPhysicsDebugOverlay) Color(0xFF00C853) else ColorInk),
+                            shadowElevation = 6.dp
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(text = "🔬", fontSize = 24.sp)
+                                    Text(
+                                        text = if (showPhysicsDebugOverlay) "СЕТКА" else "ТЕСТ",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (showPhysicsDebugOverlay) Color(0xFF1B5E20) else ColorInk
+                                    )
+                                }
                             }
                         }
                     }

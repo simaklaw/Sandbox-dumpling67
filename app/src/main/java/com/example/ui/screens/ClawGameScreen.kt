@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,6 +72,7 @@ fun ClawGameScreen(
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
+            settings.allowContentAccess = false
             settings.mediaPlaybackRequiresUserGesture = false
             overScrollMode = android.view.View.OVER_SCROLL_NEVER
             isVerticalScrollBarEnabled = false
@@ -89,9 +92,9 @@ fun ClawGameScreen(
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                     val uri = request.url
-                    if (uri.host != CLAW_HOST) return null
-                    val path = uri.path?.removePrefix("/") ?: return null
-                    if (!path.startsWith("claw/") || path.contains("..")) {
+                    val path = uri.path?.removePrefix("/")
+                    // Игра полностью офлайн: любые запросы не к нашему хосту глушим (а не отдаём сети)
+                    if (uri.host != CLAW_HOST || path == null || !path.startsWith("claw/") || path.contains("..")) {
                         return WebResourceResponse("text/plain", "utf-8", 404, "Not Found", emptyMap(), ByteArrayInputStream(ByteArray(0)))
                     }
                     return try {
@@ -106,6 +109,10 @@ fun ClawGameScreen(
             loadUrl(CLAW_URL)
         }
     }
+
+    // Пауза/возобновление: иначе игра и её звук продолжают работать, когда приложение свернули
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { webView.onPause() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { webView.onResume() }
 
     DisposableEffect(Unit) {
         onDispose {

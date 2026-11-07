@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,7 +89,7 @@ fun FingerPaintingScreen(
     val strokes = remember { mutableStateListOf<MultitouchStroke>() }
     val stamps = remember { mutableStateListOf<StampElement>() }
     val bubbles = remember { mutableStateListOf<SpongeBubble>() }
-    val gameState by repository.gameState.collectAsState()
+    val gameState by repository.gameState.collectAsStateWithLifecycle()
 
     val colors = if (ageProfile.isToddler2) TODDLER_PALETTE_COLORS_4 else PALETTE_COLORS_8
 

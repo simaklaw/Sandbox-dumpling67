@@ -390,6 +390,7 @@ fun MainAppScreen(
                                     45 -> DressUpRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     46 -> ChestRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     47 -> PetYardScreen(repository = repository, soundPlayer = soundPlayer)
+                                    48 -> BlockPuzzleScreen(repository = repository, soundPlayer = soundPlayer)
                                     23 -> BabyPhoneScreen(
                                         repository = repository,
                                         soundPlayer = soundPlayer,

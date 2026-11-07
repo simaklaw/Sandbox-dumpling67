@@ -41,7 +41,9 @@ class PinballPhysicsEngine(
     val onSoundTriggered: (String) -> Unit,
     val onBumperHit: (Int) -> Unit,
     val onStarHit: (Int) -> Unit,
-    val onAllStarsLit: () -> Unit
+    val onAllStarsLit: () -> Unit,
+    /** Источник случайности (в тестах — с фиксированным зерном, чтобы симуляция была воспроизводимой). */
+    private val rng: Random = Random.Default
 ) {
     val worldWidth = 9.0f
     val worldHeight = 18.0f
@@ -64,10 +66,12 @@ class PinballPhysicsEngine(
         PinVec(3.1f, 5.4f), PinVec(5.9f, 5.4f), PinVec(4.5f, 7.3f), PinVec(4.5f, 3.3f)
     )
     val starPositions = listOf(PinVec(3.2f, 1.9f), PinVec(4.5f, 1.2f), PinVec(5.8f, 1.9f))
+    // Центр кристалла не дальше от стенки, чем радиус шарика (0.36): иначе между стенкой и
+    // кристаллом получается «клин», где шарик стоит в равновесии и не скатывается.
     val gemR = 0.30f
     val gemPositions = listOf(
-        PinVec(0.62f, 7.2f), PinVec(0.62f, 8.3f), PinVec(0.62f, 9.4f),
-        PinVec(8.38f, 7.2f), PinVec(8.38f, 8.3f), PinVec(8.38f, 9.4f)
+        PinVec(0.30f, 7.2f), PinVec(0.30f, 8.3f), PinVec(0.30f, 9.4f),
+        PinVec(8.70f, 7.2f), PinVec(8.70f, 8.3f), PinVec(8.70f, 9.4f)
     )
     val saucerPos = PinVec(4.5f, 10.6f)
     val saucerR = 0.42f
@@ -122,6 +126,7 @@ class PinballPhysicsEngine(
     private var lastUnstuck = 0f
     private var saucerCool = 0f
     private var bumperHits = 0
+    private var stuckRepeat = 0
 
     var unstuckLowSpeedCount = 0
     var unstuckNoDisplacementCount = 0
@@ -179,11 +184,11 @@ class PinballPhysicsEngine(
     fun setLeftFlipperEngaged(engaged: Boolean) { autoLeftUntil = if (engaged) simT + 0.25f else 0f }
     fun setRightFlipperEngaged(engaged: Boolean) { autoRightUntil = if (engaged) simT + 0.25f else 0f }
 
-    private fun startPos(): PinVec = PinVec(if (Random.nextBoolean()) 2.7f else 6.3f, 2.6f)
+    private fun startPos(): PinVec = PinVec(if (rng.nextBoolean()) 2.7f else 6.3f, 2.6f)
 
     fun spawnBall(initialPos: PinVec = startPos()) {
         if (balls.size >= 3) balls.removeAt(0)
-        val b = PinBall(initialPos.x, initialPos.y, (Random.nextFloat() - 0.5f) * 2f, 0.5f + Random.nextFloat())
+        val b = PinBall(initialPos.x, initialPos.y, (rng.nextFloat() - 0.5f) * 2f, 0.5f + rng.nextFloat())
         b.anchorT = simT
         balls.add(b)
         onSoundTriggered("spawn")
@@ -201,7 +206,7 @@ class PinballPhysicsEngine(
     private fun respawn(b: PinBall) {
         val p = startPos()
         b.px = p.x; b.py = p.y
-        b.vx = (Random.nextFloat() - 0.5f) * 2f; b.vy = 1f
+        b.vx = (rng.nextFloat() - 0.5f) * 2f; b.vy = 1f
         b.captured = 0f
         b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT
     }
@@ -340,7 +345,7 @@ class PinballPhysicsEngine(
             val R = bumperR + ballR
             if (d < R) {
                 if (d < 1e-4f) { nx = 0f; ny = -1f } else { nx /= d; ny /= d }
-                val j = (Random.nextFloat() - 0.5f) * 0.4f
+                val j = (rng.nextFloat() - 0.5f) * 0.4f
                 val cj = cos(j); val sj = sin(j)
                 val kx = nx * cj - ny * sj; val ky = nx * sj + ny * cj
                 b.px = c.x + nx * R; b.py = c.y + ny * R
@@ -466,7 +471,7 @@ class PinballPhysicsEngine(
     }
 
     private fun ejectFromSaucer(b: PinBall) {
-        val a = (-Math.PI / 2.0 + (Random.nextFloat() - 0.5f) * 0.9).toFloat()
+        val a = (-Math.PI / 2.0 + (rng.nextFloat() - 0.5f) * 0.9).toFloat()
         b.vx = cos(a) * 12.5f; b.vy = sin(a) * 12.5f
         b.px = saucerPos.x; b.py = saucerPos.y - saucerR
         saucerCool = 1.2f
@@ -483,14 +488,18 @@ class PinballPhysicsEngine(
                 unstuckOutOfBoundsCount++; respawn(b); continue
             }
             val moved = hypot(b.px - b.anchorX, b.py - b.anchorY)
-            if (moved > 0.35f) { b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT; continue }
+            if (moved > 0.35f) { b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT; if (moved > 1.2f) stuckRepeat = 0; continue }
             val still = simT - b.anchorT
             val sp = hypot(b.vx, b.vy)
             if (b.py < 14.0f) {
-                if (still > 0.9f) {
+                if (still > 0.6f) {
                     if (sp < 0.6f) unstuckLowSpeedCount++ else unstuckNoDisplacementCount++
-                    b.vx += if (b.px < 4.5f) 2.5f else -2.5f
-                    b.vy = -3.5f
+                    stuckRepeat++
+                    val kick = min(3, stuckRepeat)
+                    b.vx += (if (b.px < 4.5f) 1f else -1f) * (2.5f + kick) + (rng.nextFloat() - 0.5f)
+                    b.vy = -(4f + 2f * kick)
+                    // шарик прижат к краю — чуть сдвинуть к центру, чтобы не вернулся в тот же угол
+                    b.px += (4.5f - b.px) * 0.05f
                     b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT
                 }
             } else if (still > 1.0f) {

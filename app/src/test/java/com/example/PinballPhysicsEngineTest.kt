@@ -21,7 +21,8 @@ class PinballPhysicsEngineTest {
             onSoundTriggered = { /* no op */ },
             onBumperHit = { bumperHits++ },
             onStarHit = { starHits++ },
-            onAllStarsLit = { allStarsCount++ }
+            onAllStarsLit = { allStarsCount++ },
+            rng = Random(12345)
         )
 
         // 5 minutes at 60 Hz = 18,000 steps
@@ -29,14 +30,15 @@ class PinballPhysicsEngineTest {
         val stepDtNanos = 16_666_666L
 
         var simulatedTimeNanos = 100_000_000L
+        val inputRng = Random(999)
 
         for (step in 0 until totalSteps) {
             simulatedTimeNanos += stepDtNanos
 
             // Simulate random flipper activation every ~0.5s
             if (step % 30 == 0) {
-                engine.setLeftFlipperEngaged(Random.nextBoolean())
-                engine.setRightFlipperEngaged(Random.nextBoolean())
+                engine.setLeftFlipperEngaged(inputRng.nextBoolean())
+                engine.setRightFlipperEngaged(inputRng.nextBoolean())
             }
 
             engine.step(simulatedTimeNanos)
@@ -60,7 +62,7 @@ class PinballPhysicsEngineTest {
         assertTrue("Max speed must be bounded <= 16.5", engine.maxRecordedSpeed <= 16.5f)
     }
 
-    private fun newEngine() = PinballPhysicsEngine({}, {}, {}, {}, {})
+    private fun newEngine(seed: Int = 7) = PinballPhysicsEngine({}, {}, {}, {}, {}, Random(seed))
 
     /** Шарик, лежащий на опущенной левой лапке, после удара должен взлететь вверх. */
     @Test
@@ -81,32 +83,56 @@ class PinballPhysicsEngineTest {
         assertTrue("flipper must throw ball up, minVy=$minVy", minVy < -4f)
     }
 
-    /** Шарик не должен надолго замирать в верхней части поля (симуляция в виртуальном времени). */
+    /**
+     * Шарик не должен надолго замирать в верхней части поля. Симуляция детерминирована (зёрна заданы),
+     * проверяем много разных зёрен; «замер» = шарик не ушёл дальше 0.25 от опорной точки.
+     */
     @Test
     fun ballNeverStaysStuckUpTop() {
-        val e = newEngine()
-        var t = 100_000_000L
-        e.step(t)
-        var stillTop = 0f
-        var maxStill = 0f
-        var lx = 0f; var ly = 0f
-        var drained = 0
-        val total = 60 * 60 * 10
-        for (i in 0 until total) {
-            t += 16_666_666L
+        for (seed in 1..8) {
+            val e = newEngine(seed)
+            var t = 100_000_000L
             e.step(t)
-            val b = e.getBalls().first()
-            if (hypot(b.px - lx, b.py - ly) < 0.05f && b.py < 13.5f) stillTop += 1f / 60f else stillTop = 0f
-            lx = b.px; ly = b.py
-            if (stillTop > maxStill) maxStill = stillTop
+            var ax = 0f; var ay = 0f; var anchorT = 0f
+            var maxStill = 0f
+            var time = 0f
+            val total = 60 * 60 * 3
+            for (i in 0 until total) {
+                t += 16_666_666L
+                time += 1f / 60f
+                e.step(t)
+                for (b in e.getBalls()) {
+                    if (b.captured > 0f || b.py >= 13.5f) { ax = b.px; ay = b.py; anchorT = time; continue }
+                    if (hypot(b.px - ax, b.py - ay) > 0.25f) { ax = b.px; ay = b.py; anchorT = time }
+                    maxStill = maxOf(maxStill, time - anchorT)
+                }
+            }
+            println("seed=$seed max still on top = $maxStill s")
+            assertTrue("seed=$seed: ball stuck on top for $maxStill s", maxStill < 1.5f)
         }
-        println("max still time on top = $maxStill s; nudges=${e.unstuckLowSpeedCount + e.unstuckNoDisplacementCount}")
-        assertTrue("ball stuck on top for $maxStill s", maxStill < 1.5f)
+    }
+
+    /** Шарик, положенный в бывший «клин» между стенкой и кристаллом, скатывается сам, без страховки. */
+    @Test
+    fun noWedgeBetweenWallAndGem() {
+        for (side in 0..1) {
+            val e = newEngine()
+            e.autoPawsEnabled = false
+            e.clearAllAndReset()
+            val b = e.getBalls().first()
+            val gem = e.gemPositions[if (side == 0) 1 else 4]
+            b.px = if (side == 0) 0.36f else 8.64f; b.py = gem.y - 0.62f; b.vx = 0f; b.vy = 0f
+            var t = 100_000_000L
+            e.step(t)
+            repeat(60) { t += 16_666_666L; e.step(t) }
+            assertTrue("ball must leave the gem top, y=${b.py}", b.py > gem.y + 0.5f || kotlin.math.abs(b.px - (if (side == 0) 0.36f else 8.64f)) > 0.5f)
+            assertEquals("страховка не должна понадобиться", 0, e.unstuckLowSpeedCount + e.unstuckNoDisplacementCount)
+        }
     }
 }
 
 class PinballFieldTest {
-    private fun newEngine() = PinballPhysicsEngine({}, {}, {}, {}, {})
+    private fun newEngine(seed: Int = 7) = PinballPhysicsEngine({}, {}, {}, {}, {}, Random(seed))
 
     /** Шарик в воронке не пропадает и вылетает вверх. */
     @Test

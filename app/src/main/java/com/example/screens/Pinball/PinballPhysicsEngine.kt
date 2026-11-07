@@ -65,7 +65,7 @@ class PinballPhysicsEngine(
      * при сливе исчезают. false (по умолчанию) — шарик сразу летит и слив просто возвращает его наверх.
      */
     var holdOnSpawn = false
-    val launcherPos = PinVec(4.5f, 2.35f)
+    val launcherPos = PinVec(4.5f, 2.0f)
 
     private class Seg(
         val ax: Float, val ay: Float, val bx: Float, val by: Float,
@@ -228,7 +228,7 @@ class PinballPhysicsEngine(
         var any = false
         for (b in balls) if (b.held) {
             b.held = false
-            b.vx = (rng.nextFloat() - 0.5f) * 3f
+            b.vx = (if (rng.nextBoolean()) 1f else -1f) * (1.2f + 1.3f * rng.nextFloat())
             b.vy = 5f + 6f * power.coerceIn(0f, 1f)
             b.anchorX = b.px; b.anchorY = b.py; b.anchorT = simT
             any = true

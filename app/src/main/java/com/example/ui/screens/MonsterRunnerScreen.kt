@@ -77,10 +77,11 @@ private class RunOrb(var x: Float, val y: Float)
 private class RunFire(var x: Float, val y: Float, var t: Float = 0f)
 private class RunFx(val x: Float, val y: Float, val n: Int)
 /** Чудик: kind 0 — колобок, 1 — прыгун, 2 — здоровяк (2 попадания). */
-private val RUN_FOE_SKIN = arrayOf(intArrayOf(2, 1, 6), intArrayOf(0, 3, 4), intArrayOf(7, 8, 6), intArrayOf(5, 4, 1))
+// значения 100..103 — скелетики (набор BluBlu Games)
+private val RUN_FOE_SKIN = arrayOf(intArrayOf(2, 1, 6), intArrayOf(0, 3, 4), intArrayOf(100, 7, 103), intArrayOf(5, 102, 101))
 /** Боссы по кругам: -1 — джинн, остальное — большие герои из набора. */
-private val RUN_BOSS_ORDER = intArrayOf(-1, 5, 8, 2, 7, 3, 1)
-private val RUN_BOSS_COL = longArrayOf(0xFFE040FB, 0xFF29B6F6, 0xFF7E57C2, 0xFFFF7043, 0xFF66BB6A, 0xFFFFCA28, 0xFFEC407A)
+private val RUN_BOSS_ORDER = intArrayOf(-1, 5, 101, 8, 2, 103, 7, 3, 1)
+private val RUN_BOSS_COL = longArrayOf(0xFFE040FB, 0xFF29B6F6, 0xFFB0BEC5, 0xFF7E57C2, 0xFFFF7043, 0xFF66BB6A, 0xFFFFCA28, 0xFFEC407A, 0xFF9CCC65)
 
 private class RunFoe(var x: Float, val kind: Int, loc: Int = 0) {
     val skin = RUN_FOE_SKIN[loc.coerceIn(0, 3)][kind.coerceIn(0, 2)]
@@ -413,7 +414,12 @@ fun MonsterRunnerScreen(
     val chRf = listOf(R.drawable.ch_rf0, R.drawable.ch_rf1, R.drawable.ch_rf2, R.drawable.ch_rf3, R.drawable.ch_rf4, R.drawable.ch_rf5, R.drawable.ch_rf6, R.drawable.ch_rf7, R.drawable.ch_rf8).map { ImageBitmap.imageResource(it) }
     val chShadow = ImageBitmap.imageResource(R.drawable.ch_shadow)
     // рисует героя-скин: cx — центр, feetY — линия ног; sc — масштаб; walk — фаза шага
+    val skels = rememberSkeletons()
     fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSkin(sk: Int, cx: Float, feetY: Float, sc: Float, walk: Float, bob: Float, flash: Boolean) {
+        if (sk >= 100) {
+            drawSkeleton(skels[(sk - 100).coerceIn(0, 3)], cx, feetY, 150f * sc, false, walk, 0f, 1f, flash)
+            return
+        }
         val o = DR_OFF[sk]
         val tint = if (flash) androidx.compose.ui.graphics.ColorFilter.tint(Color(0xCCFFFFFF), androidx.compose.ui.graphics.BlendMode.SrcAtop) else null
         val by = feetY - 52f * sc + bob
@@ -477,7 +483,7 @@ fun MonsterRunnerScreen(
             }
             "bossStart" -> {
                 soundManager.play("sw_rage", volume = 1f, rate = 0.8f)
-                banner = "⚠️ БОСС: " + listOf("ДЖИНН", "ПИРАТ", "ВОЛШЕБНИК", "КЛОУН", "БОГАТЫРЬ", "МОНАХ", "ПЕЩЕРНЫЙ")[world.bossLap.coerceAtLeast(0) % RUN_BOSS_ORDER.size] + "!"
+                banner = "⚠️ БОСС: " + listOf("ДЖИНН", "ПИРАТ", "КОРОЛЬ СКЕЛЕТОВ", "ВОЛШЕБНИК", "КЛОУН", "СКЕЛЕТ-РЫЦАРЬ", "БОГАТЫРЬ", "МОНАХ", "ПЕЩЕРНЫЙ")[world.bossLap.coerceAtLeast(0) % RUN_BOSS_ORDER.size] + "!"
             }
             "bossAtk" -> soundManager.play("sw_warn", volume = 0.7f, rate = 0.9f)
             "bossHit" -> { soundManager.play("zb_hurt", volume = 0.7f, rate = 0.7f); soundManager.play("fx_it_drp_${13 + Random.nextInt(4)}", volume = 0.6f) }

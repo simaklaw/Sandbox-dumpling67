@@ -1448,7 +1448,22 @@ private val TIER_COLORS = listOf(
     Color(0xFF7986CB) to Color(0xFF303F9F)
 )
 
+/** Скелетики (врагов и боссов рисуем ими); заполняется из композиции. */
+private var zSkel: List<androidx.compose.ui.graphics.ImageBitmap> = emptyList()
+
 private fun DrawScope.drawMob(e: ZEnemy, t: Int, tx: Float, ty: Float) {
+    if (zSkel.isNotEmpty()) {
+        val vi = ((e.anim * 10f).toInt() and 3)
+        val hh = e.r * 3.6f
+        drawOval(Color.Black.copy(alpha = 0.22f), Offset(e.x - e.r * 0.8f, e.y + e.r * 0.82f), Size(e.r * 1.6f, e.r * 0.3f))
+        drawSkeleton(zSkel[vi], e.x, e.y + e.r * 0.95f, hh, e.dir >= 0f, t * 0.16f + e.anim, if (e.windup > 0) -8f else 0f, 1f, e.hitFlash > 0)
+        if (e.hp < e.maxHp) {
+            val bw = e.r * 1.6f
+            drawRoundRect(Color.Black.copy(alpha = 0.5f), Offset(e.x - bw / 2f, e.y - e.r * 2.6f), Size(bw, 6f), CornerRadius(3f))
+            drawRoundRect(Color(0xFF66BB6A), Offset(e.x - bw / 2f, e.y - e.r * 2.6f), Size(bw * e.hp / e.maxHp, 6f), CornerRadius(3f))
+        }
+        return
+    }
     val bob = sin(t * 0.09f + e.anim) * 4f
     val cx = e.x
     val cy = e.y + bob
@@ -1565,6 +1580,17 @@ private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     }
     if (rage) drawCircle(Color(0xFFFF1744).copy(alpha = 0.18f + 0.1f * sin(t * 0.3f)), b.w * 1.1f, Offset(b.x + b.w / 2f, b.y + b.h / 2f))
 
+    if (zSkel.isNotEmpty() && b.kind >= 2) {
+        val sx = b.x + b.w / 2f
+        val face = tx >= sx
+        val lean = when (b.state) { 1 -> -14f + sin(t * 0.8f) * 3f; 2 -> 14f; 3 -> -6f; 4 -> 8f; else -> 0f }
+        val sqz = when (b.state) { 3 -> 1.12f; 4 -> 1.08f; else -> 1f }
+        val hh = b.h * 1.55f
+        val feet = b.y + b.h + 6f
+        drawOval(Color.Black.copy(alpha = 0.25f), Offset(sx - b.w * 0.5f, GROUND_Y - 8f), Size(b.w, 16f))
+        drawSkeleton(zSkel[if (b.kind == 2) 3 else 1], sx, feet, hh, face, t * 0.12f, lean, sqz, b.hitFlash > 0)
+        return
+    }
     val cx = b.x + b.w / 2f
     val bob = sin(t * 0.07f) * 4f
     val cy = b.y + b.h / 2f + bob
@@ -1998,6 +2024,7 @@ fun ZelikAdventureScreen(
     val helperImgs = rememberMonImgs(helperSpec)
     val helperAnim = remember { MonAnim() }
     val biomeGfx = rememberZBiomeGfx()
+    zSkel = rememberSkeletons()
     val helperGfx = remember(helperImgs, helperSpec) { ZHelperGfx(helperImgs, helperSpec, helperAnim) }
 
     var screen by remember { mutableStateOf(ZScreen.MENU) }

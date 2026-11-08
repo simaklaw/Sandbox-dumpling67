@@ -383,7 +383,13 @@ fun MainAppScreen(
                                     38 -> LaundryScreen(repository = repository, soundPlayer = soundPlayer)
                                     39 -> CradleRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     40 -> SandboxRoomScreen(repository = repository, soundPlayer = soundPlayer)
-                                    41 -> CarWashRoomScreen(repository = repository, soundPlayer = soundPlayer)
+                                    41 -> CarWashRoomScreen(
+                                        repository = repository,
+                                        soundPlayer = soundPlayer,
+                                        // на время танца игрушки фоновая музыка приложения ставится на паузу
+                                        bgMusicPlaying = { viewModel.musicManager.isEnabled && viewModel.musicManager.isPlaying.value },
+                                        setBgMusic = { on -> if (on) viewModel.musicManager.resumeMusic() else viewModel.musicManager.pauseMusic() }
+                                    )
                                     42 -> ShopRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     43 -> WeatherRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     44 -> BirdFlightScreen(repository = repository, soundPlayer = soundPlayer)

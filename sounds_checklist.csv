@@ -179,3 +179,6 @@ balloon_pop_1.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Proce
 balloon_pop_2.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 balloon_pop_3.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 rainbow_salute.ogg,P3,Шарики,1.5,весёлый салют,cheerful fireworks short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+cw2_dance_car.ogg,P2,Автомойка,11.8,"музыка танца чистой машинки: до мажор, 130 уд/мин, полька «ум-па», маримба",(оригинальная композиция),generate_carwash_music.py (синтез numpy; оригинал для проекта),CC0 / Generated,да
+cw2_dance_bus.ogg,P2,Автомойка,12.8,"музыка танца чистого автобуса: соль мажор, 120 уд/мин, свинг, укулеле и свист",(оригинальная композиция),generate_carwash_music.py (синтез numpy; оригинал для проекта),CC0 / Generated,да
+cw2_dance_train.ogg,P2,Автомойка,12.2,"музыка танца чистого паровозика: ре мажор, 126 уд/мин, «чух-чух», банджо и гудок",(оригинальная композиция),generate_carwash_music.py (синтез numpy; оригинал для проекта),CC0 / Generated,да

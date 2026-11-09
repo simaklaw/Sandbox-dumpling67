@@ -368,7 +368,6 @@ fun MainAppScreen(
                                     21 -> SmeshinkiScreen(repository = repository, soundPlayer = soundPlayer, onBackClick = { leaveGame(21) })
                                     22 -> KineticSandScreen(repository = repository, soundPlayer = soundPlayer, onBackClick = { leaveGame(22) })
                                     24 -> RainScreen(repository = repository, soundPlayer = soundPlayer)
-                                    25 -> BoxSurpriseScreen(repository = repository, soundPlayer = soundPlayer)
                                     26 -> ShapeSorterScreen(repository = repository, soundPlayer = soundPlayer)
                                     27 -> AlienRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     28 -> ZelikAdventureScreen(repository = repository, soundPlayer = soundPlayer)

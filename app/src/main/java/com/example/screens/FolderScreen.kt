@@ -47,7 +47,7 @@ private val DUMPLING_ICON = com.example.R.drawable.pelmen_icon
 
 /**
  * Единый источник правды: какие игры лежат в каких папках и в каких разделах.
- * «Кто в коробке?» живёт только на главном экране, поэтому в папках его нет.
+ * Индексы 25 («Кто в коробке?») и 45 («Гардероб героев») выведены из использования: их здесь нет и быть не должно.
  */
 val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
     FolderType.GAMES to listOf(

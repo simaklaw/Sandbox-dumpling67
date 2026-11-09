@@ -43,7 +43,6 @@ private val TODDLER_HOME_GAMES = listOf(
     FolderItem("Бизиборд", "🎛️", 10, ColorOrange),
     FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
     FolderItem("Дождик", "🌧️", 24, ColorBlue),
-    FolderItem("Кто в коробке?", "🎁", 25, ColorPink),
     FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
     FolderItem("Комната Зелика", "👽", 27, ColorGreen),
     FolderItem("Аквариум", "🐠", 30, ColorBlue),
@@ -205,7 +204,7 @@ fun HomeScreen(
                     // ==========================================
                     // 🧸 3-5 YEARS OLD LAYOUT (With Folders)
                     // ==========================================
-                    // Row 1: Кормление, Кто в коробке?
+                    // Row 1: Кормление (одна широкая карточка)
                     Row(
                         modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -225,16 +224,6 @@ fun HomeScreen(
                                 }
                                 onNavigateToGame(1, "Кормление")
                             }
-                        )
-                        HomeScreenCard(
-                            modifier = Modifier.weight(1f),
-                            title = "Кто в коробке?",
-                            icon = "🎁",
-                            cardColor = ColorYellow,
-                            phaseOffset = 400,
-                            soundManager = soundManager,
-                            haptics = haptics,
-                            onClick = { onNavigateToGame(25, "Кто в коробке?") }
                         )
                     }
 

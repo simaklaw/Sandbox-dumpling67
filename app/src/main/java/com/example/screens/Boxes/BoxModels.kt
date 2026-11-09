@@ -3,7 +3,8 @@ package com.example.screens.Boxes
 import androidx.compose.ui.graphics.Color
 
 /**
- * 📦 Surprise Item in "Кто в коробке?"
+ * 📦 Сюрприз-зверёк. Нужен «Сюрпризам» (BlindBoxScreen, индекс 11, за родительским замком).
+ * Комната «Кто в коробке?» (индекс 25) убрана, но эти модели остаются живыми.
  */
 data class BoxSurprise(
     val id: String,

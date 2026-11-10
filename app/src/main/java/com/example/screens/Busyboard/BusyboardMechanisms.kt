@@ -240,7 +240,7 @@ internal fun BbSwitch(ctx: BbCtx, modifier: Modifier = Modifier) {
                         else if (st.acc > th) { st.decided = true; set(false) }
                     }
                 },
-                onUp = { _, wasTap -> if (wasTap) set(!st.on) }
+                onUp = { _, wasTap -> if (wasTap || !st.decided) set(!st.on) } // «смазанный» тап тоже переключает
             )
     ) {
         tick.value

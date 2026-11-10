@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -40,6 +39,7 @@ import kotlin.random.Random
 private val PANEL_LAMPS = listOf(Color(0xFFEF476F), Color(0xFFFFD166), Color(0xFF06D6A0))
 private val PANEL_LAMP_RATE = floatArrayOf(1.0f, 1.26f, 1.498f)
 private val PANEL_BODY = Color(0xFF39424E)
+private val LAMP_SIDES = floatArrayOf(-1f, 1f) // левый и правый глаз; массив один на все кадры
 private val PANEL_BUS = Color(0xFF4CC9F0)
 
 private class PanelGeo {
@@ -101,6 +101,7 @@ private class PanelState(toddler: Boolean) {
     var h = 1f
     val g = PanelGeo()
     val particles = BbParticles(160)
+    val stripe = Path()
 }
 
 private fun DrawScope.lampFace(c: Offset, r: Float, mood: Int, look: Offset, d: Float) {
@@ -108,20 +109,20 @@ private fun DrawScope.lampFace(c: Offset, r: Float, mood: Int, look: Offset, d: 
     val ey = c.y - r * 0.10f
     when (mood) {
         0 -> { // спит
-            for (s in listOf(-1f, 1f)) {
+            for (s in LAMP_SIDES) {
                 drawLine(ColorInk, Offset(c.x + s * ex - r * 0.16f, ey), Offset(c.x + s * ex + r * 0.16f, ey), strokeWidth = 2.5f * d, cap = StrokeCap.Round)
             }
             drawLine(ColorInk, Offset(c.x - r * 0.14f, c.y + r * 0.34f), Offset(c.x + r * 0.14f, c.y + r * 0.34f), strokeWidth = 2.5f * d, cap = StrokeCap.Round)
         }
         1 -> { // довольна
-            for (s in listOf(-1f, 1f)) {
+            for (s in LAMP_SIDES) {
                 drawCircle(Color.White, r * 0.20f, Offset(c.x + s * ex, ey))
                 drawCircle(ColorInk, r * 0.10f, Offset(c.x + s * ex + look.x * r * 0.05f, ey + look.y * r * 0.05f))
             }
             drawArc(ColorInk, 20f, 140f, false, Offset(c.x - r * 0.28f, c.y + r * 0.02f), Size(r * 0.56f, r * 0.42f), style = Stroke(2.5f * d, cap = StrokeCap.Round))
         }
         else -> { // перегрузка: глаза навыкате, рот «о»
-            for (s in listOf(-1f, 1f)) {
+            for (s in LAMP_SIDES) {
                 drawCircle(Color.White, r * 0.27f, Offset(c.x + s * ex, ey))
                 drawCircle(ColorInk, r * 0.11f, Offset(c.x + s * ex + look.x * r * 0.12f, ey + look.y * r * 0.12f))
             }
@@ -293,7 +294,9 @@ internal fun BbPanelBoard(ctx: BbCtx, modifier: Modifier = Modifier) {
         // корпус
         drawRoundRect(PANEL_BODY, Offset.Zero, Size(w, h), CornerRadius(20 * d, 20 * d))
         drawRoundRect(Color(0xFF20242C), Offset(6 * d, 6 * d), Size(w - 12 * d, h - 12 * d), CornerRadius(16 * d, 16 * d), style = Stroke(3 * d))
-        for (rx in listOf(18 * d, w - 18 * d)) for (ry in listOf(18 * d, h - 18 * d)) {
+        for (corner in 0 until 4) {
+            val rx = if (corner % 2 == 0) 18 * d else w - 18 * d
+            val ry = if (corner < 2) 18 * d else h - 18 * d
             drawCircle(Color(0xFF9AA0AC), 4.5f * d, Offset(rx, ry))
             drawCircle(Color(0xFF20242C), 4.5f * d, Offset(rx, ry), style = Stroke(1.5f * d))
         }
@@ -360,7 +363,11 @@ internal fun BbPanelBoard(ctx: BbCtx, modifier: Modifier = Modifier) {
             val c = Offset(g.lampX[i] + shake.x, g.lampY + shake.y)
             val r = g.lampR
             if (lit) {
-                drawCircle(Brush.radialGradient(listOf(PANEL_LAMPS[i].copy(alpha = 0.75f * bright), Color.Transparent), center = c, radius = r * 2.6f), r * 2.6f, c)
+                val glow = PANEL_LAMPS[i]
+                drawCircle(glow.copy(alpha = 0.10f * bright), r * 2.5f, c)
+                drawCircle(glow.copy(alpha = 0.14f * bright), r * 2.0f, c)
+                drawCircle(glow.copy(alpha = 0.20f * bright), r * 1.55f, c)
+                drawCircle(glow.copy(alpha = 0.26f * bright), r * 1.2f, c)
             }
             drawRoundRect(Color(0xFF20242C), Offset(c.x - r * 0.55f, c.y + r * 0.78f), Size(r * 1.1f, r * 0.55f), CornerRadius(4 * d, 4 * d))
             val glass = if (lit) PANEL_LAMPS[i].copy(alpha = 0.55f + 0.45f * bright) else PANEL_LAMPS[i].copy(alpha = 0.22f)
@@ -422,10 +429,10 @@ internal fun BbPanelBoard(ctx: BbCtx, modifier: Modifier = Modifier) {
             var x = 12 * d
             val step = 20 * d
             while (x < w - 12 * d - step * 0.5f) {
-                val stripe = Path().apply {
-                    moveTo(x, y0); lineTo(x + step * 0.5f, y0)
-                    lineTo(x + step * 0.5f - sh * 0.7f, y0 + sh); lineTo(x - sh * 0.7f, y0 + sh); close()
-                }
+                val stripe = st.stripe
+                stripe.rewind()
+                stripe.moveTo(x, y0); stripe.lineTo(x + step * 0.5f, y0)
+                stripe.lineTo(x + step * 0.5f - sh * 0.7f, y0 + sh); stripe.lineTo(x - sh * 0.7f, y0 + sh); stripe.close()
                 drawPath(stripe, Color(0xFF20242C))
                 x += step
             }

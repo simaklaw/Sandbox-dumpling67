@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import android.os.SystemClock
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -23,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,10 +37,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -151,6 +154,7 @@ fun BusyboardScreen(
     var lastTouch by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
     var hintTarget by remember { mutableStateOf<BbElement?>(null) }
     var showDone by remember { mutableStateOf(false) }
+    var epoch by remember { mutableIntStateOf(0) }
     var rootW by remember { mutableFloatStateOf(1f) }
     val pulse = remember { Animatable(0f) }
     val confetti = remember { BbParticles(220) }
@@ -217,6 +221,7 @@ fun BusyboardScreen(
     fun restart() {
         mask = 0
         room = 0
+        epoch++
         showDone = false
         confetti.clear()
         audio.silence()
@@ -244,18 +249,37 @@ fun BusyboardScreen(
     ) {
         SceneBackground(theme = SceneTheme.ROOM)
         // «Настроение комнаты»: в начале приглушённый вечерний свет, по мере звёздочек — тёплое сияние.
-        Box(Modifier.fillMaxSize().background(Color(0xFF283593).copy(alpha = (1f - mood) * 0.30f)))
-        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFFFE9A8).copy(alpha = 0.55f * mood), Color.Transparent))))
+        // mood читается при рисовании, а не при композиции: анимация перерисовывает только эти слои
+        Box(Modifier.fillMaxSize().drawBehind { drawRect(Color(0xFF283593).copy(alpha = (1f - mood) * 0.30f)) })
+        Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.radialGradient(listOf(Color(0xFFFFE9A8).copy(alpha = 0.55f * mood), Color.Transparent))) })
 
         Column(Modifier.fillMaxSize().padding(12.dp)) {
             Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.size(76.dp)) // место под кнопку «Домой»
-                BbStarBar(count = bbCount(mask), pulse = pulse.value, modifier = Modifier.weight(1f).height(46.dp))
+                BbStarBar(count = bbCount(mask), pulse = { pulse.value }, modifier = Modifier.weight(1f).height(46.dp))
             }
 
-            Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 6.dp)) {
-                Crossfade(targetState = room, animationSpec = tween(220), label = "bbRooms") { r ->
-                    when (r) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    // «играет» = любое движение пальца по доске (не только касание): подсказка не мигает посреди игры.
+                    // Наблюдаем на первом проходе и ничего не потребляем, детали получают события как обычно.
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent(PointerEventPass.Initial)
+                                lastTouch = SystemClock.uptimeMillis()
+                                if (hintTarget != null) hintTarget = null
+                            }
+                        }
+                    }
+            ) {
+                // Без перекрёстного затухания: старая комната сразу уходит из композиции и не доигрывает звуки.
+                // epoch меняется на «Играть ещё» — все детали создаются заново.
+                key(room, epoch) {
+                    when (room) {
                         0 -> RoomLocks(ctx, mask, hintTarget)
                         1 -> RoomSounds(ctx, mask, hintTarget)
                         else -> RoomPanel(ctx, mask, hintTarget)
@@ -355,8 +379,9 @@ private fun BbArrow(
 
 /** Шкала из девяти звёзд: загораются слева направо, последняя «подпрыгивает». */
 @Composable
-private fun BbStarBar(count: Int, pulse: Float, modifier: Modifier) {
+private fun BbStarBar(count: Int, pulse: () -> Float, modifier: Modifier) {
     Canvas(modifier) {
+        val pl = pulse()
         val cell = size.width / BB_STARS
         val path = Path()
         for (i in 0 until BB_STARS) {
@@ -364,7 +389,7 @@ private fun BbStarBar(count: Int, pulse: Float, modifier: Modifier) {
             val cy = size.height / 2f
             val earned = i < count
             val newest = earned && i == count - 1
-            val r = min(cell * 0.46f, size.height * 0.46f) * (if (newest) 1f + 0.55f * pulse else 1f)
+            val r = min(cell * 0.46f, size.height * 0.46f) * (if (newest) 1f + 0.55f * pl else 1f)
             path.rewind()
             for (k in 0 until 10) {
                 val rr = if (k % 2 == 0) r else r * 0.45f

@@ -141,9 +141,10 @@ internal fun BbGears(ctx: BbCtx, modifier: Modifier = Modifier) {
                 },
                 onMove = { p, _ ->
                     val c = center()
+                    val ang = Math.toDegrees(atan2((p.y - c.y).toDouble(), (p.x - c.x).toDouble())).toFloat()
                     if ((p - c).getDistance() > 12f * dens) {
-                        val ang = Math.toDegrees(atan2((p.y - c.y).toDouble(), (p.x - c.x).toDouble())).toFloat()
-                        val dA = angleDiff(st.lastAng, ang)
+                        // скачок угла у самой втулки не должен «прокручивать» шестерёнку
+                        val dA = angleDiff(st.lastAng, ang).coerceIn(-60f, 60f)
                         st.lastAng = ang
                         val now = SystemClock.uptimeMillis()
                         val dtMs = max(1L, now - st.lastMs)
@@ -156,6 +157,8 @@ internal fun BbGears(ctx: BbCtx, modifier: Modifier = Modifier) {
                         }
                         checkDone()
                         tick.bump()
+                    } else {
+                        st.lastAng = ang // палец у втулки: запоминаем угол, чтобы на выходе не было скачка
                     }
                 },
                 onUp = { _, wasTap ->
@@ -358,18 +361,23 @@ private class XyloState {
     val particles = BbParticles(60)
 }
 
-/** Ксилофон: 8 пластинок до-мажора; можно играть сразу несколькими пальцами и водить пальцем по пластинкам (глиссандо). */
+/** Ксилофон: 8 пластинок до-мажора (малышам 5 крупных); можно играть сразу несколькими пальцами и водить пальцем по пластинкам (глиссандо). */
 @Composable
 internal fun BbXylophone(ctx: BbCtx, modifier: Modifier = Modifier) {
     val st = remember { XyloState() }
     val dens = LocalDensity.current.density
 
-    // верхняя пластинка (r = 0) — самая короткая и высокая нота, нижняя — длинная и низкая
+    // малышам — 5 крупных пластинок (до, ми, соль, ля, до): попасть проще, и любая комбинация звучит красиво
+    val bars = if (ctx.toddler) 5 else 8
+    val notes = if (ctx.toddler) intArrayOf(0, 2, 4, 5, 7) else intArrayOf(0, 1, 2, 3, 4, 5, 6, 7)
+
+    // верхняя пластинка (row = 0) — самая короткая и высокая нота, нижняя — длинная и низкая
     fun rowAt(y: Float): Int {
         if (y < st.h * 0.04f || y > st.h * 0.96f) return -1
-        return ((y - st.h * 0.04f) / (st.h * 0.92f / 8f)).toInt().coerceIn(0, 7)
+        return ((y - st.h * 0.04f) / (st.h * 0.92f / bars)).toInt().coerceIn(0, bars - 1)
     }
-    fun noteOf(row: Int) = 7 - row
+    fun noteOf(row: Int) = notes[bars - 1 - row]
+    fun spread(row: Int) = if (bars > 1) row / (bars - 1f) else 0f
 
     val tick = rememberBbTick { dt ->
         var redraw = false
@@ -384,10 +392,10 @@ internal fun BbXylophone(ctx: BbCtx, modifier: Modifier = Modifier) {
         ctx.buzz()
         st.flash[row] = 1f
         st.played = st.played or (1 shl note)
-        val rowH = st.h * 0.92f / 8f
-        val width = st.w * (0.62f + 0.30f * (row / 7f))
+        val rowH = st.h * 0.92f / bars
+        val width = st.w * (0.62f + 0.30f * spread(row))
         val y = st.h * 0.04f + rowH * (row + 0.5f)
-        st.particles.burst(st.w * 0.5f + (Random.nextFloat() - 0.5f) * width * 0.8f, y, ctx.n(5), 180f * dens, 0.6f, 6f * dens, listOf(XYLO_COLORS[row], Color.White), BB_STAR)
+        st.particles.burst(st.w * 0.5f + (Random.nextFloat() - 0.5f) * width * 0.8f, y, ctx.n(5), 180f * dens, 0.6f, 6f * dens, listOf(XYLO_COLORS[(spread(row) * 7f + 0.5f).toInt()], Color.White), BB_STAR)
         if (bbXyloDone(st.played)) ctx.reward(BbElement.XYLOPHONE)
     }
 
@@ -429,16 +437,16 @@ internal fun BbXylophone(ctx: BbCtx, modifier: Modifier = Modifier) {
         val d = dens
         val w = size.width
         val h = size.height
-        val rowH = h * 0.92f / 8f
+        val rowH = h * 0.92f / bars
         // рейки, на которых лежат пластинки
         drawLine(Color(0xFF8D5A2B), Offset(w * 0.30f, h * 0.02f), Offset(w * 0.30f, h * 0.98f), strokeWidth = 7 * d, cap = StrokeCap.Round)
         drawLine(Color(0xFF8D5A2B), Offset(w * 0.70f, h * 0.02f), Offset(w * 0.70f, h * 0.98f), strokeWidth = 7 * d, cap = StrokeCap.Round)
-        for (row in 0 until 8) {
-            val bw = w * (0.62f + 0.30f * (row / 7f))
+        for (row in 0 until bars) {
+            val bw = w * (0.62f + 0.30f * spread(row))
             val f = st.flash[row]
             val top = h * 0.04f + rowH * row + 3 * d + f * 3 * d
             val x0 = (w - bw) / 2f
-            val base = XYLO_COLORS[row]
+            val base = XYLO_COLORS[(spread(row) * 7f + 0.5f).toInt()]
             drawRoundRect(base, Offset(x0, top), Size(bw, rowH - 6 * d), CornerRadius(10 * d, 10 * d))
             drawRoundRect(Color.White.copy(alpha = 0.30f + 0.5f * f), Offset(x0 + 6 * d, top + 3 * d), Size(bw - 12 * d, (rowH - 6 * d) * 0.28f), CornerRadius(6 * d, 6 * d))
             drawRoundRect(ColorInk, Offset(x0, top), Size(bw, rowH - 6 * d), CornerRadius(10 * d, 10 * d), style = Stroke(2.5f * d))
@@ -542,9 +550,9 @@ internal fun BbWheel(ctx: BbCtx, modifier: Modifier = Modifier) {
                 },
                 onMove = { p, _ ->
                     val c = center()
+                    val ang = Math.toDegrees(atan2((p.y - c.y).toDouble(), (p.x - c.x).toDouble())).toFloat()
                     if ((p - c).getDistance() > 14f * dens) {
-                        val ang = Math.toDegrees(atan2((p.y - c.y).toDouble(), (p.x - c.x).toDouble())).toFloat()
-                        val dA = angleDiff(st.lastAng, ang)
+                        val dA = angleDiff(st.lastAng, ang).coerceIn(-60f, 60f)
                         st.lastAng = ang
                         val now = SystemClock.uptimeMillis()
                         val dtMs = max(1L, now - st.lastMs)
@@ -559,6 +567,8 @@ internal fun BbWheel(ctx: BbCtx, modifier: Modifier = Modifier) {
                             st.flap = 1f
                         }
                         tick.bump()
+                    } else {
+                        st.lastAng = ang
                     }
                 },
                 onUp = { _, wasTap ->

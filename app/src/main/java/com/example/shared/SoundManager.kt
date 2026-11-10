@@ -55,6 +55,9 @@ class SoundManager(
         private const val KEY_ANIMAL_ENABLED = "pref_sound_animal_enabled"
         private const val KEY_MASTER_VOLUME = "pref_sound_master_volume"
         private const val KEY_MUTED = "pref_sound_muted"
+        private const val STREAM_ACTIVE_MS = 2500L // поток моложе этого считается звучащим (для maxConcurrent)
+        private const val STREAM_FORGET_MS = 6000L // записи старше выбрасываются
+        private const val FOCUS_REQUEST_GAP_MS = 5000L
 
         @Volatile
         private var instance: SoundManager? = null
@@ -354,7 +357,11 @@ class SoundManager(
 
         // 3. Check concurrent stream limits
         if (entry != null && entry.maxConcurrent > 0) {
-            val count = activeStreams.values.count { it.name == entry.name }
+            // SoundPool не сообщает об окончании потока, поэтому «звучащим» считаем поток не старше
+            // STREAM_ACTIVE_MS, а совсем старые записи выбрасываем. Раньше записи жили до stopAll():
+            // «Молодец!» (лимит 1) играл один раз за сессию, звери (лимит 2) — два раза.
+            activeStreams.entries.removeIf { now - it.value.startTime > STREAM_FORGET_MS }
+            val count = activeStreams.values.count { it.name == entry.name && now - it.startTime < STREAM_ACTIVE_MS }
             if (count >= entry.maxConcurrent) {
                 return false
             }
@@ -758,40 +765,50 @@ class SoundManager(
     // 📻 AUDIO FOCUS & LIFECYCLE
     // ==========================================
 
+    private var focusRequest: AudioFocusRequest? = null
+    @Volatile
+    private var lastFocusRequestMs = 0L
+
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        if (focusChange == AudioManager.AUDIOFOCUS_LOSS || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            lastFocusRequestMs = 0L // при следующем звуке запросить фокус заново
+            stopAll()
+        }
+    }
+
+    /**
+     * Фокус запрашивается не чаще раза в [FOCUS_REQUEST_GAP_MS] и одним и тем же объектом: раньше на КАЖДЫЙ звук
+     * строился новый запрос с новым слушателем (до десятков в секунду в «Бизиборде») — лишний вызов системы
+     * на главном потоке и рост списка слушателей фокуса.
+     */
     private fun requestAudioFocus() {
+        val now = System.currentTimeMillis()
+        if (now - lastFocusRequestMs < FOCUS_REQUEST_GAP_MS) return
+        lastFocusRequestMs = now
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                val request = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                     .setAudioAttributes(
                         AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_GAME)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
                     )
-                    .setOnAudioFocusChangeListener { focusChange ->
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-                            focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
-                        ) {
-                            stopAll()
-                        }
-                    }
+                    .setOnAudioFocusChangeListener(focusListener)
                     .build()
+                    .also { focusRequest = it }
                 audioManager?.requestAudioFocus(request)
             } else {
                 @Suppress("DEPRECATION")
                 audioManager?.requestAudioFocus(
-                    { focusChange ->
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-                            focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
-                        ) {
-                            stopAll()
-                        }
-                    },
+                    focusListener,
                     AudioManager.STREAM_MUSIC,
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
                 )
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w(TAG, "Audio focus request failed", e)
+        }
     }
 
     fun onAppPause() {

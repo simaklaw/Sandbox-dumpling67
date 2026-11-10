@@ -49,23 +49,40 @@ soft_no.ogg,P1,Общие,0.4,мягкое м-м (не фу),soft negative cute,
 spawn.ogg,P1,Общие,0.3,пуф появления,cute poof appear,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 open.ogg,P1,Общие,0.2,рот открылся,soft pop open,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 lever_clack.ogg,P2,Бизиборд,0.3,рычаг клац,mechanical lever clack,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-lever_hum_loop.ogg,P2,Бизиборд,1.0,гул рычага (цикл),soft mechanical hum loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 confetti_rain.ogg,P2,Бизиборд,1.5,хлопушка,party popper confetti,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 train_toot.ogg,P2,Бизиборд,1.2,свисток паровозика,toy train whistle,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 star_burst.ogg,P2,Бизиборд,1.2,блестящие колокольчики,sparkle magic chimes,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-quack_1.ogg,P2,Бизиборд,0.6,кря,cartoon duck quack,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-quack_2.ogg,P2,Бизиборд,0.6,кря,cartoon duck quack,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-quack_3.ogg,P2,Бизиборд,0.6,кря,cartoon duck quack,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 frog_boing.ogg,P2,Бизиборд,0.5,боинг,boing spring cartoon,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 bubble.ogg,P2,Бизиборд,0.4,бульк,water bubble blip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 firework.ogg,P2,Бизиборд,1.5,мягкий салют,firework burst soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 switch_on.ogg,P2,Бизиборд,0.1,тумблер вкл,plastic toggle switch on,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 switch_off.ogg,P2,Бизиборд,0.1,тумблер выкл (мягче),plastic toggle switch off,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-jingle_lights.ogg,P2,Бизиборд,1.8,весёлая мелодия,cheerful short jingle,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-knob_tick.ogg,P2,Бизиборд,0.05,щелчок ручки,knob click detent,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 door_creak.ogg,P2,Бизиборд,0.5,скрип дверцы,small wooden door creak,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 door_close.ogg,P2,Бизиборд,0.3,дверца закрылась,small door close,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 bell_ding.ogg,P2,Бизиборд,1.2,колокольчик динь,small bell ding,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+bb2_click.ogg,P2,Бизиборд,0.09,мягкий щелчок тумблера и задвижки,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_clack.ogg,P2,Бизиборд,0.18,деревянный «клак» упора задвижки,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_tick.ogg,P2,Бизиборд,0.05,"крошечный щелчок одного шага (шестерёнки, колесо)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_zip.ogg,P2,Бизиборд,0.04,один зубчик молнии,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_bead.ogg,P2,Бизиборд,0.22,деревянная косточка счётов,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_keyturn.ogg,P2,Бизиборд,0.36,поворот ключа в замке,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_thunk.ogg,P2,Бизиборд,0.26,"мягкий «тук» (дверца, крышка сундучка)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_ding.ogg,P2,Бизиборд,1.1,колокольчик за звёздочку,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_fanfare.ogg,P2,Бизиборд,2.2,короткая фанфара: все звёздочки собраны,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_whoosh.ogg,P2,Бизиборд,0.32,мягкий «вжух» при смене комнаты,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_pop.ogg,P2,Бизиборд,0.13,«поп»: выскочила игрушка или сюрприз,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_spark.ogg,P2,Бизиборд,0.16,искорка электрощитка,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_zap.ogg,P2,Бизиборд,0.5,мультяшный «бззт» перегрузки щитка (один раз),(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_relief.ogg,P2,Бизиборд,1.0,«Фух!»: порядок в щитке восстановлен,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_lamp.ogg,P2,Бизиборд,0.5,лампа в щитке загорелась,(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_xylo_1.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 1 из 8 (до-мажор, C5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_xylo_2.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 2 из 8 (до-мажор, D5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_xylo_3.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 3 из 8 (до-мажор, E5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_xylo_4.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 4 из 8 (до-мажор, F5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_xylo_5.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 5 из 8 (до-мажор, G5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_xylo_6.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 6 из 8 (до-мажор, A5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_xylo_7.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 7 из 8 (до-мажор, B5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
+bb2_xylo_8.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 8 из 8 (до-мажор, C6)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
 yum_voice.ogg,P2,Голос,до 1.5,"голос, живая запись: «Ням-ням!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
 voice_hint_tap.ogg,P2,Голос,до 1.5,"голос, живая запись: «Нажми!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
 voice_hint_drag.ogg,P2,Голос,до 1.5,"голос, живая запись: «Потяни сюда!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да

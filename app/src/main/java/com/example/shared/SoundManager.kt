@@ -247,15 +247,32 @@ class SoundManager(
      * Играет готовый OGG (res/raw/<name>.ogg) без каталога и без процедурного запасного звука.
      * Возвращает false, если файла нет или он ещё не загрузился — тогда вызывающий код играет синтез.
      */
-    fun playFxRaw(name: String, volume: Float = 1.0f, rate: Float = 1.0f): Boolean {
-        if (isMuted || masterVolume <= 0.001f) return false
-        if (!isCategoryEnabled(SoundCategory.SFX)) return false
-        val id = soundIdMap[name] ?: loadRawSoundFile(name) ?: return false
-        if (!loadedSoundIds.contains(id)) return false
+    fun playFxRaw(name: String, volume: Float = 1.0f, rate: Float = 1.0f): Boolean =
+        playFxRawStream(name, volume, rate) > 0
+
+    /**
+     * Как [playFxRaw], но возвращает номер потока SoundPool (0 — звук не сыгран).
+     * Номер нужен, чтобы оборвать звук через [stopStream], когда экран закрывается или
+     * ребёнок отпустил деталь («Бизиборд» не оставляет звучащих хвостов).
+     */
+    fun playFxRawStream(name: String, volume: Float = 1.0f, rate: Float = 1.0f): Int {
+        if (isMuted || masterVolume <= 0.001f) return 0
+        if (!isCategoryEnabled(SoundCategory.SFX)) return 0
+        val id = soundIdMap[name] ?: loadRawSoundFile(name) ?: return 0
+        if (!loadedSoundIds.contains(id)) return 0
         requestAudioFocus()
         val v = (volume * masterVolume).coerceIn(0f, 1f)
-        val sid = soundPool?.play(id, v, v, 1, 0, rate.coerceIn(0.5f, 2.0f)) ?: 0
-        return sid > 0
+        return soundPool?.play(id, v, v, 1, 0, rate.coerceIn(0.5f, 2.0f)) ?: 0
+    }
+
+    /** Обрывает один поток, полученный из [playFxRawStream]. Безопасно вызывать с любым номером. */
+    fun stopStream(streamId: Int) {
+        if (streamId <= 0) return
+        try {
+            soundPool?.stop(streamId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping stream $streamId", e)
+        }
     }
 
     private val noEnglishVariant: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -486,8 +503,6 @@ class SoundManager(
                 "clink" -> player.playJarGlassClink()
                 "confetti_rain", "firework" -> player.playLegendaryFanfare()
                 "train_toot" -> player.playBicycleBell()
-                "jingle_lights" -> player.playSparkleChime()
-                "knob_tick" -> player.playArcadeButton()
                 "door_creak", "door_close" -> player.playDoorOpen()
                 "stretch" -> player.playCatapultStretch()
                 "wear", "gift" -> player.playSquishElastic()
@@ -529,7 +544,7 @@ class SoundManager(
     // ==========================================
 
     /**
-     * Starts an audio loop (e.g., bow_pull, grain_pour, draw_loop, lever_hum).
+     * Starts an audio loop (e.g., bow_pull, grain_pour, draw_loop).
      */
     fun startLoop(name: String): LoopHandle? {
         if (isMuted || !isSfxEnabled || masterVolume <= 0.001f) return null

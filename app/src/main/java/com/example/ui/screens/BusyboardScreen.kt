@@ -1,2044 +1,416 @@
 package com.example.ui.screens
 
-import android.content.Context
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import android.os.SystemClock
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
-import com.example.shared.i18n.Text
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
-import com.example.screens.Busyboard.*
-import com.example.shared.*
-import com.example.shared.scene.*
+import com.example.screens.Busyboard.BB_CONFETTI
+import com.example.screens.Busyboard.BB_DOT
+import com.example.screens.Busyboard.BB_ROOMS
+import com.example.screens.Busyboard.BB_STAR
+import com.example.screens.Busyboard.BB_STARS
+import com.example.screens.Busyboard.BbAbacus
+import com.example.screens.Busyboard.BbAudio
+import com.example.screens.Busyboard.BbCard
+import com.example.screens.Busyboard.BbCtx
+import com.example.screens.Busyboard.BbElement
+import com.example.screens.Busyboard.BbGears
+import com.example.screens.Busyboard.BbKeyLock
+import com.example.screens.Busyboard.BbLatch
+import com.example.screens.Busyboard.BbPanelBoard
+import com.example.screens.Busyboard.BbParticles
+import com.example.screens.Busyboard.BbSound
+import com.example.screens.Busyboard.BbSwitch
+import com.example.screens.Busyboard.BbWheel
+import com.example.screens.Busyboard.BbXylophone
+import com.example.screens.Busyboard.BbZipper
+import com.example.screens.Busyboard.bbAward
+import com.example.screens.Busyboard.bbCount
+import com.example.screens.Busyboard.bbHas
+import com.example.screens.Busyboard.bbMood
+import com.example.screens.Busyboard.bbNextHint
+import com.example.screens.Busyboard.bbRoomCount
+import com.example.screens.Busyboard.bbRoomSize
+import com.example.screens.Busyboard.rememberBbTick
+import com.example.shared.ColorBgSoft
+import com.example.shared.ColorGreen
+import com.example.shared.ColorInk
+import com.example.shared.ColorOrange
+import com.example.shared.ColorWhite
+import com.example.shared.ColorYellow
+import com.example.shared.LocalAgeProfile
+import com.example.shared.ShapeButton
+import com.example.shared.ShapeCard
+import com.example.shared.SoundManager
+import com.example.shared.i18n.Text
+import com.example.shared.plasticineClickable
+import com.example.shared.rememberHaptics
+import com.example.shared.scene.SceneBackground
+import com.example.shared.scene.SceneTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.*
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
 import kotlin.random.Random
 
-private const val LAST_PAGE = 4
+/*
+ * «Бизиборд» (комната 10) — лучшее из трёх присланных вариантов (View-версия, HTML «Ultimate», Unity):
+ *  • 3 комнаты, 9 деталей, 9 звёздочек → шкала сверху, «настроение комнаты» теплеет, в конце фанфара и салют;
+ *  • комната 1 «Замочки»: задвижка, выключатель с лампой, молния с сюрпризом, замок и ключ;
+ *  • комната 2 «Звуки»: шестерёнки с храповиком и кольцом прогресса, счёты, ксилофон, колесо с инерцией;
+ *  • комната 3 «Щиток»: электрощиток — рубильник, автоматы, лампы-мордочки, перегрузка и «Фух!».
+ * Логика деталей — в screens/Busyboard (BusyboardRules.kt покрыт юнит-тестами), звук — BusyboardAudio.kt.
+ */
+
+private class BbRoomInfo(val emoji: String, val label: String)
+
+private val BB_ROOM_INFO = listOf(
+    BbRoomInfo("🔐", "Замочки"),
+    BbRoomInfo("🎵", "Звуки"),
+    BbRoomInfo("⚡", "Щиток")
+)
 
 @Composable
 fun BusyboardScreen(
-    repository: GameRepository,
+    @Suppress("UNUSED_PARAMETER") repository: GameRepository,
     soundPlayer: SoundEffectPlayer
 ) {
     val context = LocalContext.current
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
-    val soundHelper = remember(context, soundPlayer, soundManager) {
-        BusyboardSoundHelper(context, soundPlayer, soundManager)
-    }
     val haptics = rememberHaptics()
-    val coroutineScope = rememberCoroutineScope()
     val ageProfile = LocalAgeProfile.current
-    val topInset = WindowInsets.statusBars.getTop(LocalDensity.current).toFloat()
-    LaunchedEffect(Unit) {
-        soundManager.preloadRaw(listOf("sm_note1", "sm_pop", "sm_thud", "sm_tada", "sm_honk", "sm_party", "sm_hic", "sm_bubble",
-            "animal_dog_1", "animal_dog_2", "animal_cat_1", "animal_cat_2", "animal_cow_1", "animal_cow_2", "animal_frog_1", "animal_frog_2"))
+    val toddler = ageProfile.isToddler2
+    val density = LocalDensity.current.density
+    val scope = rememberCoroutineScope()
+
+    val audio = remember(soundManager) { BbAudio(soundManager) }
+    LaunchedEffect(audio) { audio.preload() }
+    // Ничто не должно доигрывать после ухода из комнаты или сворачивания приложения.
+    DisposableEffect(audio) { onDispose { audio.silence() } }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, audio) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_PAUSE) audio.silence() }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // SharedPreferences for First Launch
-    val prefs = remember { context.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE) }
-    var isFirstLaunch by remember { mutableStateOf(prefs.getBoolean("first_launch_busyboard", true)) }
+    var room by rememberSaveable { mutableIntStateOf(0) }
+    var mask by rememberSaveable { mutableIntStateOf(0) }
+    var lastTouch by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
+    var hintTarget by remember { mutableStateOf<BbElement?>(null) }
+    var showDone by remember { mutableStateOf(false) }
+    var rootW by remember { mutableFloatStateOf(1f) }
+    val pulse = remember { Animatable(0f) }
+    val confetti = remember { BbParticles(220) }
+    val confettiTick = rememberBbTick { dt -> confetti.update(dt, 170f * density) }
 
-    // Active Board Page (0: Buttons/Levers, 1: Lights/Knob, 2: Peekaboo)
-    var currentPageIndex by remember { mutableIntStateOf(0) }
-    var pageStayStartTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var showNextArrowPulse by remember { mutableStateOf(false) }
-
-    // Hidden Action Counter for "Молодец" Balloon (every 6 actions in 2yo, 10 in 3-5yo)
-    var actionCount by remember { mutableIntStateOf(0) }
-    var activeBalloonY by remember { mutableFloatStateOf(-1f) }
-    var isBalloonPopped by remember { mutableStateOf(false) }
-
-    fun registerAction() {
-        actionCount++
-        if (isFirstLaunch) {
-            isFirstLaunch = false
-            prefs.edit().putBoolean("first_launch_busyboard", false).apply()
+    fun spawnConfetti() {
+        repeat(if (toddler) 60 else 120) {
+            confetti.emit(
+                Random.nextFloat() * rootW, -20f,
+                (Random.nextFloat() - 0.5f) * 120f * density, (110f + Random.nextFloat() * 240f) * density,
+                3.5f + Random.nextFloat() * 1.8f, (5f + Random.nextFloat() * 6f) * density,
+                BB_CONFETTI.random(), if (Random.nextBoolean()) BB_STAR else BB_DOT
+            )
         }
-        val threshold = if (ageProfile.isToddler2) 6 else 10
-        if (actionCount >= threshold && activeBalloonY < 0f) {
-            actionCount = 0
-            activeBalloonY = 1600f
-            isBalloonPopped = false
-            soundHelper.playPraise()
-        }
+        confettiTick.bump()
     }
 
-    // Global Particles (Confetti, Stars, Sparks)
-    val particles = remember { mutableStateListOf<BusyParticle>() }
-
-    // Inactivity on single board monitor (15s -> arrow pulse)
-    LaunchedEffect(currentPageIndex, pageStayStartTime) {
-        showNextArrowPulse = false
-        delay(15000)
-        showNextArrowPulse = true
-    }
-
-    // Main Simulation Loop (Particles & Rising Balloon)
-    LaunchedEffect(Unit) {
-        var lastNanos = 0L
-        while (isActive) {
-            withFrameNanos { nowNanos ->
-                if (lastNanos == 0L) {
-                    lastNanos = nowNanos
-                    return@withFrameNanos
-                }
-                val dt = ((nowNanos - lastNanos) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
-                lastNanos = nowNanos
-
-                // 1. Update Particles
-                for (i in particles.indices.reversed()) {
-                    val p = particles[i]
-                    p.ageSec += dt
-                    p.vy += 450f * dt
-                    p.x += p.vx * dt
-                    p.y += p.vy * dt
-                    p.alpha = (1.0f - p.ageSec / p.lifeSec).coerceIn(0f, 1f)
-                    if (p.ageSec >= p.lifeSec) {
-                        particles.removeAt(i)
+    val ctx = remember(audio, haptics, toddler) {
+        BbCtx(
+            audio = audio,
+            haptics = haptics,
+            toddler = toddler,
+            onReward = { e ->
+                if (!bbHas(mask, e)) {
+                    mask = bbAward(mask, e)
+                    val n = bbCount(mask)
+                    scope.launch {
+                        pulse.snapTo(1f)
+                        pulse.animateTo(0f, tween(650))
+                    }
+                    if (n >= BB_STARS) {
+                        audio.play(BbSound.FANFARE)
+                        audio.praise()
+                        showDone = true
+                        spawnConfetti()
+                    } else {
+                        audio.play(BbSound.DING)
+                        if (n % 3 == 0) audio.praise()
                     }
                 }
-
-                // 2. Update Rising "Молодец" Balloon
-                if (activeBalloonY >= 0f && !isBalloonPopped) {
-                    activeBalloonY -= 140f * dt
-                    if (activeBalloonY < -120f) {
-                        activeBalloonY = -1f
-                    }
-                }
+            },
+            onTouch = {
+                lastTouch = SystemClock.uptimeMillis()
+                hintTarget = null
             }
-        }
-    }
-
-    val decorController = remember { DecorController() }
-    val busyDecors = remember {
-        listOf(
-            DecorSpec(DecorKind.GEAR, 0.10f, 0.08f, 52f, id = "gear_corner"),
-            DecorSpec(DecorKind.BULB, 0.90f, 0.08f, 48f, id = "bulb_corner"),
-            DecorSpec(DecorKind.MOUSE, 0.92f, 0.88f, 52f, id = "corner_mouse")
         )
     }
+
+    // Если ребёнок затих, подсвечиваем следующую ещё не освоенную деталь в этой комнате.
+    LaunchedEffect(room, mask) {
+        while (isActive) {
+            delay(500L)
+            val idle = SystemClock.uptimeMillis() - lastTouch
+            hintTarget = if (idle > ageProfile.hintIdleDelaySeconds * 1000L) bbNextHint(mask, room) else null
+        }
+    }
+    LaunchedEffect(showDone) {
+        if (showDone) {
+            delay(9000L)
+            showDone = false
+        }
+    }
+
+    fun restart() {
+        mask = 0
+        room = 0
+        showDone = false
+        confetti.clear()
+        audio.silence()
+    }
+
+    fun goTo(target: Int) {
+        val t = target.coerceIn(0, BB_ROOMS - 1)
+        if (t != room) {
+            audio.silence()
+            audio.play(BbSound.WHOOSH)
+            room = t
+            hintTarget = null
+            lastTouch = SystemClock.uptimeMillis()
+        }
+    }
+
+    val mood by animateFloatAsState(bbMood(mask), tween(900), label = "bbMood")
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .pointerInput(Unit) {
-                detectDragGestures { _, dragAmount ->
-                    if (abs(dragAmount.x) > 40f && abs(dragAmount.y) < 30f) {
-                        if (dragAmount.x < 0 && currentPageIndex < LAST_PAGE) {
-                            soundHelper.playWhooshSoft()
-                            currentPageIndex++
-                            pageStayStartTime = System.currentTimeMillis()
-                        } else if (dragAmount.x > 0 && currentPageIndex > 0) {
-                            soundHelper.playWhooshSoft()
-                            currentPageIndex--
-                            pageStayStartTime = System.currentTimeMillis()
-                        }
-                    }
-                }
-            }
+            .onSizeChanged { rootW = it.width.toFloat() }
     ) {
         SceneBackground(theme = SceneTheme.ROOM)
-        DecorLayer(items = busyDecors, controller = decorController)
+        // «Настроение комнаты»: в начале приглушённый вечерний свет, по мере звёздочек — тёплое сияние.
+        Box(Modifier.fillMaxSize().background(Color(0xFF283593).copy(alpha = (1f - mood) * 0.30f)))
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFFFE9A8).copy(alpha = 0.55f * mood), Color.Transparent))))
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Header: Spacer for HomeButton (76 dp)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                horizontalArrangement = Arrangement.Start
-            ) {
-                Spacer(modifier = Modifier.size(76.dp))
+        Column(Modifier.fillMaxSize().padding(12.dp)) {
+            Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.size(76.dp)) // место под кнопку «Домой»
+                BbStarBar(count = bbCount(mask), pulse = pulse.value, modifier = Modifier.weight(1f).height(46.dp))
             }
 
-            // Main Active Board (Animated Sliding Transition 250 ms)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                AnimatedContent(
-                    targetState = currentPageIndex,
-                    transitionSpec = {
-                        if (targetState > initialState) {
-                            (slideInHorizontally(animationSpec = tween(250)) { it } + fadeIn(animationSpec = tween(250)))
-                                .togetherWith(slideOutHorizontally(animationSpec = tween(250)) { -it } + fadeOut(animationSpec = tween(150)))
-                        } else {
-                            (slideInHorizontally(animationSpec = tween(250)) { -it } + fadeIn(animationSpec = tween(250)))
-                                .togetherWith(slideOutHorizontally(animationSpec = tween(250)) { it } + fadeOut(animationSpec = tween(150)))
-                        }
-                    },
-                    label = "busyboardPages"
-                ) { pageIndex ->
-                    when (pageIndex) {
-                        0 -> BoardButtonsAndLevers(
-                            soundHelper = soundHelper,
-                            haptics = haptics,
-                            particles = particles,
-                            onAction = { registerAction() }
-                        )
-                        1 -> BoardLightsAndMechanics(
-                            soundHelper = soundHelper,
-                            haptics = haptics,
-                            onAction = { registerAction() }
-                        )
-                        2 -> BoardPeekabooAndBell(
-                            soundHelper = soundHelper,
-                            haptics = haptics,
-                            particles = particles,
-                            onAction = { registerAction() }
-                        )
-                        3 -> BoardMusic(
-                            soundManager = soundManager,
-                            haptics = haptics,
-                            particles = particles,
-                            topInset = topInset,
-                            onAction = { registerAction() }
-                        )
-                        4 -> BoardToys(
-                            soundManager = soundManager,
-                            soundHelper = soundHelper,
-                            haptics = haptics,
-                            particles = particles,
-                            topInset = topInset,
-                            onAction = { registerAction() }
-                        )
+            Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 6.dp)) {
+                Crossfade(targetState = room, animationSpec = tween(220), label = "bbRooms") { r ->
+                    when (r) {
+                        0 -> RoomLocks(ctx, mask, hintTarget)
+                        1 -> RoomSounds(ctx, mask, hintTarget)
+                        else -> RoomPanel(ctx, mask, hintTarget)
                     }
                 }
             }
 
-            // Bottom Navigation Row: Arrow [◀], 3 Dots [● ○ ○], Arrow [▶] (88 dp buttons)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Left Arrow Button [◀] (88 dp)
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .border(BorderStroke(3.dp, ColorInk), ShapeButton)
-                        .background(if (currentPageIndex > 0) ColorOrange else ColorBgSoft, ShapeButton)
-                        .clip(ShapeButton)
-                        .plasticineClickable(haptics = haptics) {
-                            if (currentPageIndex > 0) {
-                                soundHelper.playWhooshSoft()
-                                currentPageIndex--
-                                pageStayStartTime = System.currentTimeMillis()
-                            }
-                        }
-                        .testTag("busyboard_prev_btn")
-                ) {
-                    Text(
-                        text = "◀",
-                        fontSize = 32.sp,
-                        color = if (currentPageIndex > 0) ColorInk else ColorInk.copy(alpha = 0.3f),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // 3 Page Dots with Icons (🔘, 💡, 🏠)
+            val arrowSize = if (toddler) 72.dp else 56.dp
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                BbArrow("◀", room > 0, arrowSize, "busyboard_prev_btn", haptics) { goTo(room - 1) }
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
+                    Modifier
+                        .weight(1f)
                         .background(ColorWhite, ShapeCard)
                         .border(BorderStroke(2.5.dp, ColorInk), ShapeCard)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    BusyboardPage.values().forEachIndexed { idx, page ->
-                        val isSelected = currentPageIndex == idx
-                        Box(
-                            contentAlignment = Alignment.Center,
+                    for (i in 0 until BB_ROOMS) {
+                        val selected = i == room
+                        Column(
                             modifier = Modifier
-                                .size(if (isSelected) 36.dp else 24.dp)
-                                .border(
-                                    BorderStroke(if (isSelected) 3.dp else 1.5.dp, ColorInk),
-                                    CircleShape
-                                )
-                                .background(if (isSelected) ColorYellow else ColorBgSoft, CircleShape)
+                                .weight(1f)
+                                .clip(ShapeButton)
+                                .background(if (selected) ColorYellow else ColorBgSoft, ShapeButton)
+                                .plasticineClickable(haptics = haptics) { goTo(i) }
+                                .padding(vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            if (isSelected) {
-                                Text(text = page.iconEmoji, fontSize = 18.sp)
-                            }
+                            Text(text = BB_ROOM_INFO[i].emoji, fontSize = 20.sp)
+                            Text(text = BB_ROOM_INFO[i].label, fontSize = 11.sp, color = ColorInk, fontWeight = FontWeight.Bold)
+                            Text(text = "${bbRoomCount(mask, i)}/${bbRoomSize(i)}", fontSize = 11.sp, color = ColorInk)
                         }
                     }
                 }
+                BbArrow("▶", room < BB_ROOMS - 1, arrowSize, "busyboard_next_btn", haptics) { goTo(room + 1) }
+            }
+        }
 
-                // Right Arrow Button [▶] (88 dp) with Pulse if inactive
-                val nextPulseScale by animateFloatAsState(
-                    targetValue = if (showNextArrowPulse && currentPageIndex < LAST_PAGE) 1.15f else 1.0f,
-                    animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
-                    label = "arrowPulse"
-                )
+        // салют — просто рисунок поверх, касания не перехватывает
+        Canvas(Modifier.fillMaxSize()) {
+            confettiTick.value
+            confetti.draw(this)
+        }
 
+        if (showDone) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp)
+                    .background(ColorWhite, ShapeCard)
+                    .border(BorderStroke(3.dp, ColorInk), ShapeCard)
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(text = "🌟", fontSize = 64.sp)
+                Text(text = "Умница!", fontSize = 28.sp, color = ColorInk, fontWeight = FontWeight.Bold)
+                Text(text = "Все звёздочки собраны", fontSize = 16.sp, color = ColorInk)
+                Spacer(Modifier.height(12.dp))
                 Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .scale(nextPulseScale)
-                        .size(80.dp)
-                        .border(BorderStroke(3.dp, ColorInk), ShapeButton)
-                        .background(if (currentPageIndex < LAST_PAGE) ColorOrange else ColorBgSoft, ShapeButton)
+                    Modifier
                         .clip(ShapeButton)
-                        .plasticineClickable(haptics = haptics) {
-                            if (currentPageIndex < LAST_PAGE) {
-                                soundHelper.playWhooshSoft()
-                                currentPageIndex++
-                                pageStayStartTime = System.currentTimeMillis()
-                            }
-                        }
-                        .testTag("busyboard_next_btn")
+                        .background(ColorGreen, ShapeButton)
+                        .border(BorderStroke(3.dp, ColorInk), ShapeButton)
+                        .plasticineClickable(haptics = haptics) { restart() }
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
-                    Text(
-                        text = "▶",
-                        fontSize = 32.sp,
-                        color = if (currentPageIndex < LAST_PAGE) ColorInk else ColorInk.copy(alpha = 0.3f),
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(text = "Играть ещё", fontSize = 20.sp, color = ColorInk, fontWeight = FontWeight.Bold)
                 }
             }
-        }
-
-        // Слой частиц и шарика. ВАЖНО: на нём НЕТ pointerInput — перекрывающийся «брат» с обработчиком
-        // касаний блокирует всё, что лежит под ним (из-за этого доска не реагировала на нажатия).
-        Canvas(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Draw Particles
-            particles.forEach { p ->
-                if (p.isStar) {
-                    drawStarGraphic(center = Offset(p.x, p.y), radius = p.size, color = p.color, alpha = p.alpha)
-                } else {
-                    drawCircle(
-                        color = p.color.copy(alpha = p.alpha),
-                        radius = p.size / 2f,
-                        center = Offset(p.x, p.y)
-                    )
-                }
-            }
-
-            // Draw Rising "Молодец!" Balloon
-            if (activeBalloonY >= 0f && !isBalloonPopped) {
-                val bCenter = Offset(size.width / 2f, activeBalloonY)
-                val bR = 42.dp.toPx()
-
-                // Balloon String
-                drawLine(
-                    color = ColorInk,
-                    start = Offset(bCenter.x, bCenter.y + bR),
-                    end = Offset(bCenter.x + sin(activeBalloonY * 0.05f) * 12f, bCenter.y + bR + 45.dp.toPx()),
-                    strokeWidth = 2.dp.toPx()
-                )
-
-                // Balloon Body
-                drawCircle(color = ColorPink, radius = bR, center = bCenter)
-                drawCircle(color = ColorInk, radius = bR, center = bCenter, style = Stroke(width = 3.dp.toPx()))
-
-                // Happy Smile on Balloon
-                drawCircle(color = ColorInk, radius = 4.dp.toPx(), center = Offset(bCenter.x - 12.dp.toPx(), bCenter.y - 6.dp.toPx()))
-                drawCircle(color = ColorInk, radius = 4.dp.toPx(), center = Offset(bCenter.x + 12.dp.toPx(), bCenter.y - 6.dp.toPx()))
-                val smilePath = Path().apply {
-                    moveTo(bCenter.x - 12.dp.toPx(), bCenter.y + 8.dp.toPx())
-                    quadraticBezierTo(bCenter.x, bCenter.y + 20.dp.toPx(), bCenter.x + 12.dp.toPx(), bCenter.y + 8.dp.toPx())
-                }
-                drawPath(smilePath, color = ColorInk, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
-            }
-        }
-
-        // Шарик «Молодец!»: нажимаемая область только вокруг самого шарика
-        if (activeBalloonY >= 0f && !isBalloonPopped) {
-            val density = LocalDensity.current
-            val bR = with(density) { 60.dp.toPx() }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-            ) {
-                BoxWithConstraints(Modifier.fillMaxSize()) {
-                    val cxPx = with(density) { maxWidth.toPx() } / 2f
-                    Box(
-                        modifier = Modifier
-                            .offset(
-                                x = with(density) { (cxPx - bR).toDp() },
-                                y = with(density) { (activeBalloonY - bR).toDp() }
-                            )
-                            .size(120.dp)
-                            .pointerInput(Unit) {
-                                detectTapGestures {
-                                    isBalloonPopped = true
-                                    soundHelper.playPop()
-                                    haptics.vibrate(25)
-                                    repeat(20) {
-                                        val ang = Random.nextFloat() * 2f * PI.toFloat()
-                                        val spd = Random.nextFloat() * 250f + 80f
-                                        particles.add(
-                                            BusyParticle(
-                                                x = cxPx, y = activeBalloonY,
-                                                vx = cos(ang) * spd, vy = sin(ang) * spd,
-                                                color = listOf(ColorPink, ColorYellow, ColorGreen, ColorOrange, ColorBlue).random(),
-                                                isStar = true, size = 14f
-                                            )
-                                        )
-                                    }
-                                    activeBalloonY = -1f
-                                }
-                            }
-                    )
-                }
-            }
-        }
-
-        // Hint Hand Gesture
-        if (isFirstLaunch) {
-            HintHand(
-                from = Offset(60f, 180f),
-                to = Offset(60f, 290f),
-                mode = "drag",
-                delayMs = 1200L
-            )
         }
     }
 }
 
-/**
- * 🕹️ Board 1: Buttons & Levers.
- * 2 Vertical Levers + 4 Big Depressible Buttons (Star, Duck, Frog, Fireworks).
- */
 @Composable
-private fun BoardButtonsAndLevers(
-    soundHelper: BusyboardSoundHelper,
-    haptics: Haptics,
-    particles: MutableList<BusyParticle>,
-    onAction: () -> Unit
-) {
-    val coroutineScope = rememberCoroutineScope()
-
-    // Levers Pull Distance (0..160 dp)
-    var leftLeverPull by remember { mutableFloatStateOf(0f) }
-    var rightLeverPull by remember { mutableFloatStateOf(0f) }
-
-    // Train Animation (Right Lever)
-    var isTrainRunning by remember { mutableStateOf(false) }
-    val trainPosX = remember { Animatable(-300f) }
-
-    val board1Decors = remember {
-        listOf(
-            DecorSpec(DecorKind.GEAR, 0.10f, 0.08f, 58f),
-            DecorSpec(DecorKind.GEAR, 0.90f, 0.08f, 62f),
-            DecorSpec(DecorKind.GEAR, 0.92f, 0.50f, 56f),
-            DecorSpec(DecorKind.CLOUD, 0.16f, 0.40f, 60f),
-            DecorSpec(DecorKind.CLOUD, 0.84f, 0.40f, 60f)
-        )
-    }
-
-    Surface(
-        shape = ShapeCard,
-        color = Color(0xFF6EC6FF),
-        border = BorderStroke(3.5.dp, ColorInk),
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(4.dp)
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            DecorLayer(items = board1Decors)
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-            // Top Row: 2 Heavy Mechanical Levers (Left: ⚡ Confetti, Right: 🚂 Train)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Left Lever (⚡ Confetti Rain)
-                MechanicalLever(
-                    iconEmoji = "⚡",
-                    pullDistance = leftLeverPull,
-                    onPull = { delta ->
-                        leftLeverPull = (leftLeverPull + delta).coerceIn(0f, 150f)
-                        soundHelper.playLeverHum()
-                    },
-                    onRelease = {
-                        if (leftLeverPull > 110f) {
-                            // Activated!
-                            soundHelper.playLeverClack()
-                            soundHelper.playConfettiRain()
-                            haptics.vibrate(25)
-                            onAction()
-
-                            // Spawn 25 Confetti Particles
-                            repeat(25) {
-                                val ang = Random.nextFloat() * 2f * PI.toFloat()
-                                val spd = Random.nextFloat() * 200f + 60f
-                                particles.add(
-                                    BusyParticle(
-                                        x = Random.nextFloat() * 800f + 100f,
-                                        y = 300f,
-                                        vx = cos(ang) * spd,
-                                        vy = -Random.nextFloat() * 250f - 50f,
-                                        color = listOf(ColorPink, ColorYellow, ColorGreen, ColorOrange, ColorBlue).random(),
-                                        isStar = true,
-                                        size = 14f,
-                                        lifeSec = 1.5f
-                                    )
-                                )
-                            }
-                        }
-                        leftLeverPull = 0f
-                    }
-                )
-
-                // Right Lever (🚂 Cartoon Steam Train)
-                MechanicalLever(
-                    iconEmoji = "🚂",
-                    pullDistance = rightLeverPull,
-                    onPull = { delta ->
-                        rightLeverPull = (rightLeverPull + delta).coerceIn(0f, 150f)
-                        soundHelper.playLeverHum()
-                    },
-                    onRelease = {
-                        if (rightLeverPull > 110f && !isTrainRunning) {
-                            soundHelper.playLeverClack()
-                            soundHelper.playTrainToot()
-                            haptics.vibrate(25)
-                            onAction()
-
-                            isTrainRunning = true
-                            coroutineScope.launch {
-                                trainPosX.snapTo(-200f)
-                                trainPosX.animateTo(1200f, tween(2000, easing = LinearEasing))
-                                isTrainRunning = false
-                            }
-                        }
-                        rightLeverPull = 0f
-                    }
-                )
-            }
-
-            // Средняя полоска: светофор, сирена, звонок
-            var trafficLight by remember { mutableIntStateOf(0) }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MiniPad("🚨", Color(0xFFEF5350), haptics, 68.dp) { soundHelper.playTrainToot(); onAction() }
-                // Светофор: тап — следующий свет
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .size(54.dp, 100.dp)
-                        .border(BorderStroke(3.dp, ColorInk), RoundedCornerShape(14.dp))
-                        .background(Color(0xFF37474F), RoundedCornerShape(14.dp))
-                        .clip(RoundedCornerShape(14.dp))
-                        .pointerInput(Unit) {
-                            detectTapGestures {
-                                trafficLight = (trafficLight + 1) % 3
-                                soundHelper.playKnobTick()
-                                haptics.vibrateShort()
-                                onAction()
-                            }
-                        }
-                        .padding(vertical = 6.dp)
-                ) {
-                    listOf(Color(0xFFFF5252), Color(0xFFFFEB3B), Color(0xFF69F0AE)).forEachIndexed { i, c ->
-                        Box(
-                            Modifier
-                                .size(26.dp)
-                                .background(if (trafficLight == i) c else c.copy(alpha = 0.22f), CircleShape)
-                        )
-                    }
-                }
-                MiniPad("🔔", Color(0xFFFFD54F), haptics, 68.dp) { soundHelper.playBellDing(); onAction() }
-            }
-
-            // Animated Train Crossing Banner
-            if (isTrainRunning) {
-                Box(
-                    modifier = Modifier
-                        .offset(x = trainPosX.value.dp, y = (-20).dp)
-                        .size(140.dp, 60.dp)
-                ) {
-                    Text(text = "🚂💨💨", fontSize = 42.sp)
-                }
-            }
-
-            // Bottom 2x2 Grid of 4 Round Depressible Buttons (96 dp each)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.SpaceEvenly,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Row 1: ⭐ Звезда & 🦆 Утка
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    DepressibleButton(
-                        emoji = "⭐",
-                        color = ColorYellow,
-                        tag = "busy_btn_star",
-                        haptics = haptics
-                    ) {
-                        soundHelper.playStarBurst()
-                        haptics.vibrateShort()
-                        onAction()
-                        repeat(22) {
-                            val ang = Random.nextFloat() * 2f * PI.toFloat()
-                            val spd = Random.nextFloat() * 220f + 70f
-                            particles.add(
-                                BusyParticle(
-                                    x = 260f,
-                                    y = 900f,
-                                    vx = cos(ang) * spd,
-                                    vy = sin(ang) * spd,
-                                    color = ColorYellow,
-                                    isStar = true,
-                                    size = 16f,
-                                    lifeSec = 1.2f
-                                )
-                            )
-                        }
-                    }
-
-                    DepressibleButton(
-                        emoji = "🦆",
-                        color = ColorPink,
-                        tag = "busy_btn_duck",
-                        haptics = haptics
-                    ) {
-                        soundHelper.playQuack()
-                        haptics.vibrateShort()
-                        onAction()
-                        repeat(8) {
-                            particles.add(
-                                BusyParticle(
-                                    x = 650f,
-                                    y = 900f,
-                                    vx = -Random.nextFloat() * 200f - 50f,
-                                    vy = -Random.nextFloat() * 300f - 100f,
-                                    color = ColorYellow,
-                                    size = 18f,
-                                    lifeSec = 1.4f
-                                )
-                            )
-                        }
-                    }
-                }
-
-                // Row 2: 🐸 Лягушка & 🎆 Салют
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    DepressibleButton(
-                        emoji = "🐸",
-                        color = ColorGreen,
-                        tag = "busy_btn_frog",
-                        haptics = haptics
-                    ) {
-                        soundHelper.playFrogBoing()
-                        haptics.vibrateShort()
-                        onAction()
-                        repeat(15) {
-                            val ang = Random.nextFloat() * 2f * PI.toFloat()
-                            val spd = Random.nextFloat() * 180f + 60f
-                            particles.add(
-                                BusyParticle(
-                                    x = 260f,
-                                    y = 1200f,
-                                    vx = cos(ang) * spd,
-                                    vy = sin(ang) * spd - 60f,
-                                    color = ColorGreen,
-                                    size = 14f,
-                                    lifeSec = 1.3f
-                                )
-                            )
-                        }
-                    }
-
-                    DepressibleButton(
-                        emoji = "🎆",
-                        color = ColorOrange,
-                        tag = "busy_btn_firework",
-                        haptics = haptics
-                    ) {
-                        soundHelper.playFirework()
-                        haptics.vibrate(25)
-                        onAction()
-                        repeat(25) {
-                            val ang = Random.nextFloat() * 2f * PI.toFloat()
-                            val spd = Random.nextFloat() * 260f + 90f
-                            particles.add(
-                                BusyParticle(
-                                    x = 650f,
-                                    y = 1200f,
-                                    vx = cos(ang) * spd,
-                                    vy = sin(ang) * spd - 50f,
-                                    color = listOf(ColorPink, ColorYellow, ColorBlue, ColorOrange).random(),
-                                    isStar = true,
-                                    size = 15f,
-                                    lifeSec = 1.8f
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Нижний ряд: зверята-кнопки
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MiniPad("🐶", Color(0xFFFFB74D), haptics, 66.dp) { soundHelper.playPeekabooVoice("dog"); onAction() }
-                MiniPad("🐱", Color(0xFFFF8A80), haptics, 66.dp) { soundHelper.playPeekabooVoice("cat"); onAction() }
-                MiniPad("🐮", Color(0xFFCE93D8), haptics, 66.dp) { soundHelper.playPeekabooVoice("cow"); onAction() }
-                MiniPad("🐴", Color(0xFF80CBC4), haptics, 66.dp) { soundHelper.playPeekabooVoice("horse"); onAction() }
-            }
-        }
-    }
-}
-}
-
-/**
- * 💡 Board 2: Lights & Mechanics.
- * 4 Toggle Switches with 4 Bulbs + 1 Large Rotary Gear/Knob.
- */
-@Composable
-private fun BoardLightsAndMechanics(
-    soundHelper: BusyboardSoundHelper,
-    haptics: Haptics,
-    onAction: () -> Unit
-) {
-    // 4 Toggle Switches States (Red, Yellow, Green, Blue)
-    var switchRed by remember { mutableStateOf(false) }
-    var switchYellow by remember { mutableStateOf(false) }
-    var switchGreen by remember { mutableStateOf(false) }
-    var switchBlue by remember { mutableStateOf(false) }
-
-    val allLightsOn = switchRed && switchYellow && switchGreen && switchBlue
-
-    // Chaser Light Index when all 4 are on (smooth cycling at max 2 changes/sec)
-    var chaserIndex by remember { mutableIntStateOf(0) }
-    LaunchedEffect(allLightsOn) {
-        if (allLightsOn) {
-            soundHelper.playJingleLights()
-            while (true) {
-                delay(500)
-                chaserIndex = (chaserIndex + 1) % 4
-            }
-        }
-    }
-
-    // Rotary Gear Rotation Angle (changes background hue)
-    var knobAngleDeg by remember { mutableFloatStateOf(0f) }
-    var lastKnobClickAngle by remember { mutableFloatStateOf(0f) }
-    // Время суток: 0 — ночь, 1 — день, 2 — закат
-    var skyMode by remember { mutableIntStateOf(0) }
-    val skyColors = when (skyMode) {
-        1 -> listOf(Color(0xFF4FC3F7), Color(0xFFE1F5FE))
-        2 -> listOf(Color(0xFFFF7043), Color(0xFFFFCC80))
-        else -> listOf(Color(0xFF1E2A6B), Color(0xFF4F5DB8))
-    }
-
-    val board2Decors = remember {
-        listOf(
-            DecorSpec(DecorKind.SUN, 0.86f, 0.10f, 60f, reaction = DecorReaction.SMILE),
-            DecorSpec(DecorKind.STAR, 0.14f, 0.10f, 52f),
-            DecorSpec(DecorKind.STAR, 0.28f, 0.15f, 44f),
-            DecorSpec(DecorKind.STAR, 0.72f, 0.15f, 44f),
-            DecorSpec(DecorKind.BULB, 0.50f, 0.08f, 48f)
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(4.dp)
-            .clip(ShapeCard)
-            .background(Brush.verticalGradient(colors = skyColors))
-            .border(BorderStroke(3.5.dp, ColorInk), ShapeCard)
-    ) {
-        DecorLayer(items = board2Decors)
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // 4 Bulbs and 4 Toggle Switches Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 1. Red Bulb & Switch
-                BulbAndSwitchColumn(
-                    color = Color(0xFFFF6B6B),
-                    isOn = switchRed,
-                    isChasing = allLightsOn && chaserIndex == 0,
-                    haptics = haptics,
-                    onToggle = {
-                        switchRed = !switchRed
-                        if (switchRed) soundHelper.playSwitchOn() else soundHelper.playSwitchOff()
-                        onAction()
-                    }
-                )
-
-                // 2. Yellow Bulb & Switch
-                BulbAndSwitchColumn(
-                    color = Color(0xFFFFD93D),
-                    isOn = switchYellow,
-                    isChasing = allLightsOn && chaserIndex == 1,
-                    haptics = haptics,
-                    onToggle = {
-                        switchYellow = !switchYellow
-                        if (switchYellow) soundHelper.playSwitchOn() else soundHelper.playSwitchOff()
-                        onAction()
-                    }
-                )
-
-                // 3. Green Bulb & Switch
-                BulbAndSwitchColumn(
-                    color = Color(0xFF5CCB6E),
-                    isOn = switchGreen,
-                    isChasing = allLightsOn && chaserIndex == 2,
-                    haptics = haptics,
-                    onToggle = {
-                        switchGreen = !switchGreen
-                        if (switchGreen) soundHelper.playSwitchOn() else soundHelper.playSwitchOff()
-                        onAction()
-                    }
-                )
-
-                // 4. Blue Bulb & Switch
-                BulbAndSwitchColumn(
-                    color = Color(0xFF4A9BFF),
-                    isOn = switchBlue,
-                    isChasing = allLightsOn && chaserIndex == 3,
-                    haptics = haptics,
-                    onToggle = {
-                        switchBlue = !switchBlue
-                        if (switchBlue) soundHelper.playSwitchOn() else soundHelper.playSwitchOff()
-                        onAction()
-                    }
-                )
-            }
-
-            // Радужная лента: огоньки бегут за поворотом шестерёнки
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val lit = floor(knobAngleDeg / 45f).toInt().mod(8)
-                BUSY_RAINBOW.forEachIndexed { i, c ->
-                    Box(
-                        Modifier
-                            .size(if (i == lit) 30.dp else 22.dp)
-                            .border(BorderStroke(2.dp, ColorInk), CircleShape)
-                            .background(if (i == lit) c else c.copy(alpha = 0.28f), CircleShape)
-                    )
-                }
-            }
-
-            // Large Rotary Gear / Knob (130 dp)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(160.dp)
-                    .padding(bottom = 20.dp)
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            val deltaAngle = dragAmount.x * 0.8f - dragAmount.y * 0.8f
-                            knobAngleDeg += deltaAngle
-
-                            if (abs(knobAngleDeg - lastKnobClickAngle) >= 30f) {
-                                lastKnobClickAngle = knobAngleDeg
-                                soundHelper.playKnobTick()
-                                haptics.vibrate(8)
-                                onAction()
-                            }
-                        }
-                    }
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val c = Offset(size.width / 2f, size.height / 2f)
-                    val r = 65.dp.toPx()
-                    val inkStroke = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-
-                    rotate(degrees = knobAngleDeg, pivot = c) {
-                        // Gear Teeth (8 teeth around circle)
-                        for (i in 0 until 8) {
-                            val toothAngle = i * 45f
-                            rotate(degrees = toothAngle, pivot = c) {
-                                drawRoundRect(
-                                    color = Color(0xFFFFB74D),
-                                    topLeft = Offset(c.x - 14.dp.toPx(), c.y - r - 12.dp.toPx()),
-                                    size = Size(28.dp.toPx(), 24.dp.toPx()),
-                                    cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
-                                )
-                                drawRoundRect(
-                                    color = ColorInk,
-                                    topLeft = Offset(c.x - 14.dp.toPx(), c.y - r - 12.dp.toPx()),
-                                    size = Size(28.dp.toPx(), 24.dp.toPx()),
-                                    cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx()),
-                                    style = inkStroke
-                                )
-                            }
-                        }
-
-                        // Gear Central Body
-                        drawCircle(color = Color(0xFFFFD54F), radius = r, center = c)
-                        drawCircle(color = ColorInk, radius = r, center = c, style = inkStroke)
-
-                        // Center Knob Grip
-                        drawCircle(color = Color(0xFFFF8F00), radius = r * 0.45f, center = c)
-                        drawCircle(color = ColorInk, radius = r * 0.45f, center = c, style = Stroke(width = 2.5.dp.toPx()))
-
-                        // Indicator Notch
-                        drawLine(
-                            color = ColorWhite,
-                            start = c,
-                            end = Offset(c.x, c.y - r * 0.75f),
-                            strokeWidth = 6.dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
-                        drawLine(
-                            color = ColorInk,
-                            start = c,
-                            end = Offset(c.x, c.y - r * 0.75f),
-                            strokeWidth = 2.5.dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
-                    }
-                }
-            }
-
-            // Время суток: ночь, день, закат
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf("🌙" to 0, "☀️" to 1, "🌅" to 2).forEach { (em, mode) ->
-                    MiniPad(em, if (skyMode == mode) ColorYellow else ColorWhite, haptics, 64.dp) {
-                        skyMode = mode
-                        soundHelper.playSwitchOn()
-                        onAction()
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 🏠 Board 3: Peekaboo & Bell.
- * 3 Houses with Swinging Doors and Animals + 1 Large Pendulum Bell.
- */
-@Composable
-private fun BoardPeekabooAndBell(
-    soundHelper: BusyboardSoundHelper,
-    haptics: Haptics,
-    particles: MutableList<BusyParticle>,
-    onAction: () -> Unit
-) {
-    val coroutineScope = rememberCoroutineScope()
-
-    // 3 Houses States
-    var house1Animal by remember { mutableStateOf<PeekabooAnimal?>(null) }
-    var house2Animal by remember { mutableStateOf<PeekabooAnimal?>(null) }
-    var house3Animal by remember { mutableStateOf<PeekabooAnimal?>(null) }
-
-    val house1DoorAngle = remember { Animatable(0f) }
-    val house2DoorAngle = remember { Animatable(0f) }
-    val house3DoorAngle = remember { Animatable(0f) }
-
-    // Bell Pendulum Swing Angle
-    val bellSwing = remember { Animatable(0f) }
-
-    val board3Decors = remember {
-        listOf(
-            DecorSpec(DecorKind.CLOUD, 0.16f, 0.08f, 68f),
-            DecorSpec(DecorKind.CLOUD, 0.82f, 0.08f, 68f),
-            DecorSpec(DecorKind.BIRD, 0.88f, 0.32f, 54f),
-            DecorSpec(DecorKind.TREE, 0.08f, 0.62f, 72f),
-            DecorSpec(DecorKind.FLOWER, 0.90f, 0.68f, 54f)
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(4.dp)
-            .clip(ShapeCard)
-            .background(Brush.verticalGradient(colors = listOf(Color(0xFF9FDCFF), Color(0xFF8EDC9D))))
-            .border(BorderStroke(3.5.dp, ColorInk), ShapeCard)
-    ) {
-        DecorLayer(items = board3Decors)
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // 3 Peekaboo Houses in a Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(240.dp)
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // House 1 (Red)
-                PeekabooHouse(
-                    roofColor = Color(0xFFFF6B6B),
-                    wallColor = Color(0xFFFFCDD2),
-                    doorAngle = house1DoorAngle.value,
-                    animal = house1Animal,
-                    onClick = {
-                        if (house1DoorAngle.value > 10f) {
-                            // Close early
-                            coroutineScope.launch {
-                                house1DoorAngle.animateTo(0f, tween(180))
-                                house1Animal = null
-                                soundHelper.playDoorClose()
-                            }
-                        } else {
-                            // Open door!
-                            val animal = BusyboardCatalog.PEEKABOO_ANIMALS.random()
-                            house1Animal = animal
-                            soundHelper.playDoorCreak()
-                            soundHelper.playPeekabooVoice(animal.soundAnimal)
-                            haptics.vibrate(20)
-                            onAction()
-
-                            coroutineScope.launch {
-                                house1DoorAngle.animateTo(90f, tween(250))
-                                delay(2500)
-                                if (house1Animal == animal) {
-                                    house1DoorAngle.animateTo(0f, tween(250))
-                                    soundHelper.playDoorClose()
-                                    house1Animal = null
-                                }
-                            }
-                        }
-                    }
-                )
-
-                // House 2 (Yellow)
-                PeekabooHouse(
-                    roofColor = Color(0xFFFFD93D),
-                    wallColor = Color(0xFFFFF9C4),
-                    doorAngle = house2DoorAngle.value,
-                    animal = house2Animal,
-                    onClick = {
-                        if (house2DoorAngle.value > 10f) {
-                            coroutineScope.launch {
-                                house2DoorAngle.animateTo(0f, tween(180))
-                                house2Animal = null
-                                soundHelper.playDoorClose()
-                            }
-                        } else {
-                            val animal = BusyboardCatalog.PEEKABOO_ANIMALS.random()
-                            house2Animal = animal
-                            soundHelper.playDoorCreak()
-                            soundHelper.playPeekabooVoice(animal.soundAnimal)
-                            haptics.vibrate(20)
-                            onAction()
-
-                            coroutineScope.launch {
-                                house2DoorAngle.animateTo(90f, tween(250))
-                                delay(2500)
-                                if (house2Animal == animal) {
-                                    house2DoorAngle.animateTo(0f, tween(250))
-                                    soundHelper.playDoorClose()
-                                    house2Animal = null
-                                }
-                            }
-                        }
-                    }
-                )
-
-                // House 3 (Green)
-                PeekabooHouse(
-                    roofColor = Color(0xFF5CCB6E),
-                    wallColor = Color(0xFFC8E6C9),
-                    doorAngle = house3DoorAngle.value,
-                    animal = house3Animal,
-                    onClick = {
-                        if (house3DoorAngle.value > 10f) {
-                            coroutineScope.launch {
-                                house3DoorAngle.animateTo(0f, tween(180))
-                                house3Animal = null
-                                soundHelper.playDoorClose()
-                            }
-                        } else {
-                            val animal = BusyboardCatalog.PEEKABOO_ANIMALS.random()
-                            house3Animal = animal
-                            soundHelper.playDoorCreak()
-                            soundHelper.playPeekabooVoice(animal.soundAnimal)
-                            haptics.vibrate(20)
-                            onAction()
-
-                            coroutineScope.launch {
-                                house3DoorAngle.animateTo(90f, tween(250))
-                                delay(2500)
-                                if (house3Animal == animal) {
-                                    house3DoorAngle.animateTo(0f, tween(250))
-                                    soundHelper.playDoorClose()
-                                    house3Animal = null
-                                }
-                            }
-                        }
-                    }
-                )
-            }
-
-            // Окошки с шторками: за каждым прячется букашка
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf(Color(0xFFFF8A80), Color(0xFFFFD54F), Color(0xFF81C784), Color(0xFF64B5F6)).forEachIndexed { wi, curtain ->
-                    var critter by remember { mutableStateOf<String?>(null) }
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(68.dp, 78.dp)
-                            .border(BorderStroke(3.dp, ColorInk), RoundedCornerShape(12.dp))
-                            .background(if (critter != null) Color(0xFFFFF9C4) else curtain, RoundedCornerShape(12.dp))
-                            .clip(RoundedCornerShape(12.dp))
-                            .pointerInput(Unit) {
-                                detectTapGestures {
-                                    if (critter == null) {
-                                        critter = listOf("🦋", "🐞", "🐝", "🐛", "🐌", "🦎").random()
-                                        soundHelper.playPop()
-                                        haptics.vibrateShort()
-                                        onAction()
-                                        coroutineScope.launch {
-                                            delay(2200)
-                                            critter = null
-                                        }
-                                    } else {
-                                        critter = null
-                                        soundHelper.playDoorClose()
-                                    }
-                                }
-                            }
-                    ) {
-                        if (critter != null) {
-                            Text(critter!!, fontSize = 38.sp)
-                        } else {
-                            // шторка со складками
-                            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                repeat(3) {
-                                    Box(Modifier.width(3.dp).fillMaxHeight().background(ColorInk.copy(alpha = 0.18f)))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Large Hanging Bell (Swinging pendulum with pure ding)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(160.dp)
-                    .padding(bottom = 20.dp)
-                    .plasticineClickable(haptics = haptics) {
-                        soundHelper.playBellDing()
-                        haptics.vibrate(15)
-                        onAction()
-
-                        // Golden Sparkle particles
-                        repeat(8) {
-                            val ang = Random.nextFloat() * 2f * PI.toFloat()
-                            val spd = Random.nextFloat() * 140f + 40f
-                            particles.add(
-                                BusyParticle(
-                                    x = 540f,
-                                    y = 1200f,
-                                    vx = cos(ang) * spd,
-                                    vy = sin(ang) * spd,
-                                    color = ColorYellow,
-                                    isStar = true,
-                                    size = 14f,
-                                    lifeSec = 0.9f
-                                )
-                            )
-                        }
-
-                        // Swing Bell
-                        coroutineScope.launch {
-                            bellSwing.animateTo(25f, tween(120))
-                            bellSwing.animateTo(-22f, tween(160))
-                            bellSwing.animateTo(14f, tween(180))
-                            bellSwing.animateTo(-8f, tween(200))
-                            bellSwing.animateTo(0f, tween(220))
-                        }
-                    }
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val c = Offset(size.width / 2f, 20.dp.toPx())
-                    val bellR = 48.dp.toPx()
-                    val inkStroke = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-
-                    rotate(degrees = bellSwing.value, pivot = c) {
-                        // Hanging Cord
-                        drawLine(
-                            color = ColorInk,
-                            start = c,
-                            end = Offset(c.x, c.y + 35.dp.toPx()),
-                            strokeWidth = 3.5.dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
-
-                        // Golden Bell Dome
-                        val bellCenter = Offset(c.x, c.y + 65.dp.toPx())
-                        val bellPath = Path().apply {
-                            moveTo(bellCenter.x - bellR * 0.7f, bellCenter.y + bellR * 0.6f)
-                            quadraticBezierTo(bellCenter.x - bellR * 0.6f, bellCenter.y - bellR * 0.6f, bellCenter.x, bellCenter.y - bellR * 0.7f)
-                            quadraticBezierTo(bellCenter.x + bellR * 0.6f, bellCenter.y - bellR * 0.6f, bellCenter.x + bellR * 0.7f, bellCenter.y + bellR * 0.6f)
-                            close()
-                        }
-                        drawPath(bellPath, color = Color(0xFFFFD54F))
-                        drawPath(bellPath, color = ColorInk, style = inkStroke)
-
-                        // Bell Rim Clapper
-                        drawCircle(color = Color(0xFFFF8F00), radius = 10.dp.toPx(), center = Offset(bellCenter.x, bellCenter.y + bellR * 0.65f))
-                        drawCircle(color = ColorInk, radius = 10.dp.toPx(), center = Offset(bellCenter.x, bellCenter.y + bellR * 0.65f), style = Stroke(width = 2.dp.toPx()))
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 🕹️ Pullable Mechanical Lever.
- */
-@Composable
-private fun MechanicalLever(
-    iconEmoji: String,
-    pullDistance: Float,
-    onPull: (Float) -> Unit,
-    onRelease: () -> Unit
-) {
-    Box(
-        contentAlignment = Alignment.TopCenter,
-        modifier = Modifier
-            .size(96.dp, 170.dp)
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        onPull(dragAmount.y)
-                    },
-                    onDragEnd = { onRelease() },
-                    onDragCancel = { onRelease() }
-                )
-            }
-    ) {
-        // Vertical Slot Background
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color(0xFFD7CCC8),
-            border = BorderStroke(3.dp, ColorInk),
-            modifier = Modifier
-                .width(44.dp)
-                .fillMaxHeight()
-        ) {
-            Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize().padding(top = 8.dp)) {
-                Text(text = iconEmoji, fontSize = 20.sp)
-            }
-        }
-
-        // Pullable Knob (96 dp round handle)
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .offset(y = pullDistance.dp)
-                .size(76.dp)
-                .border(BorderStroke(3.5.dp, ColorInk), CircleShape)
-                .background(ColorOrange, CircleShape)
-                .clip(CircleShape)
-        ) {
-            Text(text = iconEmoji, fontSize = 34.sp)
-        }
-    }
-}
-
-/**
- * 🔘 Depressible Button that physically shifts down by 6 dp.
- */
-@Composable
-private fun DepressibleButton(
-    emoji: String,
-    color: Color,
+private fun BbArrow(
+    label: String,
+    enabled: Boolean,
+    sizeDp: androidx.compose.ui.unit.Dp,
     tag: String,
-    haptics: Haptics,
+    haptics: com.example.shared.Haptics,
     onClick: () -> Unit
 ) {
-    var isPressed by remember { mutableStateOf(false) }
-    val pressOffsetY by animateFloatAsState(
-        targetValue = if (isPressed) 6f else 0f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
-        label = "btnPress"
-    )
-
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .offset(y = pressOffsetY.dp)
-            .size(96.dp)
-            .border(BorderStroke(3.5.dp, ColorInk), CircleShape)
-            .background(color, CircleShape)
-            .clip(CircleShape)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                    },
-                    onTap = {
-                        onClick()
-                    }
-                )
-            }
+            .size(sizeDp)
+            .border(BorderStroke(3.dp, ColorInk), ShapeButton)
+            .background(if (enabled) ColorOrange else ColorBgSoft, ShapeButton)
+            .clip(ShapeButton)
+            .plasticineClickable(enabled = enabled, haptics = haptics, onClick = onClick)
             .testTag(tag)
     ) {
-        Text(text = emoji, fontSize = 44.sp)
+        Text(text = label, fontSize = 26.sp, color = if (enabled) ColorInk else ColorInk.copy(alpha = 0.3f), fontWeight = FontWeight.Bold)
     }
 }
 
-/**
- * 💡 Bulb + Toggle Switch Column.
- */
+/** Шкала из девяти звёзд: загораются слева направо, последняя «подпрыгивает». */
 @Composable
-private fun BulbAndSwitchColumn(
-    color: Color,
-    isOn: Boolean,
-    isChasing: Boolean,
-    haptics: Haptics,
-    onToggle: () -> Unit
-) {
-    val lit = isOn || isChasing
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        // Bulb
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(60.dp)
-                .border(BorderStroke(3.dp, ColorInk), CircleShape)
-                .background(if (lit) color else Color(0xFFB0BEC5), CircleShape)
-                .clip(CircleShape)
-        ) {
-            if (lit) {
-                Text(text = "✨", fontSize = 24.sp)
+private fun BbStarBar(count: Int, pulse: Float, modifier: Modifier) {
+    Canvas(modifier) {
+        val cell = size.width / BB_STARS
+        val path = Path()
+        for (i in 0 until BB_STARS) {
+            val cx = cell * (i + 0.5f)
+            val cy = size.height / 2f
+            val earned = i < count
+            val newest = earned && i == count - 1
+            val r = min(cell * 0.46f, size.height * 0.46f) * (if (newest) 1f + 0.55f * pulse else 1f)
+            path.rewind()
+            for (k in 0 until 10) {
+                val rr = if (k % 2 == 0) r else r * 0.45f
+                val a = (-PI / 2 + k * PI / 5).toFloat()
+                val px = cx + cos(a) * rr
+                val py = cy + sin(a) * rr
+                if (k == 0) path.moveTo(px, py) else path.lineTo(px, py)
             }
-        }
-
-        // Toggle Switch (Rocker lever)
-        Box(
-            contentAlignment = if (isOn) Alignment.TopCenter else Alignment.BottomCenter,
-            modifier = Modifier
-                .size(48.dp, 80.dp)
-                .border(BorderStroke(2.5.dp, ColorInk), RoundedCornerShape(12.dp))
-                .background(ColorBgSoft, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp))
-                .plasticineClickable(haptics = haptics) {
-                    onToggle()
-                }
-                .padding(4.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp, 36.dp)
-                    .border(BorderStroke(2.5.dp, ColorInk), RoundedCornerShape(8.dp))
-                    .background(if (isOn) ColorWhite else Color(0xFF78909C), RoundedCornerShape(8.dp))
-            )
+            path.close()
+            drawPath(path, if (earned) Color(0xFFFFC93C) else Color.White.copy(alpha = 0.55f))
+            drawPath(path, ColorInk, style = Stroke(2.5f * density))
         }
     }
 }
 
-/**
- * 🏠 Peekaboo House with swinging door.
- */
+// ───────────────────────── комнаты ─────────────────────────
+
 @Composable
-private fun PeekabooHouse(
-    roofColor: Color,
-    wallColor: Color,
-    doorAngle: Float,
-    animal: PeekabooAnimal?,
-    onClick: () -> Unit
-) {
-    Box(
-        contentAlignment = Alignment.BottomCenter,
-        modifier = Modifier
-            .size(105.dp, 210.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = { onClick() })
-            }
-    ) {
-        // House Wall and Peeking Animal
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = wallColor,
-            border = BorderStroke(3.dp, ColorInk),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(150.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                if (animal != null) {
-                    Text(text = animal.emoji, fontSize = 52.sp)
-                }
-            }
+private fun RoomLocks(ctx: BbCtx, mask: Int, hint: BbElement?) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BbCard("Задвижка", bbHas(mask, BbElement.LATCH), hint == BbElement.LATCH, Color(0xFFFFE0B2), Modifier.weight(1f).fillMaxHeight()) { BbLatch(ctx) }
+            BbCard("Выключатель", bbHas(mask, BbElement.SWITCH), hint == BbElement.SWITCH, Color(0xFFFFF59D), Modifier.weight(1f).fillMaxHeight()) { BbSwitch(ctx) }
         }
-
-        // Roof
-        Canvas(modifier = Modifier.fillMaxWidth().height(65.dp).align(Alignment.TopCenter)) {
-            val w = size.width
-            val h = size.height
-            val roofPath = Path().apply {
-                moveTo(w / 2f, 0f)
-                lineTo(w, h)
-                lineTo(0f, h)
-                close()
-            }
-            drawPath(roofPath, color = roofColor)
-            drawPath(roofPath, color = ColorInk, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BbCard("Молния", bbHas(mask, BbElement.ZIPPER), hint == BbElement.ZIPPER, Color(0xFFBBDEFB), Modifier.weight(1f).fillMaxHeight()) { BbZipper(ctx) }
+            BbCard("Замок", bbHas(mask, BbElement.KEYLOCK), hint == BbElement.KEYLOCK, Color(0xFFFFCCBC), Modifier.weight(1f).fillMaxHeight()) { BbKeyLock(ctx) }
         }
-
-        // Swinging Wooden Door
-        if (doorAngle < 85f) {
-            Box(
-                contentAlignment = Alignment.CenterEnd,
-                modifier = Modifier
-                    .fillMaxWidth(1f - (doorAngle / 90f) * 0.7f)
-                    .height(130.dp)
-                    .border(BorderStroke(2.5.dp, ColorInk), RoundedCornerShape(8.dp))
-                    .background(Color(0xFF8D6E63), RoundedCornerShape(8.dp))
-                    .padding(end = 8.dp)
-            ) {
-                // Door Knob
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .border(BorderStroke(1.5.dp, ColorInk), CircleShape)
-                        .background(ColorYellow, CircleShape)
-                )
-            }
-        }
-    }
-}
-
-/**
- * ⭐ Star Particle Graphic.
- */
-private fun DrawScope.drawStarGraphic(center: Offset, radius: Float, color: Color, alpha: Float) {
-    val starPath = Path()
-    val points = 5
-    val innerR = radius * 0.48f
-
-    for (i in 0 until points * 2) {
-        val r = if (i % 2 == 0) radius else innerR
-        val angle = i * PI.toFloat() / points - PI.toFloat() / 2f
-        val x = center.x + r * cos(angle)
-        val y = center.y + r * sin(angle)
-        if (i == 0) starPath.moveTo(x, y) else starPath.lineTo(x, y)
-    }
-    starPath.close()
-
-    drawPath(starPath, color = color.copy(alpha = alpha))
-    drawPath(starPath, color = ColorInk.copy(alpha = alpha), style = Stroke(width = 1.5.dp.toPx()))
-}
-
-// =====================================================================================
-// 🎹 Страница 4: Музыка — ксилофон, барабаны, горн и звери
-// 🎡 Страница 5: Игрушки — колесо фортуны, поп-ит, ползунок-радуга, шестерёнки
-// =====================================================================================
-
-private fun burstAt(particles: MutableList<BusyParticle>, c: Offset, n: Int = 10) {
-    if (particles.size > 140) return
-    repeat(n) {
-        val a = Random.nextFloat() * 2f * PI.toFloat()
-        val s = Random.nextFloat() * 260f + 90f
-        particles.add(
-            BusyParticle(
-                c.x, c.y, cos(a) * s, sin(a) * s - 120f,
-                listOf(ColorPink, ColorYellow, ColorGreen, ColorOrange, ColorBlue).random(),
-                isStar = it % 2 == 0, size = 12f
-            )
-        )
-    }
-}
-
-private val BUSY_RAINBOW = listOf(
-    Color(0xFFEF5350), Color(0xFFFFA726), Color(0xFFFFEE58), Color(0xFF66BB6A),
-    Color(0xFF26C6DA), Color(0xFF42A5F5), Color(0xFF7E57C2), Color(0xFFEC407A)
-)
-private val BUSY_SCALE = listOf(1.0f, 1.122f, 1.26f, 1.335f, 1.498f, 1.682f, 1.888f, 2.0f)
-
-/** Небольшая круглая кнопка с пружинкой (для добавочных элементов досок). */
-@Composable
-private fun MiniPad(
-    emoji: String,
-    color: Color,
-    haptics: Haptics,
-    size: androidx.compose.ui.unit.Dp,
-    onClick: () -> Unit
-) {
-    var pressed by remember { mutableStateOf(false) }
-    val sc by animateFloatAsState(
-        targetValue = if (pressed) 0.84f else 1f,
-        animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium),
-        label = "miniPad"
-    )
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .size(size)
-            .scale(sc)
-            .border(BorderStroke(3.dp, ColorInk), CircleShape)
-            .background(color, CircleShape)
-            .clip(CircleShape)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        haptics.vibrateShort()
-                        onClick()
-                        tryAwaitRelease()
-                        pressed = false
-                    }
-                )
-            }
-    ) {
-        Text(text = emoji, fontSize = (size.value * 0.5f).sp)
-    }
-}
-
-/** Большая нажимаемая плитка: реагирует сразу при касании, с пружинкой и брызгами. */
-@Composable
-private fun BusyPad(
-    modifier: Modifier,
-    color: Color,
-    haptics: Haptics,
-    particles: MutableList<BusyParticle>,
-    topInset: Float,
-    emoji: String = "",
-    fontSize: Int = 34,
-    shape: androidx.compose.ui.graphics.Shape = ShapeButton,
-    onPress: () -> Unit
-) {
-    var center by remember { mutableStateOf(Offset.Zero) }
-    var pressed by remember { mutableStateOf(false) }
-    val sc by animateFloatAsState(
-        targetValue = if (pressed) 0.86f else 1f,
-        animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium),
-        label = "busyPad"
-    )
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .onGloballyPositioned {
-                val p = it.positionInWindow()
-                center = Offset(p.x + it.size.width / 2f, p.y + it.size.height / 2f - topInset)
-            }
-            .scale(sc)
-            .border(BorderStroke(3.dp, ColorInk), shape)
-            .background(if (pressed) color.copy(alpha = 0.8f) else color, shape)
-            .clip(shape)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        haptics.vibrateShort()
-                        burstAt(particles, center, 6)
-                        onPress()
-                        tryAwaitRelease()
-                        pressed = false
-                    }
-                )
-            }
-    ) {
-        if (emoji.isNotEmpty()) Text(text = emoji, fontSize = fontSize.sp)
     }
 }
 
 @Composable
-private fun BoardMusic(
-    soundManager: SoundManager,
-    haptics: Haptics,
-    particles: MutableList<BusyParticle>,
-    topInset: Float,
-    onAction: () -> Unit
-) {
-    Surface(
-        shape = ShapeCard,
-        color = Color(0xFFFFE082),
-        border = BorderStroke(3.5.dp, ColorInk),
-        modifier = Modifier.fillMaxSize().padding(4.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Ксилофон: 8 цветных пластин, каждая — своя нота
-            Row(
-                modifier = Modifier.weight(1.4f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                BUSY_RAINBOW.forEachIndexed { i, c ->
-                    BusyPad(
-                        modifier = Modifier.weight(1f).fillMaxHeight(1f - i * 0.05f),
-                        color = c, haptics = haptics, particles = particles, topInset = topInset,
-                        emoji = if (i % 2 == 0) "♪" else "♫", fontSize = 26
-                    ) {
-                        soundManager.play("sm_note1", volume = 0.9f, rate = BUSY_SCALE[i])
-                        onAction()
-                    }
-                }
-            }
-            // Барабаны и горн
-            Row(
-                modifier = Modifier.weight(0.9f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFEF5350), haptics, particles, topInset, "🥁") {
-                    soundManager.play("sm_thud", rate = 0.7f); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFF42A5F5), haptics, particles, topInset, "🪘") {
-                    soundManager.play("sm_pop", rate = 0.6f); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFFFEE58), haptics, particles, topInset, "🎺") {
-                    soundManager.play("sm_honk", rate = 0.9f + Random.nextFloat() * 0.5f); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFAB47BC), haptics, particles, topInset, "🎉") {
-                    soundManager.play("sm_party"); onAction()
-                }
-            }
-            // Звери
-            Row(
-                modifier = Modifier.weight(0.9f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFFFB74D), haptics, particles, topInset, "🐶") {
-                    soundManager.play("animal_dog"); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFFF8A80), haptics, particles, topInset, "🐱") {
-                    soundManager.play("animal_cat"); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFCE93D8), haptics, particles, topInset, "🐮") {
-                    soundManager.play("animal_cow"); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFAED581), haptics, particles, topInset, "🐸") {
-                    soundManager.play("animal_frog"); onAction()
-                }
-            }
-            // Транспорт
-            Row(
-                modifier = Modifier.weight(0.9f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFF90CAF9), haptics, particles, topInset, "🚗") {
-                    soundManager.play("sm_honk", rate = 1.0f); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFA5D6A7), haptics, particles, topInset, "🚂") {
-                    soundManager.play("sm_honk", rate = 0.6f); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFEF9A9A), haptics, particles, topInset, "🚒") {
-                    soundManager.play("sm_honk", rate = 1.5f); onAction()
-                }
-                BusyPad(Modifier.weight(1f).fillMaxHeight(), Color(0xFFCE93D8), haptics, particles, topInset, "🚀") {
-                    soundManager.play("whoosh"); onAction()
-                }
-            }
+private fun RoomSounds(ctx: BbCtx, mask: Int, hint: BbElement?) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BbCard("Шестерёнки", bbHas(mask, BbElement.GEARS), hint == BbElement.GEARS, Color(0xFFC8E6C9), Modifier.weight(1f).fillMaxHeight()) { BbGears(ctx) }
+            BbCard("Счёты", bbHas(mask, BbElement.ABACUS), hint == BbElement.ABACUS, Color(0xFFFFE0B2), Modifier.weight(1f).fillMaxHeight()) { BbAbacus(ctx) }
+        }
+        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BbCard("Ксилофон", bbHas(mask, BbElement.XYLOPHONE), hint == BbElement.XYLOPHONE, Color(0xFFE1BEE7), Modifier.weight(1f).fillMaxHeight()) { BbXylophone(ctx) }
+            BbCard("Колесо", bbHas(mask, BbElement.WHEEL), hint == BbElement.WHEEL, Color(0xFFB3E5FC), Modifier.weight(1f).fillMaxHeight()) { BbWheel(ctx) }
         }
     }
 }
 
-private val WHEEL_EMOJI = listOf("🐶", "🍎", "⭐", "🚗", "🌈", "🐱")
-private val WHEEL_COLORS = listOf(
-    Color(0xFFFF8A65), Color(0xFFEF5350), Color(0xFFFFEE58), Color(0xFF42A5F5), Color(0xFF66BB6A), Color(0xFFCE93D8)
-)
-
 @Composable
-private fun BoardToys(
-    soundManager: SoundManager,
-    soundHelper: BusyboardSoundHelper,
-    haptics: Haptics,
-    particles: MutableList<BusyParticle>,
-    topInset: Float,
-    onAction: () -> Unit
-) {
-    val scope = rememberCoroutineScope()
-
-    // ---- колесо фортуны ----
-    var rot by remember { mutableFloatStateOf(0f) }
-    var spinning by remember { mutableStateOf(false) }
-    var wheelCenter by remember { mutableStateOf(Offset.Zero) }
-    val paint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { textAlign = android.graphics.Paint.Align.CENTER } }
-
-    // ---- поп-ит ----
-    val popped = remember { mutableStateListOf(*Array(12) { false }) }
-
-    // ---- ползунок ----
-    var slider by remember { mutableFloatStateOf(0f) }
-    var lastStep by remember { mutableIntStateOf(-1) }
-
-    // ---- шестерёнка ----
-    var gearAngle by remember { mutableFloatStateOf(0f) }
-    var gearHeld by remember { mutableStateOf(false) }
-    LaunchedEffect(gearHeld) {
-        var frames = 0
-        while (gearHeld) {
-            withFrameNanos { _ ->
-                gearAngle += 7f
-                frames++
-                if (frames % 10 == 0) soundHelper.playKnobTick()
-            }
-        }
-    }
-
-    Surface(
-        shape = ShapeCard,
-        color = Color(0xFFB2EBF2),
-        border = BorderStroke(3.5.dp, ColorInk),
-        modifier = Modifier.fillMaxSize().padding(4.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.weight(1.5f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Колесо
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .aspectRatio(1f, matchHeightConstraintsFirst = true)
-                            .onGloballyPositioned {
-                                val p = it.positionInWindow()
-                                wheelCenter = Offset(p.x + it.size.width / 2f, p.y + it.size.height / 2f - topInset)
-                            }
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onPress = {
-                                        haptics.vibrateShort()
-                                        if (!spinning) {
-                                            spinning = true
-                                            onAction()
-                                            scope.launch {
-                                                var omega = 720f + Random.nextFloat() * 520f
-                                                var lastSector = floor(rot / 60f).toInt()
-                                                var last = 0L
-                                                while (omega > 18f) {
-                                                    withFrameNanos { now ->
-                                                        val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
-                                                        last = now
-                                                        rot += omega * dt
-                                                        omega -= omega * 0.85f * dt
-                                                        val sec = floor(rot / 60f).toInt()
-                                                        if (sec != lastSector) {
-                                                            lastSector = sec
-                                                            soundHelper.playKnobTick()
-                                                        }
-                                                    }
-                                                }
-                                                spinning = false
-                                                val idx = floor(((360f - (rot % 360f)) % 360f) / 60f).toInt().coerceIn(0, 5)
-                                                burstAt(particles, wheelCenter, 14)
-                                                when (idx) {
-                                                    0 -> soundManager.play("animal_dog")
-                                                    1 -> soundManager.play("sm_pop")
-                                                    2 -> soundManager.play("sm_tada")
-                                                    3 -> soundManager.play("sm_honk")
-                                                    4 -> soundManager.play("sm_party")
-                                                    else -> soundManager.play("animal_cat")
-                                                }
-                                            }
-                                        }
-                                        tryAwaitRelease()
-                                    }
-                                )
-                            }
-                    ) {
-                        val r = size.minDimension / 2f * 0.9f
-                        val c = Offset(size.width / 2f, size.height / 2f)
-                        rotate(rot, c) {
-                            for (i in 0 until 6) {
-                                drawArc(
-                                    WHEEL_COLORS[i], -90f + i * 60f, 60f, true,
-                                    Offset(c.x - r, c.y - r), Size(r * 2f, r * 2f)
-                                )
-                                val a = (-90f + i * 60f + 30f) * PI.toFloat() / 180f
-                                paint.textSize = r * 0.38f
-                                drawContext.canvas.nativeCanvas.drawText(
-                                    WHEEL_EMOJI[i], c.x + cos(a) * r * 0.62f, c.y + sin(a) * r * 0.62f + r * 0.13f, paint
-                                )
-                            }
-                        }
-                        drawCircle(ColorInk, r, c, style = Stroke(width = 5.dp.toPx()))
-                        drawCircle(Color.White, r * 0.12f, c)
-                        drawCircle(ColorInk, r * 0.12f, c, style = Stroke(width = 3.dp.toPx()))
-                        // стрелка сверху
-                        val tri = Path().apply {
-                            moveTo(c.x, c.y - r * 0.88f)
-                            lineTo(c.x - r * 0.1f, c.y - r * 1.12f)
-                            lineTo(c.x + r * 0.1f, c.y - r * 1.12f)
-                            close()
-                        }
-                        drawPath(tri, Color(0xFFE53935))
-                        drawPath(tri, ColorInk, style = Stroke(width = 3.dp.toPx()))
-                    }
-                }
-
-                // Поп-ит 3×4
-                Column(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    for (row in 0 until 4) {
-                        Row(
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            for (col in 0 until 3) {
-                                val idx = row * 3 + col
-                                val on = popped[idx]
-                                BusyPad(
-                                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                                    color = if (on) Color(0xFFBDBDBD) else BUSY_RAINBOW[(idx * 3) % 8],
-                                    haptics = haptics, particles = particles, topInset = topInset,
-                                    shape = CircleShape
-                                ) {
-                                    popped[idx] = !popped[idx]
-                                    soundManager.play("sm_pop", volume = 0.8f, rate = if (popped[idx]) 0.7f + Random.nextFloat() * 0.3f else 1.2f + Random.nextFloat() * 0.3f)
-                                    onAction()
-                                    if (popped.all { it }) {
-                                        soundManager.play("sm_tada")
-                                        scope.launch {
-                                            delay(500)
-                                            for (k in popped.indices) popped[k] = false
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Счёты: три проволоки по шесть бусин, нажми на бусину — она (и соседи) скатятся
-            Column(
-                modifier = Modifier
-                    .weight(1.0f)
-                    .fillMaxWidth()
-                    .border(BorderStroke(3.dp, ColorInk), ShapeButton)
-                    .background(Color(0xFFFFF8E1), ShapeButton)
-                    .clip(ShapeButton)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.SpaceEvenly
-            ) {
-                val rowColors = listOf(Color(0xFFEF5350), Color(0xFF42A5F5), Color(0xFF66BB6A))
-                val counts = remember { mutableStateListOf(0, 0, 0) }
-                for (wire in 0 until 3) {
-                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                        Box(Modifier.fillMaxWidth().height(3.dp).background(ColorInk.copy(alpha = 0.5f)))
-                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            for (slot in 0 until 6) {
-                                val isOn = slot >= 6 - counts[wire]
-                                BusyPad(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .padding(vertical = 2.dp),
-                                    color = if (isOn) rowColors[wire] else rowColors[wire].copy(alpha = 0.45f),
-                                    haptics = haptics, particles = particles, topInset = topInset,
-                                    shape = CircleShape
-                                ) {
-                                    counts[wire] = if (isOn) 6 - (slot + 1) else 6 - slot
-                                    soundManager.play("sm_pop", volume = 0.8f, rate = 0.8f + slot * 0.12f + wire * 0.05f)
-                                    onAction()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Ползунок-радуга и шестерёнка
-            Row(
-                modifier = Modifier.weight(0.7f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .weight(2.2f)
-                        .fillMaxHeight()
-                        .border(BorderStroke(3.dp, ColorInk), ShapeButton)
-                        .background(Color.White, ShapeButton)
-                        .clip(ShapeButton)
-                        .pointerInput(Unit) {
-                            awaitEachGesture {
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                fun update(x: Float) {
-                                    val v = (x / size.width).coerceIn(0f, 1f)
-                                    slider = v
-                                    val step = (v * 7.99f).toInt()
-                                    if (step != lastStep) {
-                                        lastStep = step
-                                        soundManager.play("sm_note1", volume = 0.8f, rate = BUSY_SCALE[step])
-                                        haptics.vibrateShort()
-                                        onAction()
-                                    }
-                                }
-                                update(down.position.x)
-                                down.consume()
-                                while (true) {
-                                    val ev = awaitPointerEvent()
-                                    val ch = ev.changes.firstOrNull() ?: break
-                                    if (!ch.pressed) break
-                                    update(ch.position.x)
-                                    ch.consume()
-                                }
-                            }
-                        }
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(maxWidth * slider)
-                            .background(Brush.horizontalGradient(BUSY_RAINBOW))
-                    )
-                    Text(
-                        text = "🎚️",
-                        fontSize = 30.sp,
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .offset(x = (maxWidth * slider - 20.dp).coerceAtLeast(0.dp))
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .border(BorderStroke(3.dp, ColorInk), ShapeButton)
-                        .background(if (gearHeld) Color(0xFFFFD54F) else Color(0xFFFFFFFF), ShapeButton)
-                        .clip(ShapeButton)
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    gearHeld = true
-                                    haptics.vibrateShort()
-                                    onAction()
-                                    tryAwaitRelease()
-                                    gearHeld = false
-                                }
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "⚙️",
-                        fontSize = 40.sp,
-                        modifier = Modifier.graphicsLayer { rotationZ = gearAngle }
-                    )
-                }
-            }
-        }
-    }
+private fun RoomPanel(ctx: BbCtx, mask: Int, hint: BbElement?) {
+    BbCard("Электрощиток", bbHas(mask, BbElement.PANEL), hint == BbElement.PANEL, Color(0xFF263238), Modifier.fillMaxSize()) { BbPanelBoard(ctx) }
 }

@@ -45,7 +45,7 @@ gradle :app:assembleDebug       # app/build/outputs/apk/debug/
 
 ## Звуки
 
-`generate_all_sounds.py` создаёт заглушки, `prepare_sounds.sh` приводит исходники из `input/` к формату игры (OGG, моно, 44,1 кГц) в `output/`; готовые файлы копируются в `app/src/main/res/raw`. Список и статус: `sounds_checklist.csv`. Лицензии: `CREDITS.md`, `SOUND_CREDITS.md`.
+`generate_all_sounds.py` создаёт заглушки, `prepare_sounds.sh` приводит исходники из `input/` к формату игры (OGG, моно, 44,1 кГц) в `output/`; готовые файлы копируются в `app/src/main/res/raw`. Список и статус: `sounds_checklist.csv`. Звуки «Бизиборда» (`bb2_*`) синтезирует `generate_busyboard_sounds.py` (numpy, scipy, ffmpeg) прямо в `res/raw`. Лицензии: `CREDITS.md`, `SOUND_CREDITS.md`.
 
 ## Другое
 

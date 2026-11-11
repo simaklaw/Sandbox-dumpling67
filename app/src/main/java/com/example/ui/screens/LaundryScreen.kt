@@ -98,7 +98,6 @@ private val LW_TEMP_COLORS = listOf(Color(0xFF4AA8FF), Color(0xFFFF6FA5), Color(
 
 private class LwImgs(private val r: Resources) {
     private fun load(id: Int): ImageBitmap = ImageBitmap.imageResource(r, id)
-    val bg = load(R.drawable.wl_bg)
     val sockDirty = load(R.drawable.wl_sock_dirty)
     val sockClean = load(R.drawable.wl_sock_blue)
     val teeDirty = load(R.drawable.wl_tee_dirty)
@@ -264,11 +263,9 @@ fun LaundryScreen(
     fun setHint(s: String) { if (m.hint != s) { m.hint = s; hintText = s } }
 
     // ── геометрия ──
-    fun bgS() = max(W() / 502f, H() / 941f)
-    fun offX() = (W() - 502f * bgS()) / 2f
-    fun offY() = (H() - 941f * bgS()) / 2f
-    fun drumC() = Offset(offX() + 240f * bgS(), offY() + 495f * bgS())
-    fun drumR() = 122f * bgS()
+    // Стиральная машина рисуется кодом (чётко на любом экране); всё её устройство считается от барабана.
+    fun drumR() = min(W() * 0.27f, H() * 0.14f)
+    fun drumC() = Offset(W() / 2f, H() * 0.53f)
     fun itemSz() = W() * 0.19f
     fun drumItemSz() = drumR() * 0.5f
     fun floorY() = H() * 0.885f
@@ -896,14 +893,8 @@ fun LaundryScreen(
             val dr = drumR()
             val tint = LW_TEMP_COLORS[m.temp.coerceIn(0, 2)]
 
-            // фон
-            val bs = bgS()
-            drawImage(
-                imgs.bg,
-                dstOffset = IntOffset(offX().toInt(), offY().toInt()),
-                dstSize = IntSize((502f * bs).toInt() + 1, (941f * bs).toInt() + 1),
-                filterQuality = FilterQuality.Medium
-            )
+            // комната и стиральная машина (рисуются кодом)
+            lwScene(c, dr, m.stage, m.temp, m.progress, m.drumRot)
 
             // верёвка
             lwLine(w, h, { x -> lineYAt(x) }, m.stage == ST_UNHANG, t)
@@ -1205,27 +1196,190 @@ private fun DrawScope.lwItem(im: LwImgs, item: LwItem, cx: Float, cy: Float, sz:
     }
 }
 
+/** Бельевая верёвка: концы завязаны на два крюка, вкрученных в стену, провисает по параболе lineYAt. */
 private fun DrawScope.lwLine(w: Float, h: Float, lineY: (Float) -> Float, glow: Boolean, t: Float) {
-    val post = Color(0xFF9A6A3A)
-    val postDark = Color(0xFF6E4524)
-    val lx = w * 0.03f
-    val rx = w * 0.97f
-    val topY = h * 0.17f
-    val botY = h * 0.30f
-    val pw = w * 0.022f
-    for (px in listOf(lx, rx)) {
-        drawRoundRect(postDark, Offset(px - pw * 0.5f - 2f, topY - 2f), Size(pw + 4f, botY - topY + 4f), CornerRadius(pw * 0.5f))
-        drawRoundRect(post, Offset(px - pw * 0.5f, topY), Size(pw, botY - topY), CornerRadius(pw * 0.5f))
+    val lx = w * 0.055f
+    val rx = w * 0.945f
+    val metal = Color(0xFF78909C)
+    val metalDark = Color(0xFF455A64)
+    for ((i, px) in listOf(lx, rx).withIndex()) {
+        val py = lineY(px)
+        val dir = if (i == 0) 1f else -1f
+        val pr = w * 0.026f
+        // тень и пластина крепления на стене
+        drawCircle(Color.Black.copy(alpha = 0.15f), pr, Offset(px + w * 0.004f, py + w * 0.006f))
+        drawCircle(Color(0xFFCFD8DC), pr, Offset(px, py))
+        drawCircle(metal, pr, Offset(px, py), style = Stroke(2.5f))
+        // шуруп
+        drawCircle(metalDark, pr * 0.28f, Offset(px, py - pr * 0.45f))
+        drawLine(Color(0xFFCFD8DC), Offset(px - pr * 0.18f, py - pr * 0.45f), Offset(px + pr * 0.18f, py - pr * 0.45f), 2f)
+        // проушина крюка
+        drawCircle(metalDark, pr * 0.5f, Offset(px + dir * pr * 0.1f, py + pr * 0.1f), style = Stroke(w * 0.007f))
     }
     val path = Path()
-    path.moveTo(lx, topY + h * 0.012f)
-    val steps = 24
-    for (i in 1..steps) {
-        val x = lx + (rx - lx) * i / steps
-        path.lineTo(x, lineY(x))
+    val steps = 28
+    val ex0 = lx + w * 0.004f
+    val ex1 = rx - w * 0.004f
+    for (i in 0..steps) {
+        val x = ex0 + (ex1 - ex0) * i / steps
+        val y = lineY(x) + w * 0.0035f
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
     }
-    if (glow) drawPath(path, Color(0xFFFFF3A0).copy(alpha = 0.35f + 0.2f * sin(t * 4f)), style = Stroke(w * 0.022f, cap = StrokeCap.Round))
-    drawPath(path, Color(0xFF6E4524), style = Stroke(w * 0.008f, cap = StrokeCap.Round))
+    if (glow) drawPath(path, Color(0xFFFFF3A0).copy(alpha = 0.35f + 0.2f * sin(t * 4f)), style = Stroke(w * 0.024f, cap = StrokeCap.Round))
+    // тень верёвки на стене
+    withTransform({ translate(0f, h * 0.006f) }) {
+        drawPath(path, Color.Black.copy(alpha = 0.12f), style = Stroke(w * 0.009f, cap = StrokeCap.Round))
+    }
+    // сама верёвка: светлая основа и тёмная витая «ёлочка»
+    drawPath(path, Color(0xFFD9B77C), style = Stroke(w * 0.0095f, cap = StrokeCap.Round))
+    drawPath(path, Color(0xFF9C7A45), style = Stroke(w * 0.0095f, cap = StrokeCap.Butt, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(w * 0.006f, w * 0.0075f))))
+    // узлы на крюках
+    for (kx in listOf(ex0, ex1)) drawCircle(Color(0xFFB08850), w * 0.0085f, Offset(kx, lineY(kx) + w * 0.0035f))
+}
+
+/** Вся комната: плиточная стена, пол с ковриком и стиральная машина с дверцей, панелью, дисплеем и ручкой. */
+private fun DrawScope.lwScene(c: Offset, dr: Float, stage: Int, temp: Int, progress: Float, rot: Float) {
+    val w = size.width
+    val h = size.height
+    val bw = min(w * 0.88f, dr * 3.2f)
+    val x0 = c.x - bw / 2f
+    val x1 = c.x + bw / 2f
+    val top = c.y - dr * 1.95f
+    val bottom = c.y + dr * 1.62f
+    val floorTop = bottom + dr * 0.1f
+    val ink = Color(0xFF263447)
+
+    // стена: градиент и плитка
+    drawRect(Brush.verticalGradient(listOf(Color(0xFF84C3EE), Color(0xFFB4DBF6)), 0f, floorTop), size = Size(w, floorTop))
+    val tile = w / 5f
+    var j = 0
+    while (j * tile < floorTop) {
+        for (i in 0..5) {
+            val v = (i * 7 + j * 13) % 3
+            if (v == 1) drawRect(Color.White.copy(alpha = 0.07f), Offset(i * tile, j * tile), Size(tile, tile))
+            else if (v == 2) drawRect(Color(0xFF5AA7E0).copy(alpha = 0.06f), Offset(i * tile, j * tile), Size(tile, tile))
+        }
+        drawLine(Color.White.copy(alpha = 0.45f), Offset(0f, j * tile), Offset(w, j * tile), 3f)
+        j++
+    }
+    for (i in 0..5) drawLine(Color.White.copy(alpha = 0.45f), Offset(i * tile, 0f), Offset(i * tile, floorTop), 3f)
+    // свет из окна: мягкое пятно слева сверху
+    drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent), Offset(w * 0.15f, h * 0.12f), w * 0.8f), w * 0.8f, Offset(w * 0.15f, h * 0.12f))
+
+    // пол: плитка «шашечкой» и плинтус
+    drawRect(Brush.verticalGradient(listOf(Color(0xFFF2B07C), Color(0xFFE59A62)), floorTop, h), Offset(0f, floorTop), Size(w, h - floorTop))
+    val ft = max(24f, (h - floorTop) / 6f)
+    var fy = floorTop + ft
+    var row = 0
+    while (fy < h + ft) {
+        drawLine(Color(0xFFC77D45).copy(alpha = 0.45f), Offset(0f, fy), Offset(w, fy), 3f)
+        var fx = if (row % 2 == 0) 0f else ft
+        while (fx < w) { drawLine(Color(0xFFC77D45).copy(alpha = 0.35f), Offset(fx, fy - ft), Offset(fx, fy), 3f); fx += ft * 2f }
+        fy += ft; row++
+    }
+    drawRect(Color(0xFFEAF1F8), Offset(0f, floorTop - h * 0.012f), Size(w, h * 0.012f))
+    drawLine(Color(0xFFB9C7D6), Offset(0f, floorTop - h * 0.012f), Offset(w, floorTop - h * 0.012f), 2.5f)
+
+    // коврик
+    val rugY = h * 0.85f
+    val rugH = h * 0.1f
+    drawRoundRect(Color.Black.copy(alpha = 0.12f), Offset(w * 0.045f, rugY + 8f), Size(w * 0.91f, rugH), CornerRadius(rugH * 0.3f))
+    drawRoundRect(Color(0xFF4A90D9), Offset(w * 0.04f, rugY), Size(w * 0.92f, rugH), CornerRadius(rugH * 0.3f))
+    drawRoundRect(Color(0xFF7DB6EE), Offset(w * 0.06f, rugY + rugH * 0.12f), Size(w * 0.88f, rugH * 0.76f), CornerRadius(rugH * 0.25f), style = Stroke(rugH * 0.05f))
+    for (k in 0 until 9) drawLine(Color.White.copy(alpha = 0.16f), Offset(w * (0.12f + 0.095f * k), rugY + rugH * 0.3f), Offset(w * (0.12f + 0.095f * k) + w * 0.03f, rugY + rugH * 0.7f), rugH * 0.07f, StrokeCap.Round)
+
+    // тень и ножки машины
+    drawOval(Color.Black.copy(alpha = 0.22f), Offset(x0 - dr * 0.05f, bottom - dr * 0.02f), Size(bw + dr * 0.1f, dr * 0.2f))
+    for (fx in listOf(x0 + dr * 0.18f, x1 - dr * 0.18f - dr * 0.3f)) drawRoundRect(Color(0xFF37474F), Offset(fx, bottom - dr * 0.02f), Size(dr * 0.3f, dr * 0.1f), CornerRadius(dr * 0.03f))
+
+    // корпус
+    val cr = CornerRadius(dr * 0.14f)
+    drawRoundRect(Brush.horizontalGradient(listOf(Color(0xFFF7F9FC), Color(0xFFFFFFFF), Color(0xFFE3E8F0), Color(0xFFC9D2DF)), x0, x1), Offset(x0, top), Size(bw, bottom - top), cr)
+    drawRoundRect(Color(0xFF9FAEC2), Offset(x0, top), Size(bw, bottom - top), cr, style = Stroke(3.5f))
+    drawLine(Color.White.copy(alpha = 0.7f), Offset(x0 + dr * 0.1f, top + dr * 0.08f), Offset(x1 - dr * 0.1f, top + dr * 0.08f), dr * 0.03f, StrokeCap.Round)
+
+    // верхняя панель
+    val ph = dr * 0.5f
+    val panelY = top + dr * 0.1f
+    drawLine(Color(0xFFB5C0D0), Offset(x0 + 2f, top + dr * 0.5f + dr * 0.1f), Offset(x1 - 2f, top + dr * 0.5f + dr * 0.1f), 3f)
+    // лоток для порошка
+    val dw = dr * 0.95f
+    val dx = x0 + dr * 0.16f
+    drawRoundRect(Color(0xFFD5DCE8), Offset(dx, panelY + ph * 0.15f), Size(dw, ph * 0.62f), CornerRadius(dr * 0.05f))
+    drawRoundRect(Color(0xFF9FAEC2), Offset(dx, panelY + ph * 0.15f), Size(dw, ph * 0.62f), CornerRadius(dr * 0.05f), style = Stroke(2.5f))
+    drawRoundRect(Color(0xFF8FA0B5), Offset(dx + dw * 0.18f, panelY + ph * 0.38f), Size(dw * 0.64f, ph * 0.16f), CornerRadius(dr * 0.04f))
+    // ручка выбора температуры: стрелка показывает выбранную
+    val kc = Offset(c.x - dr * 0.2f, panelY + ph * 0.46f)
+    val kr = dr * 0.2f
+    for (q in 0..4) {
+        val a = (-150f + q * 60f) * (PI.toFloat() / 180f)
+        drawCircle(if (q <= temp + 1 && stage >= ST_WASH) Color(0xFF29B6F6) else Color(0xFF8FA0B5), dr * 0.016f, Offset(kc.x + cos(a) * kr * 1.5f, kc.y + sin(a) * kr * 1.5f))
+    }
+    drawCircle(Color.Black.copy(alpha = 0.18f), kr, Offset(kc.x + 2f, kc.y + kr * 0.12f))
+    drawCircle(Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFAEBBCC)), Offset(kc.x - kr, kc.y - kr), Offset(kc.x + kr, kc.y + kr)), kr, kc)
+    drawCircle(Color(0xFF8FA0B5), kr, kc, style = Stroke(2.5f))
+    withTransform({ rotate(-90f + temp * 60f + (if (stage == ST_WASH) rot * 4f else 0f), kc) }) {
+        drawLine(Color(0xFF455A64), Offset(kc.x + kr * 0.2f, kc.y), Offset(kc.x + kr * 0.85f, kc.y), dr * 0.035f, StrokeCap.Round)
+    }
+    // дисплей: три огонька температуры и полоса хода стирки
+    val sx = c.x + dr * 0.35f
+    val sw = x1 - dr * 0.16f - sx
+    val sy = panelY + ph * 0.1f
+    val sh = ph * 0.72f
+    drawRoundRect(ink, Offset(sx, sy), Size(sw, sh), CornerRadius(dr * 0.06f))
+    drawRoundRect(Color(0xFF0B1320), Offset(sx + 4f, sy + 4f), Size(sw - 8f, sh - 8f), CornerRadius(dr * 0.05f))
+    val tcols = listOf(Color(0xFF4FC3F7), Color(0xFFFFB74D), Color(0xFFFF7043))
+    for (q in 0..2) {
+        val on = q == temp
+        val dc = Offset(sx + sw * (0.2f + 0.3f * q), sy + sh * 0.32f)
+        if (on) drawCircle(tcols[q].copy(alpha = 0.3f), dr * 0.08f, dc)
+        drawCircle(if (on) tcols[q] else Color(0xFF1F2E44), dr * 0.04f, dc)
+    }
+    val barX = sx + sw * 0.1f
+    val barW = sw * 0.8f
+    val barY = sy + sh * 0.68f
+    drawRoundRect(Color(0xFF1F2E44), Offset(barX, barY), Size(barW, sh * 0.12f), CornerRadius(sh * 0.06f))
+    val fill = when {
+        stage == ST_WASH -> progress
+        stage > ST_WASH -> 1f
+        else -> 0f
+    }.coerceIn(0f, 1f)
+    if (fill > 0f) drawRoundRect(Color(0xFF69F0AE), Offset(barX, barY), Size(barW * fill, sh * 0.12f), CornerRadius(sh * 0.06f))
+    // кнопка пуск
+    drawCircle(Color(0xFF9FAEC2), dr * 0.055f, Offset(x1 - dr * 0.1f, panelY + ph * 0.46f), style = Stroke(2.5f))
+
+    // дверца: хромированное кольцо, резиновая манжета, стекло
+    val dc = c
+    drawCircle(Color.Black.copy(alpha = 0.18f), dr * 1.4f, Offset(dc.x + dr * 0.03f, dc.y + dr * 0.05f))
+    drawCircle(Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFA9B4C4), Color(0xFFF2F5F9), Color(0xFF7D8A9C)), Offset(dc.x - dr * 1.4f, dc.y - dr * 1.4f), Offset(dc.x + dr * 1.4f, dc.y + dr * 1.4f)), dr * 1.4f, dc)
+    drawCircle(Color(0xFF6C7A8E), dr * 1.4f, dc, style = Stroke(3.5f))
+    drawCircle(Brush.linearGradient(listOf(Color(0xFF8795A8), Color(0xFFE8EDF4)), Offset(dc.x - dr, dc.y - dr), Offset(dc.x + dr, dc.y + dr)), dr * 1.2f, dc)
+    drawCircle(Color(0xFF3A4658), dr * 1.1f, dc)
+    drawCircle(Color(0xFF55637A), dr * 1.1f, dc, style = Stroke(dr * 0.03f))
+    drawCircle(Brush.radialGradient(listOf(Color(0xFF3F6A9C), Color(0xFF1B3556), Color(0xFF0F2038)), Offset(dc.x - dr * 0.25f, dc.y - dr * 0.3f), dr * 1.1f), dr * 1.0f, dc)
+    // барабан за стеклом: вращающиеся отверстия
+    for (ring in 0..1) {
+        val rr = dr * (0.84f - 0.26f * ring)
+        val n = 22 - ring * 8
+        for (k in 0 until n) {
+            val a = rot * (if (ring == 0) 0.5f else -0.4f) + k * 2f * PI.toFloat() / n
+            drawCircle(Color(0xFF0A1626).copy(alpha = 0.55f), dr * 0.03f, Offset(dc.x + cos(a) * rr, dc.y + sin(a) * rr))
+        }
+    }
+    // три ребра-лопасти барабана
+    for (k in 0 until 3) {
+        val a = rot * 0.5f + k * 2.0944f
+        drawLine(Color(0xFF7FA3CC).copy(alpha = 0.25f), Offset(dc.x + cos(a) * dr * 0.2f, dc.y + sin(a) * dr * 0.2f), Offset(dc.x + cos(a) * dr * 0.95f, dc.y + sin(a) * dr * 0.95f), dr * 0.05f, StrokeCap.Round)
+    }
+    // петли дверцы слева и замок справа
+    for (hy in listOf(-0.45f, 0.45f)) drawRoundRect(Color(0xFF8795A8), Offset(dc.x - dr * 1.52f, dc.y + dr * hy - dr * 0.1f), Size(dr * 0.16f, dr * 0.2f), CornerRadius(dr * 0.04f))
+    drawRoundRect(Color(0xFF8795A8), Offset(dc.x + dr * 1.36f, dc.y - dr * 0.12f), Size(dr * 0.14f, dr * 0.24f), CornerRadius(dr * 0.04f))
+
+    // нижняя панель и лючок фильтра
+    val lineY = bottom - dr * 0.3f
+    drawLine(Color(0xFFB5C0D0), Offset(x0 + 2f, lineY), Offset(x1 - 2f, lineY), 3f)
+    drawRoundRect(Color(0xFFD5DCE8), Offset(x1 - dr * 1.0f, lineY + dr * 0.06f), Size(dr * 0.8f, dr * 0.2f), CornerRadius(dr * 0.04f))
+    drawRoundRect(Color(0xFF9FAEC2), Offset(x1 - dr * 1.0f, lineY + dr * 0.06f), Size(dr * 0.8f, dr * 0.2f), CornerRadius(dr * 0.04f), style = Stroke(2.5f))
 }
 
 private fun DrawScope.lwPin(x: Float, y: Float, s: Float) {

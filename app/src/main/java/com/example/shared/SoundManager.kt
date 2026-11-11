@@ -296,6 +296,44 @@ class SoundManager(
         preloadRaw(if (com.example.shared.i18n.I18n.isEnglish) base.map { it + "_en" } + base else base)
     }
 
+    private val customSoundIds = ConcurrentHashMap<String, Int>()
+
+    /**
+     * Id записи родителя для файла озвучки [key] (см. [CustomVoices]) или null, если записи нет
+     * или она ещё грузится: тогда играет встроенный звук, а запись подхватится со следующего раза.
+     */
+    private fun customSoundId(key: String): Int? {
+        if (!isSoundPoolSupported) return null
+        val f = CustomVoices.file(appContext, key)
+        if (!f.isFile) {
+            customSoundIds.remove(key)
+            return null
+        }
+        val cached = customSoundIds[key]
+        if (cached != null) return cached.takeIf { loadedSoundIds.contains(it) }
+        return try {
+            val pool = soundPool ?: return null
+            customSoundIds[key] = pool.load(f.absolutePath, 1)
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error loading custom voice $key", e)
+            null
+        }
+    }
+
+    /** Вызывать после новой записи или удаления: сбрасывает старый звук и грузит новый. */
+    fun reloadCustomVoice(key: String) {
+        customSoundIds.remove(key)?.let { id ->
+            loadedSoundIds.remove(id)
+            try {
+                soundPool?.unload(id)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error unloading custom voice $key", e)
+            }
+        }
+        customSoundId(key)
+    }
+
     private fun loadRawSoundFile(fileName: String): Int? {
         if (!isSoundPoolSupported) return null
 
@@ -412,7 +450,8 @@ class SoundManager(
             val en = fileName + "_en"
             if (soundIdMap[en] != null || loadRawSoundFile(en) != null) playFile = en else noEnglishVariant.add(fileName)
         }
-        var soundId = soundIdMap[playFile]
+        // Запись родителя («Свои голоса») перекрывает встроенный звук с тем же именем.
+        var soundId = customSoundId(fileName) ?: soundIdMap[playFile]
         if (soundId == null) {
             soundId = loadRawSoundFile(playFile)
         }

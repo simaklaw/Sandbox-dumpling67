@@ -106,4 +106,14 @@ class SoundResourcesTest {
         val missing = spoken.filter { !File(rawDir, "${it}_en.ogg").isFile }
         assertEquals("Нет _en-копии у: $missing", emptyList<String>(), missing)
     }
+
+    @Test
+    fun customVoiceListMatchesBuiltInSounds() {
+        // Каждая фраза экрана «Свои голоса» должна иметь встроенный звук под тем же именем:
+        // удаление записи возвращает его, а перекрывает запись именно его ключ.
+        val keys = com.example.shared.CustomVoices.groups.flatMap { g -> g.phrases.map { it.key } }
+        assertEquals("Ключи фраз должны быть уникальны", keys.size, keys.toSet().size)
+        val missing = keys.filter { !File(rawDir, "$it.ogg").isFile }
+        assertEquals("Нет встроенного звука для: $missing", emptyList<String>(), missing)
+    }
 }

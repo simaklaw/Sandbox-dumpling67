@@ -27,3 +27,5 @@ debug.keystore.base64
 # Готовые звуки лежат в app/src/main/res/raw; промежуточное можно пересоздать скриптами.
 /input/
 /output/
+
+__pycache__/

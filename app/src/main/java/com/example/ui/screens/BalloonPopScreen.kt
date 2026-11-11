@@ -46,6 +46,7 @@ import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.LocalAgeProfile
 import com.example.shared.SoundManager
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -60,9 +61,18 @@ import kotlin.random.Random
  * от стен. Тап по шарику нужного цвета — он лопается (конфетти + звёздочка),
  * тап по «не тому» — шарик отскакивает и качается. Собрали все звёздочки — праздник
  * и новый цвет. Для самых маленьких: цель не нужна, лопается любой шарик.
+ *
+ * Лопание: под пальцем берётся ближайший по центру шарик; хлопок отталкивает соседей
+ * (ударная волна) и рисует кольцо. Звук — файлы bp_pop1..7: один и тот же мягкий «поп» +
+ * нота своего цвета (до-ре-ми-соль-ля-до-ре), поэтому очередь лопнувших шариков звучит
+ * как мелодия. Играются «сырым» путём [SoundManager.playFxRaw]: если файл не успел
+ * загрузиться, будет тишина, а не запасной процедурный «поп» поверх.
  */
 
 private class BalloonColor(val name: String, val base: Color)
+
+/** Одну и ту же ноту не повторяем чаще, чем раз в столько мс: двойной тап не удваивает громкость. */
+private const val POP_GATE_MS = 70L
 
 private val BALLOON_COLORS = listOf(
     BalloonColor("красные", Color(0xFFEF5350)),
@@ -99,6 +109,16 @@ private class Confetti(
     val size: Float
 )
 
+/** Круг-«хлопок»: расходится от лопнувшего шарика и гаснет (life 1 → 0). */
+private class Ring(
+    val x: Float,
+    val y: Float,
+    val r0: Float,
+    val r1: Float,
+    val color: Color,
+    var life: Float
+)
+
 private class BalloonWorld(
     private val dp: Float,
     private val count: Int,
@@ -111,6 +131,7 @@ private class BalloonWorld(
     var targetIdx = 0
     val balloons = ArrayList<Balloon>()
     val confetti = ArrayList<Confetti>()
+    val rings = ArrayList<Ring>()
 
     var onPop: (Int) -> Unit = {}
     var onBounce: () -> Unit = {}
@@ -173,19 +194,47 @@ private class BalloonWorld(
         }
     }
 
+    /** Лопнувший шарик отталкивает соседей: хлопок «ощущается», а шарики не слипаются в гроздь. */
+    private fun shockwave(src: Balloon) {
+        val reach = src.r * 3.4f
+        rings.add(Ring(src.x, src.y, src.r, reach, BALLOON_COLORS[src.colorIdx].base, 1f))
+        for (b in balloons) {
+            if (b === src || !b.alive) continue
+            val dx = b.x - src.x
+            val dy = b.y - src.y
+            val d = sqrt(dx * dx + dy * dy)
+            if (d >= reach || d < 0.001f) continue
+            val k = 1f - d / reach
+            // Лёгкие (мелкие) шарики улетают дальше тяжёлых.
+            val push = 170f * dp * k * k * (src.r / b.r).coerceIn(0.7f, 1.4f)
+            b.vx += dx / d * push
+            b.vy += dy / d * push
+            b.wobble = maxOf(b.wobble, 0.2f + 0.6f * k)
+        }
+    }
+
     fun tap(px: Float, py: Float) {
-        // Верхний (последний нарисованный) шарик под пальцем.
-        val hit = balloons.lastOrNull {
-            if (!it.alive) return@lastOrNull false
-            val dx = (px - it.x) / (it.r * 0.95f)
-            val dy = (py - it.y) / (it.r * 1.1f)
-            dx * dx + dy * dy <= 1.15f
-        } ?: return
+        // Под пальцем может быть несколько шариков: берём тот, чей центр ближе к касанию
+        // (при равенстве — верхний, нарисованный позже).
+        var best = Float.MAX_VALUE
+        var found: Balloon? = null
+        for (b in balloons) {
+            if (!b.alive) continue
+            val dx = (px - b.x) / (b.r * 0.95f)
+            val dy = (py - b.y) / (b.r * 1.1f)
+            val d = dx * dx + dy * dy
+            if (d <= 1.15f && d <= best) {
+                best = d
+                found = b
+            }
+        }
+        val hit = found ?: return
         val correct = freeMode || hit.colorIdx == targetIdx
         if (correct) {
             hit.alive = false
             hit.respawnIn = 0.6f + Random.nextFloat() * 0.9f
             burst(hit.x, hit.y, BALLOON_COLORS[hit.colorIdx].base, 20)
+            shockwave(hit)
             onPop(hit.colorIdx)
         } else {
             // Не тот цвет: мягко отталкиваем от точки касания, шарик качается.
@@ -289,6 +338,13 @@ private class BalloonWorld(
             p.life -= dt * 0.9f
             if (p.life <= 0f || p.y > h + 40f) it.remove()
         }
+
+        val ringIt = rings.iterator()
+        while (ringIt.hasNext()) {
+            val ring = ringIt.next()
+            ring.life -= dt * 3.2f
+            if (ring.life <= 0f) ringIt.remove()
+        }
     }
 }
 
@@ -310,17 +366,35 @@ fun BalloonPopScreen(
     var targetIdx by remember { mutableIntStateOf(0) }
     var tick by remember { mutableIntStateOf(0) }
     var ready by remember { mutableStateOf(false) }
+    var cheer by remember { mutableIntStateOf(0) }
+    val lastPopMs = remember { LongArray(BALLOON_COLORS.size) }
 
     LaunchedEffect(Unit) {
-        soundManager.preloadRaw((1..6).map { "bp_pop$it" })
+        soundManager.preloadRaw((1..BALLOON_COLORS.size).map { "bp_pop$it" })
+    }
+    // Фанфара звучит чуть позже последнего «попа», чтобы нота лопания не тонула в ней.
+    LaunchedEffect(cheer) {
+        if (cheer > 0) {
+            delay(170)
+            soundPlayer.playFanfare()
+        }
     }
     world.onPop = { ci ->
-        // у каждого цвета свой звук лопания, плюс случайная высота
-        soundManager.play("bp_pop${(ci % 6) + 1}", volume = 0.9f, rate = 0.9f + Random.nextFloat() * 0.25f)
+        // Нота своего цвета (bp_pop1..7). Высоту не «дрожим» — только на ±1,5 %, иначе нота
+        // выпадает из лада. Сырой путь: без каталога и без запасного процедурного «попа».
+        val now = System.currentTimeMillis()
+        if (now - lastPopMs[ci] >= POP_GATE_MS) {
+            lastPopMs[ci] = now
+            soundManager.playFxRaw(
+                "bp_pop${ci + 1}",
+                volume = 0.9f,
+                rate = 1f + (Random.nextFloat() - 0.5f) * 0.03f
+            )
+        }
         soundPlayer.vibrateSquish()
         score += 1
         if (score >= goal) {
-            soundPlayer.playFanfare()
+            cheer += 1
             for (k in 0 until 6) {
                 world.burst(
                     world.w * (0.1f + 0.16f * k), world.h * 0.35f,
@@ -424,6 +498,17 @@ fun BalloonPopScreen(
                         Size(rx * 0.35f, ry * 0.28f)
                     )
                 }
+            }
+
+            for (ring in world.rings) {
+                val p = 1f - ring.life.coerceIn(0f, 1f)
+                val eased = 1f - (1f - p) * (1f - p)
+                drawCircle(
+                    color = ring.color.copy(alpha = 0.65f * ring.life.coerceIn(0f, 1f)),
+                    radius = ring.r0 + (ring.r1 - ring.r0) * eased,
+                    center = Offset(ring.x, ring.y),
+                    style = Stroke(width = (2f + 4f * ring.life.coerceIn(0f, 1f)) * dp)
+                )
             }
 
             for (p in world.confetti) {

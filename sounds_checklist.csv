@@ -1,12 +1,12 @@
 Файл,Приоритет,Группа,"Длительность, с",Что это,Запрос для поиска (англ.),Источник/ссылка,Лицензия,Готово (да/нет)
-voice_arrow_normal.ogg,P1,Голос,до 1.5,"голос, живая запись: «Стрела!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_arrow_carrot.ogg,P1,Голос,до 1.5,"голос, живая запись: «Морковка!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_arrow_star.ogg,P1,Голос,до 1.5,"голос, живая запись: «Звёздочка!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-praise_1.ogg,P1,Голос,до 1.5,"голос, живая запись: «Молодец!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-praise_2.ogg,P1,Голос,до 1.5,"голос, живая запись: «Умничка!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-praise_3.ogg,P1,Голос,до 1.5,"голос, живая запись: «Ура!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-peekaboo_1.ogg,P1,Голос,до 1.5,"голос, живая запись: «Ку-ку!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-peekaboo_2.ogg,P1,Голос,до 1.5,"голос, живая запись: «Ку-ку! А вот и я!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_arrow_normal.ogg,P1,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Стрела!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_arrow_carrot.ogg,P1,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Морковка!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_arrow_star.ogg,P1,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Звёздочка!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+praise_1.ogg,P1,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Молодец!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+praise_2.ogg,P1,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Умничка!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+praise_3.ogg,P1,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Ура!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+peekaboo_1.ogg,P1,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Ку-ку!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+peekaboo_2.ogg,P1,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Ку-ку! А вот и я!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
 animal_dog_1.ogg,P1,Животные,0.6-1.0,весёлый лай щенка (1-2 гав),small dog bark happy single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 animal_dog_2.ogg,P1,Животные,0.6-1.0,весёлый лай щенка (1-2 гав),small dog bark happy single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 animal_cat_1.ogg,P1,Животные,0.5-0.9,мягкое мяу котёнка,kitten meow single,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
@@ -41,8 +41,8 @@ chew_2.ogg,P1,Кормление,0.4,жевание вариант,cartoon chewi
 yum.ogg,P1,Кормление,0.6,довольное ммм,mmm yummy cute,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 tap.ogg,P1,Общие,0.1,мягкий клик кнопки,soft ui click,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 pop.ogg,P1,Общие,0.2,поп пузырька,bubble pop cute,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-whoosh.ogg,P1,Общие,0.5,воздушный вжух,soft whoosh swipe,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-whoosh_soft.ogg,P1,Общие,0.4,"тише, для переходов",gentle swoosh,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+whoosh.ogg,P1,Общие,0.36,"мягкая «капелька» вверх + два колокольчика, без шума",(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+whoosh_soft.ogg,P1,Общие,0.26,"короткая «капелька» + колокольчик для листания, без шума",(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
 chime.ogg,P1,Общие,0.8,колокольчик успех,cute chime success,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 fanfare_short.ogg,P1,Общие,1.2,радостная мелодия,kids success jingle short,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 soft_no.ogg,P1,Общие,0.4,мягкое м-м (не фу),soft negative cute,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
@@ -83,10 +83,10 @@ bb2_xylo_5.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 5 
 bb2_xylo_6.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 6 из 8 (до-мажор, A5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
 bb2_xylo_7.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 7 из 8 (до-мажор, B5)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
 bb2_xylo_8.ogg,P2,Бизиборд,0.75,"ксилофон, пластинка 8 из 8 (до-мажор, C6)",(оригинальный синтез),generate_busyboard_sounds.py (синтез numpy + ffmpeg; оригинал для проекта),CC0 / Generated,да
-yum_voice.ogg,P2,Голос,до 1.5,"голос, живая запись: «Ням-ням!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_hint_tap.ogg,P2,Голос,до 1.5,"голос, живая запись: «Нажми!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_hint_drag.ogg,P2,Голос,до 1.5,"голос, живая запись: «Потяни сюда!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_hint_look.ogg,P2,Голос,до 1.5,"голос, живая запись: «Смотри!»",(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+yum_voice.ogg,P2,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Ням-ням!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_hint_tap.ogg,P2,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Нажми!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_hint_drag.ogg,P2,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Потяни сюда!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_hint_look.ogg,P2,Голос,до 1.5,музыкальный знак вместо слов; целевая запись — «Смотри!» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
 rain_loop.ogg,P2,Дождик,2.0,тихий дождь (цикл),soft rain loop calm,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 drop_plip_1.ogg,P2,Дождик,0.15,капля плюх,water drop plip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 drop_plip_2.ogg,P2,Дождик,0.15,капля плюх,water drop plip,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
@@ -135,12 +135,12 @@ stir.ogg,P2,Чай,1.0,ложка мешает,spoon stirring cup,Procedural syn
 steam.ogg,P2,Чай,1.2,пар,steam hiss soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 glug.ogg,P2,Чай,1.0,глык-глык,drinking glug,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 clink.ogg,P2,Чай,0.3,звон ложки о стекло,spoon clink glass,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-voice_name_cow.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_name_dog.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_name_cat.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_name_duck.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_name_pig.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_name_frog.ogg,P3,Голос,до 1.0,голос: название животного,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_name_cow.ogg,P3,Голос,до 1.0,музыкальный знак вместо слов; целевая запись — название животного (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_dog.ogg,P3,Голос,до 1.0,музыкальный знак вместо слов; целевая запись — название животного (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_cat.ogg,P3,Голос,до 1.0,музыкальный знак вместо слов; целевая запись — название животного (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_duck.ogg,P3,Голос,до 1.0,музыкальный знак вместо слов; целевая запись — название животного (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_pig.ogg,P3,Голос,до 1.0,музыкальный знак вместо слов; целевая запись — название животного (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_frog.ogg,P3,Голос,до 1.0,музыкальный знак вместо слов; целевая запись — название животного (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
 decor_sun.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx sun,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 decor_cloud.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx cloud,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 decor_butterfly.ogg,P3,Декорации,0.3-0.8,звук декорации (пока подставляется pop/chime),cute short sfx butterfly,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
@@ -186,12 +186,12 @@ draw_loop.ogg,P3,Рисование,1.0,шорох фломастера (цик�
 grain_pour_loop.ogg,P3,Сыпучие,1.5,сыпется рис (цикл),rice pouring loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 grain_scoop_loop.ogg,P3,Сыпучие,1.0,сгребание песка (цикл),sand scooping hand loop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 stamp.ogg,P3,Сыпучие,0.2,штамп,soft stamp press,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-voice_shape_circle.ogg,P3,Фигурки,до 1.0,голос: «Круг»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_shape_square.ogg,P3,Фигурки,до 1.0,голос: «Квадрат»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_shape_triangle.ogg,P3,Фигурки,до 1.0,голос: «Треугольник»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_shape_star.ogg,P3,Фигурки,до 1.0,голос: «Звезда»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_shape_heart.ogg,P3,Фигурки,до 1.0,голос: «Сердце»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
-voice_shape_oval.ogg,P3,Фигурки,до 1.0,голос: «Овал»,(записать самим),espeak-ng TTS (ru) + procedural audio processing,CC0 / Generated,да
+voice_shape_circle.ogg,P3,Фигурки,до 1.0,музыкальный знак вместо слов; целевая запись — «Круг» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_shape_square.ogg,P3,Фигурки,до 1.0,музыкальный знак вместо слов; целевая запись — «Квадрат» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_shape_triangle.ogg,P3,Фигурки,до 1.0,музыкальный знак вместо слов; целевая запись — «Треугольник» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_shape_star.ogg,P3,Фигурки,до 1.0,музыкальный знак вместо слов; целевая запись — «Звезда» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_shape_heart.ogg,P3,Фигурки,до 1.0,музыкальный знак вместо слов; целевая запись — «Сердце» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_shape_oval.ogg,P3,Фигурки,до 1.0,музыкальный знак вместо слов; целевая запись — «Овал» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
 balloon_pop_1.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 balloon_pop_2.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 balloon_pop_3.ogg,P3,Шарики,0.25,лопнул шарик,balloon pop,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
@@ -199,3 +199,32 @@ rainbow_salute.ogg,P3,Шарики,1.5,весёлый салют,cheerful firewo
 cw2_dance_car.ogg,P2,Автомойка,11.8,"музыка танца чистой машинки: до мажор, 130 уд/мин, полька «ум-па», маримба",(оригинальная композиция),generate_carwash_music.py (синтез numpy; оригинал для проекта),CC0 / Generated,да
 cw2_dance_bus.ogg,P2,Автомойка,12.8,"музыка танца чистого автобуса: соль мажор, 120 уд/мин, свинг, укулеле и свист",(оригинальная композиция),generate_carwash_music.py (синтез numpy; оригинал для проекта),CC0 / Generated,да
 cw2_dance_train.ogg,P2,Автомойка,12.2,"музыка танца чистого паровозика: ре мажор, 126 уд/мин, «чух-чух», банджо и гудок",(оригинальная композиция),generate_carwash_music.py (синтез numpy; оригинал для проекта),CC0 / Generated,да
+fx_zone_transition.ogg,P1,Общие,0.62,"выход из игры / вход в меню: подъём до-ми-соль + колокольчик (раньше — шум, «помехи»)",(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+bp_pop1.ogg,P1,Шарики,0.34,лопание шарика 1-го цвета: мягкий «поп» + нота «до»,(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+bp_pop2.ogg,P1,Шарики,0.34,лопание шарика 2-го цвета: мягкий «поп» + нота «ре»,(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+bp_pop3.ogg,P1,Шарики,0.34,лопание шарика 3-го цвета: мягкий «поп» + нота «ми»,(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+bp_pop4.ogg,P1,Шарики,0.34,лопание шарика 4-го цвета: мягкий «поп» + нота «соль»,(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+bp_pop5.ogg,P1,Шарики,0.34,лопание шарика 5-го цвета: мягкий «поп» + нота «ля»,(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+bp_pop6.ogg,P1,Шарики,0.34,лопание шарика 6-го цвета: мягкий «поп» + нота «до»,(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+bp_pop7.ogg,P1,Шарики,0.34,лопание шарика 7-го цвета: мягкий «поп» + нота «ре»,(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+kc_munch1.ogg,P1,Кастрюля чудес,0.30,"мишка жуёт: округлое «ням» (стук 400→190 Гц + тёплая середина, без верхов)",(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+kc_munch2.ogg,P1,Кастрюля чудес,0.30,"мишка жуёт: второй вариант «ням», чуть выше",(оригинальный синтез),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+voice_name_bear.ogg,P2,Голос,0.42,музыкальный знак вместо слов; целевая запись — название животного «bear» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_chick.ogg,P2,Голос,0.42,музыкальный знак вместо слов; целевая запись — название животного «chick» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_dino.ogg,P2,Голос,0.42,музыкальный знак вместо слов; целевая запись — название животного «dino» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_elephant.ogg,P2,Голос,0.42,музыкальный знак вместо слов; целевая запись — название животного «elephant» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_horse.ogg,P2,Голос,0.42,музыкальный знак вместо слов; целевая запись — название животного «horse» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_piglet.ogg,P2,Голос,0.42,музыкальный знак вместо слов; целевая запись — название животного «piglet» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_robot.ogg,P2,Голос,0.42,музыкальный знак вместо слов; целевая запись — название животного «robot» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+voice_name_sheep.ogg,P2,Голос,0.42,музыкальный знак вместо слов; целевая запись — название животного «sheep» (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_bunny.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (bunny): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_cat.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (cat): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_chick.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (chick): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_cow.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (cow): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_dog.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (dog): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_duck.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (duck): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_frog.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (frog): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_horse.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (horse): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_pig.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (pig): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_rooster.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (rooster): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+phone_hi_sheep.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (sheep): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)

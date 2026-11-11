@@ -578,6 +578,8 @@ fun AnimalFeedingScreen(
                             val isBeingDragged = isDragging && draggedFoodIndex == index
                             val opacity = if (isBeingDragged) 0.35f else 1.0f
 
+                            // key: при смене питомца слоты не должны наследовать жесты прежнего лакомства
+                            key(selectedPetId, food.type) {
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
@@ -594,7 +596,7 @@ fun AnimalFeedingScreen(
                                     .border(BorderStroke(2.8.dp, ColorInk), CircleShape)
                                     .clip(CircleShape)
                                     .background(getFeedingPlateColor(food.type), CircleShape)
-                                    .pointerInput(Unit) {
+                                    .pointerInput(selectedPetId, food.type, index) {
                                         detectTapGestures(
                                             onTap = {
                                                 soundManager.play("tap")
@@ -603,7 +605,7 @@ fun AnimalFeedingScreen(
                                             }
                                         )
                                     }
-                                    .pointerInput(Unit) {
+                                    .pointerInput(selectedPetId, food.type, index) {
                                         detectDragGestures(
                                             onDragStart = { startPos ->
                                                 draggedFoodIndex = index
@@ -640,6 +642,7 @@ fun AnimalFeedingScreen(
                                     }
                             ) {
                                 FoodIcon(food.emoji, (calculatedSizeDp.value * 0.78f).dp)
+                            }
                             }
                         }
                     }

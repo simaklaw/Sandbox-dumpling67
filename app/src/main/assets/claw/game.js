@@ -164,6 +164,14 @@ for (let i = 0; i < 4; i++) {
   prongs.push(g);
 }
 
+// кольцо-прицел на полу: показывает, куда упадёт коготь (на телефоне глубину сцены оценить трудно)
+const aimRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.9, 1.2, 40),
+  new THREE.MeshBasicMaterial({ color: 0xfff176, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })
+);
+aimRing.rotation.x = -Math.PI / 2;
+aimRing.renderOrder = 6;
+scene.add(aimRing);
 const claw = { x: 0, y: 8, z: 0, state: 'idle', closed: false, timer: 0, grabbed: null, vx: 0, vy: 0, vz: 0 };
 
 // ───────────────────────── призы ─────────────────────────
@@ -355,24 +363,44 @@ window.addEventListener('keyup', (e) => {
 });
 
 {
-  const stick = $('stick'), knob = $('knob');
-  let pid = null;
-  const R = 46;
+  // «плавающий» джойстик: центр там, куда палец коснулся в левой зоне; работает и мышью, и пальцем
+  const zone = $('zoneL'), stick = $('stick'), knob = $('knob');
+  let pid = null, cx = 0, cy = 0;
+  const R = 62;
+  const place = (x, y) => {
+    stick.style.position = 'fixed';
+    stick.style.left = (x - stick.offsetWidth / 2) + 'px';
+    stick.style.top = (y - stick.offsetHeight / 2) + 'px';
+    stick.style.opacity = '1';
+  };
   const move = (e) => {
-    const r = stick.getBoundingClientRect();
-    let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    let dx = e.clientX - cx, dy = e.clientY - cy;
     const len = Math.hypot(dx, dy);
     if (len > R) { dx = dx / len * R; dy = dy / len * R; }
     knob.style.transform = `translate(${dx}px,${dy}px)`;
     const nx = dx / R, ny = dy / R;
-    joy.x = Math.abs(nx) < 0.12 ? 0 : nx;
-    joy.z = Math.abs(ny) < 0.12 ? 0 : ny; // вверх по экрану = от нас (z−)
+    joy.x = Math.abs(nx) < 0.1 ? 0 : nx;
+    joy.z = Math.abs(ny) < 0.1 ? 0 : ny; // вверх по экрану = от нас (z−)
   };
-  const end = () => { pid = null; joy.x = 0; joy.z = 0; knob.style.transform = ''; };
-  stick.addEventListener('pointerdown', (e) => { pid = e.pointerId; stick.setPointerCapture(pid); move(e); e.preventDefault(); });
-  stick.addEventListener('pointermove', (e) => { if (e.pointerId === pid) move(e); });
-  stick.addEventListener('pointerup', end);
-  stick.addEventListener('pointercancel', end);
+  const end = (e) => {
+    if (e && e.pointerId !== pid) return;
+    pid = null; joy.x = 0; joy.z = 0; knob.style.transform = '';
+    stick.style.opacity = '.75';
+    stick.style.position = ''; stick.style.left = ''; stick.style.top = '';
+  };
+  zone.addEventListener('pointerdown', (e) => {
+    if (pid !== null) return;
+    pid = e.pointerId;
+    try { zone.setPointerCapture(pid); } catch (err) { /* не критично */ }
+    cx = e.clientX; cy = e.clientY;
+    place(cx, cy);
+    move(e);
+    e.preventDefault();
+  });
+  zone.addEventListener('pointermove', (e) => { if (e.pointerId === pid) move(e); });
+  zone.addEventListener('pointerup', end);
+  zone.addEventListener('pointercancel', end);
+  zone.addEventListener('lostpointercapture', end);
 }
 $('drop').addEventListener('pointerdown', (e) => { tryDrop(); e.preventDefault(); });
 
@@ -436,6 +464,7 @@ function tryDrop() {
   if (mode === 'playing' && claw.state === 'idle') { claw.state = 'dropping'; bridge('drop'); updateHud(); }
 }
 $('startBtn').addEventListener('click', startGame);
+$('startO').addEventListener('click', (e) => { if (e.target === $('startO')) startGame(); });
 $('againBtn').addEventListener('click', startGame);
 $('infoBtn').addEventListener('click', () => $('infoO').classList.add('show'));
 $('infoClose').addEventListener('click', () => $('infoO').classList.remove('show'));
@@ -445,7 +474,7 @@ function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
 function updateClaw(dt) {
   const ox = claw.x, oy = claw.y, oz = claw.z;
-  const speed = 5 * dt;
+  const speed = 6 * dt;
   if (claw.state === 'idle') {
     if (mode === 'playing') {
       let ax = joy.x, az = joy.z;
@@ -463,7 +492,7 @@ function updateClaw(dt) {
     claw.closed = true;
     claw.timer += dt;
     if (!claw.grabbed) {
-      let best2 = null, min = 1.5;
+      let best2 = null, min = 1.8;
       for (const p of prizes) {
         const d = Math.hypot(p.pos.x - claw.x, p.pos.y - (claw.y - 1.2), p.pos.z - claw.z);
         if (d < min) { min = d; best2 = p; }
@@ -511,6 +540,9 @@ function updateClaw(dt) {
   }
   prongSegs.push([new THREE.Vector3(claw.x, claw.y - 0.25, claw.z), new THREE.Vector3(claw.x, claw.y + 0.25, claw.z), 0.6]);
 
+  aimRing.visible = mode === 'playing' && (claw.state === 'idle' || claw.state === 'dropping');
+  aimRing.position.set(claw.x, 0.3, claw.z);
+  aimRing.scale.setScalar(1 + Math.sin(performance.now() / 180) * 0.06);
   crossbar.position.set(0, 10, claw.z);
   carriage.position.set(claw.x, 10, claw.z);
   cable.position.set(claw.x, (10 + claw.y) / 2, claw.z);

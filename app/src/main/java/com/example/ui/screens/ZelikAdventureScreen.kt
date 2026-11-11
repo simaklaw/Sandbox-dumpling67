@@ -397,6 +397,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     var mortarCooldown = 0
     var airJumps = 1
     var jumpPrev = false
+    var jumpBuf = 0
     var wingT = -1
     var healT = -1
     var ammo = HOMING_MAX_AMMO
@@ -727,27 +728,33 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             pvx = 0f
         } else {
             if (abs(input.stickX) > 0.25f) moveX = input.stickX.coerceIn(-1f, 1f)
-            crouching = input.stickY > 0.55f && onGround
+            crouching = ZelikControls.crouch(input.stickX, input.stickY, onGround)
             val speedMul = if (crouching) 0.5f else 1f
             pvx = moveX * MOVE_SPEED * speedMul
 
             if (onGround) { airJumps = 1; coyote = 7 } else if (coyote > 0) coyote--
             val standingOnOneWay = onGround && platforms.any { it.oneWay && px < it.x + it.w && px + pw > it.x && abs(py + ph - it.y) < 1.5f }
-            if (input.jump && !jumpPrev && crouching && standingOnOneWay) {
-                dropT = 14; py += 3f; onGround = false; coyote = 0 // спрыгнуть вниз сквозь площадку
-            } else if (input.jump && (onGround || coyote > 0) && !crouching) {
+            // Прыжок: кнопка или уверенный стик вверх; нажатие чуть раньше приземления не пропадает.
+            val jumpHeld = input.jump || ZelikControls.stickJump(input.stickX, input.stickY)
+            val jumpPress = jumpHeld && !jumpPrev
+            if (jumpPress) jumpBuf = ZelikControls.JUMP_BUFFER else if (jumpBuf > 0) jumpBuf--
+            if (jumpPress && crouching && standingOnOneWay) {
+                dropT = 14; py += 3f; onGround = false; coyote = 0; jumpBuf = 0 // спрыгнуть вниз сквозь площадку
+            } else if ((jumpHeld || jumpBuf > 0) && (onGround || coyote > 0)) {
                 pvy = JUMP_POWER
                 onGround = false
                 coyote = 0
+                jumpBuf = 0
                 onEvent("jump")
-            } else if (input.jump && !jumpPrev && !onGround && airJumps > 0 && !crouching) {
+            } else if (jumpPress && !onGround && airJumps > 0) {
                 // второй прыжок — на крыльях
                 airJumps--
                 pvy = JUMP_POWER * 0.92f
                 wingT = 0
+                jumpBuf = 0
                 onEvent("wings")
             }
-            jumpPrev = input.jump
+            jumpPrev = jumpHeld
 
             if (input.attack) {
                 if (crouching) {

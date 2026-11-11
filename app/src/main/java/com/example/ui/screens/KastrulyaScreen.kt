@@ -58,6 +58,14 @@ private const val PH_EXTRACT = 2
 private const val PH_TO_FEED = 3
 private const val PH_FEED = 4
 private const val PH_CHEW = 5
+
+/**
+ * Жевание: моменты «ням» (секунды от начала жевания) и громкость. Рот закрывается там, где
+ * sin(22·t) = −1, то есть на 0,50 / 0,79 / 1,07 / 1,36 / 1,64 с; берём 0,50 / 1,07 / 1,36 и
+ * отнимаем ~30 мс на задержку SoundPool. Ритм «ням… ням-ням» вместо ровных ударов.
+ */
+private val KC_MUNCH_AT = floatArrayOf(0.47f, 1.04f, 1.33f)
+private val KC_MUNCH_VOL = floatArrayOf(0.85f, 0.70f, 0.55f)
 private const val PH_CELEBRATE = 6
 private const val PH_TO_POT = 7
 
@@ -656,12 +664,18 @@ fun KastrulyaScreen(
                 m.chewT += dt
                 m.mouthOpen = if (m.chewT < 0.35f) 1f else (0.5f + 0.5f * sin(m.chewT * 22f)) * 0.6f
                 if (m.chewT > 0.3f) m.pelAlpha = 0f
-                val hits = (m.chewT / 0.42f).toInt()
-                if (m.chewT > 0.35f && hits > m.chewHits && m.chewHits < 4) {
-                    m.chewHits = hits
-                    snd(if (hits % 2 == 0) "kc_munch1" else "kc_munch2", 0.9f, 0.95f + Random.nextFloat() * 0.1f)
-                    haptics.vibrateShort()
-                    val bc = bearC()
+                // Три мягких «ням» в ритме закрывающегося рта, а не четыре одинаковых удара подряд
+                // (на слух они сливались в автоматную очередь). Громкость падает — еда заканчивается.
+                val bite = m.chewHits
+                if (bite < KC_MUNCH_AT.size && m.chewT >= KC_MUNCH_AT[bite]) {
+                    m.chewHits = bite + 1
+                    // «Сырой» путь: если файл не загрузился — тишина, а не запасной процедурный звук.
+                    sm.playFxRaw(
+                        if (bite % 2 == 0) "kc_munch1" else "kc_munch2",
+                        KC_MUNCH_VOL[bite],
+                        0.97f + Random.nextFloat() * 0.06f
+                    )
+                    if (bite == 0) haptics.vibrateShort()
                     burst(5, mp.x, mp.y + bearS() * 0.1f, 4, Color(0xFFFFE9B8), bearS() * 0.8f, bearS() * 0.05f, up = bearS() * 0.6f, life = 0.5f)
                 }
                 if (m.chewT > 2.0f) {

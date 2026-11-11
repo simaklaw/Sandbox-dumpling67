@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,12 +58,15 @@ import kotlin.random.Random
 
 // Комната «Птичка-летунья» (по пиксельным ассетам: птички, труба, фон, пол, монетка, звуки).
 // Тап по экрану — птичка взмахивает крыльями. Нужно пролетать в ворота между трубами и собирать монетки.
-// Для малышей ничего не «проигрывается»: задел трубу — птичка мягко подпрыгивает и ненадолго становится «призраком».
+// Три режима (кнопка слева под монетами). «Спокойный» — для малышей: задел трубу — птичка мягко подпрыгивает и ненадолго
+// становится «призраком», игра не кончается. «Сердечки» — три удара. «Смертельный» — любой удар (труба, земля, потолок) и игра проиграна.
+// Правила ударов лежат в BirdRules.kt (их проверяет BirdRulesTest). Рекорд у каждого режима свой: SharedPreferences rec_0..rec_2.
 // Награды: 6 наклеек альбома «Птичка-летунья»; открывают новых птичек-друзей, блестящие следы и корону.
 
 private const val BF_PREFS = "birdfly_prefs"
 private const val BF_READY = 0
 private const val BF_PLAY = 1
+private const val BF_DEAD = 2
 
 private class BfSticker(val id: Int, val name: String, val note: String, val how: String)
 
@@ -77,6 +81,15 @@ private val BF_STICKERS = listOf(
 private val BF_NEED = intArrayOf(3, 30, 6, 40, 150)
 private val BF_NEED_T = intArrayOf(2, 15, 3, 20, 70)
 private val BF_RAINBOW = intArrayOf(0xFFFF5A5A.toInt(), 0xFFFF9F43.toInt(), 0xFFFFD84D.toInt(), 0xFF6BD66B.toInt(), 0xFF4FB4F2.toInt(), 0xFFB77BE8.toInt())
+
+private class BfMode(val emoji: String, val name: String, val about: String)
+
+// Порядок совпадает с BF_MODE_CALM / BF_MODE_HEARTS / BF_MODE_DEADLY.
+private val BF_MODES = listOf(
+    BfMode("🐥", "Спокойный", "Задела трубу — подпрыгнула и летим дальше. Считаем ворота подряд без ойков."),
+    BfMode("❤️", "Сердечки", "Три сердечка. Каждый ойк — минус сердечко. Сердечки кончились — игра окончена."),
+    BfMode("💀", "Смертельный", "Труба, земля или потолок — птичка падает, игра окончена. Лети на рекорд!")
+)
 
 private class BfPipe(var x: Float, val gy: Float) { var passed = false }
 private class BfCoin(var x: Float, val y: Float) { var taken = false; val ph = Random.nextFloat() * 6f }
@@ -111,6 +124,16 @@ private class BfModel {
     var tweetT = 4f
     var groundSnd = 0f
     val pending = ArrayList<Int>()
+    // режимы и рекорды
+    var mode = BF_MODE_CALM
+    var lives = BF_LIVES
+    val rec = IntArray(3)       // рекорд по каждому режиму (спокойный — серия ворот без ойков)
+    var recBase = 0             // рекорд режима в начале забега
+    var recMsgT = 0f            // сколько ещё показывать «Новый рекорд!»
+    var recMsgDone = false
+    var flash = 0f
+    var deadT = 0f
+    var landed = false
 }
 
 private class BfSheet(val img: ImageBitmap, val fw: Int, val fh: Int)
@@ -172,6 +195,16 @@ private fun DrawScope.bfCrown(cx: Float, cy: Float, s: Float) {
     drawPath(k, Color(0xFFFFC93C))
     drawPath(k, Color(0xFFD99A00), style = Stroke(s * 0.12f))
     drawCircle(Color(0xFFE5566D), s * 0.14f, Offset(cx, cy - s * 0.45f))
+}
+
+private fun DrawScope.bfHeart(cx: Float, cy: Float, s: Float, col: Color) {
+    val p = Path().apply {
+        moveTo(cx, cy + s * 0.9f)
+        cubicTo(cx - s * 1.5f, cy - s * 0.1f, cx - s * 0.8f, cy - s * 1.2f, cx, cy - s * 0.45f)
+        cubicTo(cx + s * 0.8f, cy - s * 1.2f, cx + s * 1.5f, cy - s * 0.1f, cx, cy + s * 0.9f)
+        close()
+    }
+    drawPath(p, col)
 }
 
 private fun DrawScope.bfStickerArt(id: Int, c: Offset, r: Float, birds: List<BfSheet>, coin: ImageBitmap) {
@@ -256,6 +289,12 @@ fun BirdFlightScreen(
         BfModel().also { md ->
             md.tp = prefs.getInt("tp", 0); md.tc = prefs.getInt("tc", 0); md.sb = prefs.getInt("sb", 0)
             md.mask = prefs.getInt("mask", 0); md.bird = prefs.getInt("bird", 0)
+            md.rec[BF_MODE_CALM] = prefs.getInt("rec_0", md.sb) // рекорд спокойного режима начинается с лучшей серии без ойков
+            md.rec[BF_MODE_HEARTS] = prefs.getInt("rec_1", 0)
+            md.rec[BF_MODE_DEADLY] = prefs.getInt("rec_2", 0)
+            // малыши всегда начинают со спокойного режима
+            md.mode = if (toddler) BF_MODE_CALM else prefs.getInt("mode", BF_MODE_CALM).coerceIn(BF_MODE_CALM, BF_MODE_DEADLY)
+            md.recBase = md.rec[md.mode]
         }
     }
     var hintText by remember { mutableStateOf("") }
@@ -263,7 +302,16 @@ fun BirdFlightScreen(
     var rewardSticker by remember { mutableStateOf<BfSticker?>(null) }
     var demoOn by remember { mutableStateOf(false) }
     var coinsUi by remember { mutableIntStateOf(m.tc) }
-    var runUi by remember { mutableIntStateOf(0) }
+    var scoreUi by remember { mutableIntStateOf(0) }
+    var modeUi by remember { mutableIntStateOf(m.mode) }
+    var livesUi by remember { mutableIntStateOf(BF_LIVES) }
+    var recUi by remember { mutableIntStateOf(m.rec[m.mode]) }
+    var recBanner by remember { mutableStateOf(false) }
+    var showModes by remember { mutableStateOf(false) }
+    var showOver by remember { mutableStateOf(false) }
+    var overScore by remember { mutableIntStateOf(0) }
+    var overCoins by remember { mutableIntStateOf(0) }
+    var overNew by remember { mutableStateOf(false) }
     var birdUi by remember { mutableIntStateOf(m.bird) }
     var maskUi by remember { mutableIntStateOf(m.mask) }
 
@@ -292,7 +340,8 @@ fun BirdFlightScreen(
         }
     }
     fun save() {
-        prefs.edit().putInt("tp", m.tp).putInt("tc", m.tc).putInt("sb", m.sb).putInt("mask", m.mask).putInt("bird", m.bird).apply()
+        prefs.edit().putInt("tp", m.tp).putInt("tc", m.tc).putInt("sb", m.sb).putInt("mask", m.mask).putInt("bird", m.bird)
+            .putInt("rec_0", m.rec[0]).putInt("rec_1", m.rec[1]).putInt("rec_2", m.rec[2]).apply()
     }
     fun showNext() {
         if (m.pending.isEmpty()) return
@@ -310,6 +359,22 @@ fun BirdFlightScreen(
         if (rewardSticker == null && m.pending.isNotEmpty()) showNext()
     }
 
+    // Счёт забега: в спокойном режиме — ворота подряд без ойков, в остальных — ворота за весь забег.
+    fun curScore() = if (m.mode == BF_MODE_CALM) m.streak else m.runPipes
+    fun lethal() = !m.demo && m.mode == BF_MODE_DEADLY
+
+    // После пролёта ворот (только в настоящей игре, не в демо): рекорд режима растёт сразу, «Новый рекорд!» — один раз за забег.
+    fun scoreCheck() {
+        val sc = curScore()
+        if (sc > m.rec[m.mode]) { m.rec[m.mode] = sc; recUi = sc }
+        if (!m.recMsgDone && m.recBase > 0 && bfBeatsRecord(sc, m.recBase)) {
+            m.recMsgDone = true; m.recMsgT = 2.4f
+            snd("fx_bd_unlock", 0.85f, 1.1f)
+            haptics.vibratePop()
+            spark(W() * 0.5f, H() * 0.22f, 16, 0xFFFFE066.toInt(), W() * 0.4f, 1.0f)
+        }
+    }
+
     fun spawnPipe() {
         val w = W(); val pf = yF(); val g = gap()
         val lo = g / 2f + pf * 0.08f; val hi = pf - g / 2f - pf * 0.06f
@@ -323,8 +388,24 @@ fun BirdFlightScreen(
         m.lastGy = gy
     }
 
+    // Птичка снова в центре, мир пустой, счёт нулевой: ждём первого тапа.
+    fun resetToReady() {
+        m.state = BF_READY
+        m.pipes.clear(); m.coins.clear(); m.lastGy = -1f
+        m.runPipes = 0; m.runCoins = 0; m.streak = 0
+        m.by = yF() * 0.45f; m.vy = 0f; m.tilt = 0f; m.inv = 0f
+        m.lives = BF_LIVES; m.flash = 0f; m.deadT = 0f; m.landed = false
+        m.recBase = m.rec[m.mode]; m.recMsgT = 0f; m.recMsgDone = false
+        livesUi = BF_LIVES; scoreUi = 0; recUi = m.rec[m.mode]; recBanner = false
+    }
+
     fun flap(real: Boolean) {
-        if (m.state == BF_READY) { m.state = BF_PLAY; m.pipes.clear(); m.coins.clear(); m.lastGy = -1f; m.runPipes = 0; m.runCoins = 0; m.streak = 0; m.dist = 0f }
+        if (m.state == BF_DEAD) return
+        if (m.state == BF_READY) {
+            m.state = BF_PLAY; m.pipes.clear(); m.coins.clear(); m.lastGy = -1f; m.runPipes = 0; m.runCoins = 0; m.streak = 0; m.dist = 0f
+            m.lives = BF_LIVES; livesUi = BF_LIVES; scoreUi = 0
+            m.recBase = m.rec[m.mode]; m.recMsgT = 0f; m.recMsgDone = false
+        }
         m.vy = -flapV()
         m.flapT = 0.35f
         snd("fx_bd_flap", 0.7f, 0.95f + Random.nextFloat() * 0.15f)
@@ -335,27 +416,90 @@ fun BirdFlightScreen(
     fun stopDemo() { if (m.demo) { m.demo = false; demoOn = false } }
     fun startDemo() { m.demo = true; demoOn = true; m.lastTouch = m.clock }
 
-    fun bump() {
+    // Мягкий удар: подпрыгнула и стала «призраком». floor=true — удар о землю (подброс уже сделан, «призрак» короче).
+    fun bump(floor: Boolean = false) {
         if (m.inv > 0f) return
-        val px = m.pipes.firstOrNull { it.x + pw() / 2f + br() > bx() }?.x ?: bx()
-        m.inv = max(1.2f, (px + pw() / 2f + br() - bx()) / speed() + 0.25f)
-        m.vy = -yF() * 0.32f
+        if (floor) {
+            m.inv = 1.0f
+        } else {
+            val px = m.pipes.firstOrNull { it.x + pw() / 2f + br() > bx() }?.x ?: bx()
+            m.inv = max(1.2f, (px + pw() / 2f + br() - bx()) / speed() + 0.25f)
+            m.vy = -yF() * 0.32f
+        }
         m.streak = 0
+        if (m.mode == BF_MODE_CALM) { m.recBase = m.rec[BF_MODE_CALM]; m.recMsgDone = false; m.recMsgT = 0f; recBanner = false }
         snd("fx_bd_hit", 0.7f); snd("fx_it_drp_${6 + Random.nextInt(6)}", 0.5f)
         haptics.vibrateSquish()
         spark(bx(), m.by, 10, 0xFFFFFFFF.toInt(), W() * 0.35f, 0.7f)
         spark(bx(), m.by, 6, 0xFFFFC93C.toInt(), W() * 0.3f, 0.7f)
     }
 
+    // Птичка разбилась: мир замирает, она падает; через секунду появится экран проигрыша.
+    fun die() {
+        if (m.state != BF_PLAY) return
+        m.state = BF_DEAD
+        m.deadT = 0f; m.landed = false
+        m.inv = 0f; m.flapT = 0f
+        m.vy = -yF() * 0.30f
+        m.flash = 0.3f
+        m.recMsgT = 0f; recBanner = false
+        snd("fx_bd_hit", 0.9f); snd("fx_it_drp_${6 + Random.nextInt(6)}", 0.5f)
+        haptics.vibrateSquish()
+        spark(bx(), m.by, 14, 0xFFFFFFFF.toInt(), W() * 0.45f, 0.8f)
+        spark(bx(), m.by, 10, 0xFFFFC93C.toInt(), W() * 0.4f, 0.8f)
+        save()
+    }
+
+    // Удар о трубу (floor=false) или о землю (floor=true): что будет, решает bfCrashOutcome.
+    fun crash(floor: Boolean) {
+        if (m.state != BF_PLAY) return
+        when (bfCrashOutcome(m.mode, m.demo, floor, m.inv > 0f, m.lives)) {
+            BfCrash.NONE -> Unit
+            BfCrash.BUMP -> bump()
+            BfCrash.LOSE_LIFE -> { m.lives--; livesUi = m.lives; bump(floor) }
+            BfCrash.DIE -> { m.lives = 0; livesUi = 0; die() }
+        }
+    }
+
+    fun openOver() {
+        val sc = curScore()
+        overScore = sc
+        overCoins = m.runCoins
+        overNew = bfBeatsRecord(sc, m.recBase)
+        showOver = true
+        if (overNew) {
+            snd("fx_bd_reward", 0.95f)
+            haptics.vibratePop()
+            spark(W() * 0.5f, H() * 0.35f, 26, 0xFFFFE066.toInt(), W() * 0.55f, 1.3f)
+        }
+    }
+
+    fun setMode(k: Int) {
+        m.mode = k; modeUi = k
+        prefs.edit().putInt("mode", k).apply()
+        showModes = false; showOver = false
+        resetToReady()
+        m.lastTouch = m.clock
+        snd("fx_bd_whoosh", 0.7f)
+    }
+
+    fun retry() {
+        showOver = false
+        resetToReady()
+        m.lastTouch = m.clock
+        snd("fx_bd_pickup", 0.6f, 1.3f)
+    }
+
     fun update(dt: Float) {
         if (W() <= 0f) return
         m.clock += dt
         val w = W(); val pf = yF(); val b = br()
-        val overlay = showAlbum || rewardSticker != null
-        if (!m.demo && !overlay && m.clock - m.lastTouch > 5f) startDemo()
+        val overlay = showAlbum || rewardSticker != null || showModes || showOver
+        if (!m.demo && !overlay && m.state != BF_DEAD && m.clock - m.lastTouch > 5f) startDemo()
         if (overlay) return
 
         m.flapT = max(0f, m.flapT - dt); m.inv = max(0f, m.inv - dt); m.cd = max(0f, m.cd - dt); m.groundSnd = max(0f, m.groundSnd - dt)
+        m.flash = max(0f, m.flash - dt); m.recMsgT = max(0f, m.recMsgT - dt)
         val real = !m.demo
 
         if (m.state == BF_READY) {
@@ -365,6 +509,23 @@ fun BirdFlightScreen(
             m.tweetT -= dt
             if (m.tweetT <= 0f) { m.tweetT = 5f + Random.nextFloat() * 4f; snd(if (Random.nextBoolean()) "fx_wr_bird1" else "fx_wr_bird2", 0.5f) }
             if (m.demo && m.clock - m.lastTouch > 0.8f) flap(false)
+        } else if (m.state == BF_DEAD) {
+            // птичка падает, мир замер
+            m.deadT += dt
+            m.vy = min(m.vy + grav() * dt, pf * 1.1f)
+            m.by += m.vy * dt
+            if (!m.landed) m.tilt = min(95f, m.tilt + 360f * dt)
+            if (m.by - b < 0f) { m.by = b; if (m.vy < 0f) m.vy = 0f }
+            if (m.by + b >= pf) {
+                m.by = pf - b
+                m.vy = 0f
+                if (!m.landed) {
+                    m.landed = true
+                    snd("fx_bd_drop", 0.8f, 0.85f)
+                    spark(bx(), pf - 2f, 8, 0xFFE8D9A8.toInt(), W() * 0.25f, 0.6f)
+                }
+            }
+            if (!showOver && ((m.landed && m.deadT > 1.0f) || m.deadT > 2.2f)) openOver()
         } else {
             // бот-демо
             if (m.demo && m.cd <= 0f) {
@@ -375,12 +536,17 @@ fun BirdFlightScreen(
             m.vy = min(m.vy + grav() * dt, pf * 1.1f)
             m.by += m.vy * dt
             m.tilt += ((m.vy / pf * 45f).coerceIn(-25f, 70f) - m.tilt) * min(1f, dt * 10f)
-            if (m.by - b < 0f) { m.by = b; if (m.vy < 0f) m.vy = 0f }
-            if (m.by + b > pf) {
+            if (m.by - b < 0f) { m.by = b; if (m.vy < 0f) m.vy = 0f; if (lethal()) die() }
+            if (m.state == BF_PLAY && m.by + b > pf) {
                 m.by = pf - b
-                m.vy = -pf * 0.45f
-                if (m.groundSnd <= 0f) { m.groundSnd = 0.3f; snd("fx_bd_drop", 0.7f); if (real) haptics.vibrateShort() }
-                spark(bx(), pf - 2f, 5, 0xFFE8D9A8.toInt(), W() * 0.2f, 0.5f)
+                if (lethal()) {
+                    die()
+                } else {
+                    m.vy = -pf * 0.45f
+                    if (m.groundSnd <= 0f) { m.groundSnd = 0.3f; snd("fx_bd_drop", 0.7f); if (real) haptics.vibrateShort() }
+                    spark(bx(), pf - 2f, 5, 0xFFE8D9A8.toInt(), W() * 0.2f, 0.5f)
+                    crash(true)
+                }
             }
             val sp = speed()
             m.dist += sp * dt
@@ -392,12 +558,12 @@ fun BirdFlightScreen(
             for (p in m.pipes) {
                 if (abs(p.x - bx()) < half + b * 0.8f) {
                     val top = p.gy - gap() / 2f; val bot = p.gy + gap() / 2f
-                    if (m.by < top + b * 0.4f || m.by > bot - b * 0.4f) bump()
+                    if (m.by < top + b * 0.4f || m.by > bot - b * 0.4f) crash(false)
                 }
-                if (!p.passed && p.x + half < bx() - b) {
+                if (m.state == BF_PLAY && !p.passed && p.x + half < bx() - b) {
                     p.passed = true
                     m.streak++; m.runPipes++
-                    if (real) { m.tp++; if (m.streak > m.sb) m.sb = m.streak }
+                    if (real) { m.tp++; if (m.streak > m.sb) m.sb = m.streak; scoreCheck() }
                     snd("fx_bd_star", 0.8f)
                     spark(bx(), m.by, 8, 0xFFFFF3A0.toInt(), W() * 0.25f, 0.7f)
                     if (real) checkRewards()
@@ -406,7 +572,7 @@ fun BirdFlightScreen(
             // монетки
             val rad = b + b * 0.75f * (if (toddler) 1.8f else 1f)
             for (c in m.coins) {
-                if (!c.taken && abs(c.x - bx()) < rad * 1.5f && Math.hypot((c.x - bx()).toDouble(), (c.y - m.by).toDouble()).toFloat() < rad) {
+                if (m.state == BF_PLAY && !c.taken && abs(c.x - bx()) < rad * 1.5f && Math.hypot((c.x - bx()).toDouble(), (c.y - m.by).toDouble()).toFloat() < rad) {
                     c.taken = true
                     m.runCoins++
                     if (real) { m.tc++; coinsUi = m.tc }
@@ -440,14 +606,22 @@ fun BirdFlightScreen(
             i--
         }
 
-        if (runUi != m.runPipes) runUi = m.runPipes
+        val scoreNow = curScore()
+        if (scoreUi != scoreNow) scoreUi = scoreNow
+        if (recUi != m.rec[m.mode]) recUi = m.rec[m.mode]
+        val bannerNow = m.recMsgT > 0f
+        if (recBanner != bannerNow) recBanner = bannerNow
         m.hintT -= dt
         if (m.hintT <= 0f) {
             m.hintT = 0.3f
             val h = when {
                 m.demo -> ""
-                m.state == BF_READY -> "Тапай по экрану — птичка полетит!"
-                m.tp < 3 && m.runPipes < 2 -> "Лети в ворота и собирай монетки!"
+                m.state == BF_READY -> when (m.mode) {
+                    BF_MODE_HEARTS -> "Три сердечка. Тапай — птичка полетит!"
+                    BF_MODE_DEADLY -> "Осторожно! Заденешь что-нибудь — птичка упадёт"
+                    else -> "Тапай по экрану — птичка полетит!"
+                }
+                m.state == BF_PLAY && m.tp < 3 && m.runPipes < 2 -> "Лети в ворота и собирай монетки!"
                 else -> ""
             }
             if (h != hintText) hintText = h
@@ -478,8 +652,9 @@ fun BirdFlightScreen(
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
-                        if (showAlbum || rewardSticker != null) return@awaitEachGesture
-                        if (m.demo) { stopDemo(); if (m.state == BF_PLAY) { m.lastTouch = m.clock; flap(true); return@awaitEachGesture } }
+                        if (showAlbum || rewardSticker != null || showModes || showOver || m.state == BF_DEAD) return@awaitEachGesture
+                        // игрок перехватил птичку у бота-демо: забег начинается заново, очки бота не засчитываются
+                        if (m.demo) { stopDemo(); if (m.state == BF_PLAY) resetToReady() }
                         m.lastTouch = m.clock
                         flap(true)
                     }
@@ -568,11 +743,20 @@ fun BirdFlightScreen(
                 bfBird(sheet, frameIdx, bc.x - bw / 2f, bc.y - bh / 2f, bw, bh, if (blink) 0.4f else 1f)
                 if ((m.mask and 16) != 0 || (m.mask and 32) != 0) bfCrown(bc.x + b * 0.1f, bc.y - bh * 0.42f, b * 0.7f)
             }
+            if (m.state == BF_DEAD) {
+                // «звёздочки» над оглушённой птичкой
+                for (k in 0..2) {
+                    val a = t * 6f + k * 2.094f
+                    bfSpark(bc.x + cos(a) * b * 1.6f, bc.y - b * 2.2f + sin(a) * b * 0.4f, b * 0.55f, Color(0xFFFFE066))
+                }
+            }
             if (m.demo) {
                 // подсказка-«палец» над птичкой
                 drawCircle(Color.White.copy(alpha = 0.3f + 0.2f * sin(t * 6f)), b * 1.6f, Offset(bx() + b * 3f, m.by - b * 3f))
                 drawCircle(Color.White.copy(alpha = 0.85f), b * 0.9f, Offset(bx() + b * 3f, m.by - b * 3f))
             }
+            // белая вспышка в момент удара
+            if (m.flash > 0f) drawRect(Color.White.copy(alpha = (m.flash / 0.3f).coerceIn(0f, 1f) * 0.6f), Offset.Zero, Size(w, h))
         }
 
         // монеты
@@ -589,14 +773,80 @@ fun BirdFlightScreen(
             Spacer(Modifier.width(6.dp))
             Text("$coinsUi", fontSize = 26.sp, fontFamily = pixelFont, color = Color(0xFFFFE066))
         }
-        // счёт ворот
-        if (runUi > 0 && m.state == BF_PLAY) {
-            Text(
-                "$runUi",
+        // счёт: в спокойном режиме — ворота подряд без ойков, в остальных — ворота за забег
+        if (scoreUi > 0 && m.state == BF_PLAY) {
+            Column(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
-                fontSize = 60.sp, fontFamily = pixelFont, color = Color.White,
-                style = TextStyle(shadow = Shadow(Color(0xFF1A2A3A), Offset(4f, 4f), 6f))
-            )
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "$scoreUi",
+                    fontSize = 60.sp, fontFamily = pixelFont, color = Color.White,
+                    style = TextStyle(shadow = Shadow(Color(0xFF1A2A3A), Offset(4f, 4f), 6f))
+                )
+                if (modeUi == BF_MODE_CALM) {
+                    Text(
+                        "без ойков подряд",
+                        fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                        style = TextStyle(shadow = Shadow(Color(0xFF1A2A3A), Offset(2f, 2f), 4f))
+                    )
+                }
+            }
+        }
+        // сердечки
+        if (modeUi == BF_MODE_HEARTS) {
+            Row(
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                for (k in 0 until BF_LIVES) {
+                    Canvas(Modifier.size(30.dp)) {
+                        bfHeart(size.width / 2f, size.height / 2f, size.width * 0.34f, if (k < livesUi) Color(0xFFFF4D6D) else Color(0x66000000))
+                    }
+                }
+            }
+        }
+        // режим и рекорд
+        Column(
+            modifier = Modifier.align(Alignment.TopStart).padding(top = 58.dp, start = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xCCFFFFFF))
+                    .border(2.dp, Color.White, RoundedCornerShape(16.dp))
+                    .clickable { stopDemo(); m.lastTouch = m.clock; showModes = true; snd("fx_bd_star", 0.7f) }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(BF_MODES[modeUi].emoji, fontSize = 16.sp)
+                Spacer(Modifier.width(5.dp))
+                Text(BF_MODES[modeUi].name, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF2F6FA8))
+            }
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0x99000000))
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🏆", fontSize = 13.sp)
+                Spacer(Modifier.width(4.dp))
+                Text("$recUi", fontSize = 20.sp, fontFamily = pixelFont, color = Color(0xFFFFE066))
+            }
+        }
+        // «Новый рекорд!» посреди забега
+        if (recBanner) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 150.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFFFFC93C))
+                    .border(3.dp, Color.White, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            ) { Text("Новый рекорд!", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color(0xFF7A4B00)) }
         }
         // подсказка
         if (hintText.isNotEmpty()) {
@@ -726,6 +976,122 @@ fun BirdFlightScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // выбор режима
+        if (showModes) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color(0x99102040))
+                    .clickable {
+                        showModes = false; m.lastTouch = m.clock
+                        // закрыли выбор, не выбрав: забег с риском проигрыша начинается заново, а не с места паузы
+                        if (m.mode != BF_MODE_CALM) resetToReady()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Color(0xFFF2F8FF))
+                        .border(5.dp, Color(0xFF6FB6E8), RoundedCornerShape(28.dp))
+                        .clickable(enabled = false) {}
+                        .padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Как будем летать?", fontSize = 19.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F6FA8))
+                    BF_MODES.forEachIndexed { k, mode ->
+                        val sel = k == modeUi
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(if (sel) Color(0xFFFFE9A0) else Color(0xFFDDEEFF))
+                                .border(3.dp, if (sel) Color(0xFFFF9F43) else Color.Transparent, RoundedCornerShape(18.dp))
+                                .clickable { setMode(k) }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(mode.emoji, fontSize = 30.sp)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(mode.name, fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F6FA8))
+                                Text(mode.about, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A7FA8))
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🏆", fontSize = 14.sp)
+                                Text("${m.rec[k]}", fontSize = 20.sp, fontFamily = pixelFont, color = Color(0xFFE0780A))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // проигрыш (сердечки и смертельный режим)
+        if (showOver) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color(0xAA102040))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Color(0xFFF2F8FF))
+                        .border(5.dp, Color(0xFF6FB6E8), RoundedCornerShape(28.dp))
+                        .padding(horizontal = 28.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        if (modeUi == BF_MODE_HEARTS) "Сердечки закончились!" else "Птичка упала!",
+                        fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFFE5566D), textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text("Ворот пролетела:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A7FA8))
+                    Text("$overScore", fontSize = 64.sp, fontFamily = pixelFont, color = Color(0xFF3F8FE0))
+                    if (overNew) {
+                        Text("Новый рекорд!", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFFE0780A))
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🏆", fontSize = 16.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text("$recUi", fontSize = 26.sp, fontFamily = pixelFont, color = Color(0xFFE0780A))
+                        }
+                    }
+                    if (overCoins > 0) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Монеток:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A7FA8))
+                            Text(" $overCoins", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF5A7FA8))
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF3F8FE0))
+                                .clickable { retry() }
+                                .padding(horizontal = 24.dp, vertical = 10.dp)
+                        ) { Text("Ещё раз", fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color.White) }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFFDDEEFF))
+                                .clickable { showOver = false; resetToReady(); showModes = true }
+                                .padding(horizontal = 20.dp, vertical = 10.dp)
+                        ) { Text("Режимы", fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F6FA8)) }
                     }
                 }
             }

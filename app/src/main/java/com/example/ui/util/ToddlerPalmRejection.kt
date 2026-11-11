@@ -1,14 +1,8 @@
 package com.example.ui.util
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.PointerInputChange
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import kotlin.math.hypot
 
 /**
@@ -20,8 +14,6 @@ import kotlin.math.hypot
  * 3. Grazing / Stationary Rejection: Distinguishes between intentional swipes/taps and resting flat skin.
  */
 object ToddlerPalmRejection {
-
-    const val DEFAULT_EDGE_MARGIN_DP = 22f
 
     /**
      * Checks if a touch offset falls within the edge bezel deadzone.
@@ -41,20 +33,6 @@ object ToddlerPalmRejection {
                 position.x > rightBound ||
                 position.y < topBound ||
                 position.y > bottomBound
-    }
-
-    /**
-     * Returns true if the touch event represents an intentional toddler interaction.
-     * When palm rejection is disabled, always returns true.
-     */
-    fun isIntentionalTouch(
-        position: Offset,
-        containerSize: Size,
-        edgeMarginPx: Float,
-        enabled: Boolean = true
-    ): Boolean {
-        if (!enabled) return true
-        return !isNearEdge(position, containerSize, edgeMarginPx)
     }
 
     /**
@@ -100,16 +78,5 @@ object ToddlerPalmRejection {
                 !isNearEdge(change.position, containerSize, edgeMarginPx)
             }
         }
-    }
-}
-
-/**
- * Helper to compute edge margin in pixels from dp in Compose scope.
- */
-@Composable
-fun rememberEdgeMarginPx(marginDp: Dp = ToddlerPalmRejection.DEFAULT_EDGE_MARGIN_DP.dp): Float {
-    val density = LocalDensity.current
-    return remember(marginDp, density) {
-        with(density) { marginDp.toPx() }
     }
 }

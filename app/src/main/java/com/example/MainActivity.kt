@@ -368,7 +368,6 @@ fun MainAppScreen(
                                     21 -> SmeshinkiScreen(repository = repository, soundPlayer = soundPlayer, onBackClick = { leaveGame(21) })
                                     22 -> KineticSandScreen(repository = repository, soundPlayer = soundPlayer, onBackClick = { leaveGame(22) })
                                     24 -> RainScreen(repository = repository, soundPlayer = soundPlayer)
-                                    25 -> BoxSurpriseScreen(repository = repository, soundPlayer = soundPlayer)
                                     26 -> ShapeSorterScreen(repository = repository, soundPlayer = soundPlayer)
                                     27 -> AlienRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     28 -> ZelikAdventureScreen(repository = repository, soundPlayer = soundPlayer)
@@ -383,11 +382,16 @@ fun MainAppScreen(
                                     38 -> LaundryScreen(repository = repository, soundPlayer = soundPlayer)
                                     39 -> CradleRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     40 -> SandboxRoomScreen(repository = repository, soundPlayer = soundPlayer)
-                                    41 -> CarWashRoomScreen(repository = repository, soundPlayer = soundPlayer)
+                                    41 -> CarWashRoomScreen(
+                                        repository = repository,
+                                        soundPlayer = soundPlayer,
+                                        // на время танца игрушки фоновая музыка приложения ставится на паузу
+                                        bgMusicPlaying = { viewModel.musicManager.isEnabled && viewModel.musicManager.isPlaying.value },
+                                        setBgMusic = { on -> if (on) viewModel.musicManager.resumeMusic() else viewModel.musicManager.pauseMusic() }
+                                    )
                                     42 -> ShopRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     43 -> WeatherRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     44 -> BirdFlightScreen(repository = repository, soundPlayer = soundPlayer)
-                                    45 -> DressUpRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     46 -> ChestRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     47 -> PetYardScreen(repository = repository, soundPlayer = soundPlayer)
                                     48 -> BlockPuzzleScreen(repository = repository, soundPlayer = soundPlayer)

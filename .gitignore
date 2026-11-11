@@ -22,3 +22,10 @@ debug.keystore
 *.keystore
 debug.keystore.base64
 .env
+
+# Промежуточные файлы генерации звуков (generate_all_sounds.py -> input/, prepare_sounds.sh -> output/).
+# Готовые звуки лежат в app/src/main/res/raw; промежуточное можно пересоздать скриптами.
+/input/
+/output/
+
+__pycache__/

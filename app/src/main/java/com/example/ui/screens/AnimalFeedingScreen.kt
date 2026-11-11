@@ -1,17 +1,14 @@
 package com.example.ui.screens
 
-import android.content.Context
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
@@ -28,7 +25,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -724,305 +720,6 @@ fun AnimalFeedingScreen(
     }
 }
 
-// Complete beautiful interactive morphing face for Puppy, Kitty, Piglet
-@Composable
-fun InteractivePetFace(
-    petId: String,
-    state: PetState,
-    isFoodOverMouth: Boolean
-) {
-    val scaleAnim by animateFloatAsState(
-        targetValue = when (state) {
-            PetState.MOUTH_OPEN -> 1.05f
-            PetState.CHEWING -> 1.03f
-            PetState.HAPPY -> 1.12f
-            PetState.REFUSE -> 0.94f
-            else -> 1.0f
-        },
-        animationSpec = spring(Spring.DampingRatioMediumBouncy),
-        label = "petFaceScale"
-    )
-
-    val rotationAnim by animateFloatAsState(
-        targetValue = when (state) {
-            PetState.REFUSE -> 12f
-            else -> 0f
-        },
-        animationSpec = spring(Spring.DampingRatioHighBouncy),
-        label = "petFaceRotation"
-    )
-
-    val faceColor = when (petId) {
-        "dog" -> Color(0xFFFFCC80) // Soft Dog Brown
-        "cat" -> Color(0xFFEEEEEE) // Kitten Grey
-        else -> Color(0xFFF8BBD0)  // Piglet Soft Pink
-    }
-
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .size(240.dp)
-            .scale(scaleAnim)
-            .rotate(rotationAnim)
-    ) {
-        // EARS (Specific to pet type with animation twitches)
-        EarsLayout(petId = petId, state = state)
-
-        // Main Head Shape
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .border(BorderStroke(4.dp, ColorInk), CircleShape)
-                .background(faceColor, CircleShape)
-        ) {
-            // Rosy cheeks during happy states
-            if (state == PetState.HAPPY || state == PetState.FULL) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 32.dp, top = 40.dp)
-                        .size(36.dp)
-                        .background(ColorPink.copy(alpha = 0.6f), CircleShape)
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 32.dp, top = 40.dp)
-                        .size(36.dp)
-                        .background(ColorPink.copy(alpha = 0.6f), CircleShape)
-                )
-            }
-
-            // Eyes layout (open, happy, blinking or squished)
-            EyesLayout(state = state)
-
-            // Nose (piglet gets a round snout with nostrils)
-            if (petId == "pig") {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(y = 14.dp)
-                        .size(58.dp, 38.dp)
-                        .border(BorderStroke(3.dp, ColorInk), CircleShape)
-                        .background(Color(0xFFF06292), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(Modifier.size(8.dp, 12.dp).background(ColorInk, CircleShape))
-                        Box(Modifier.size(8.dp, 12.dp).background(ColorInk, CircleShape))
-                    }
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(y = 12.dp)
-                        .size(22.dp, 16.dp)
-                        .background(ColorInk, CircleShape)
-                )
-            }
-
-            // Morphing mouth
-            MouthLayout(state = state, isFoodOverMouth = isFoodOverMouth)
-        }
-    }
-}
-
-@Composable
-fun EarsLayout(petId: String, state: PetState) {
-    val twitchAnim by animateFloatAsState(
-        targetValue = if (state == PetState.WAITING) -10f else 0f,
-        animationSpec = spring(Spring.DampingRatioHighBouncy),
-        label = "earsTwitch"
-    )
-
-    when (petId) {
-        "dog" -> {
-            // Floppy puppy ears hanging down
-            Box(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset(x = (-16).dp, y = 20.dp)
-                        .size(45.dp, 110.dp)
-                        .rotate(15f + twitchAnim)
-                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(24.dp))
-                        .background(Color(0xFF8D6E63), RoundedCornerShape(24.dp))
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 16.dp, y = 20.dp)
-                        .size(45.dp, 110.dp)
-                        .rotate(-15f - twitchAnim)
-                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(24.dp))
-                        .background(Color(0xFF8D6E63), RoundedCornerShape(24.dp))
-                )
-            }
-        }
-        "cat" -> {
-            // Triangular kitty ears
-            Box(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset(x = 14.dp, y = (-20).dp)
-                        .size(54.dp, 64.dp)
-                        .rotate(-12f + twitchAnim)
-                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(12.dp))
-                        .background(Color(0xFFBDBDBD), RoundedCornerShape(12.dp))
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = (-14).dp, y = (-20).dp)
-                        .size(54.dp, 64.dp)
-                        .rotate(12f - twitchAnim)
-                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(12.dp))
-                        .background(Color(0xFFBDBDBD), RoundedCornerShape(12.dp))
-                )
-            }
-        }
-        else -> {
-            // Piglet: small perky ears on top
-            Box(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset(x = 22.dp, y = (-8).dp)
-                        .size(58.dp, 58.dp)
-                        .rotate(-28f + twitchAnim)
-                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(topStart = 30.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 30.dp))
-                        .background(Color(0xFFF48FB1), RoundedCornerShape(topStart = 30.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 30.dp))
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = (-22).dp, y = (-8).dp)
-                        .size(58.dp, 58.dp)
-                        .rotate(28f - twitchAnim)
-                        .border(BorderStroke(4.dp, ColorInk), RoundedCornerShape(topStart = 8.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 8.dp))
-                        .background(Color(0xFFF48FB1), RoundedCornerShape(topStart = 8.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 8.dp))
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun EyesLayout(state: PetState) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        when (state) {
-            PetState.HAPPY, PetState.FULL -> {
-                // Curved happy eye arches ^^
-                Text(
-                    text = "^  ^",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    color = ColorInk,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 46.dp)
-                )
-            }
-            PetState.REFUSE -> {
-                // squinted closed eyes ><
-                Text(
-                    text = ">  <",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    color = ColorInk,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 46.dp)
-                )
-            }
-            else -> {
-                // Friendly round open eyes
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 54.dp),
-                    horizontalArrangement = Arrangement.spacedBy(48.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .background(ColorInk, CircleShape)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .background(ColorInk, CircleShape)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun MouthLayout(state: PetState, isFoodOverMouth: Boolean) {
-    val mouthScaleY = remember { Animatable(1.0f) }
-
-    if (state == PetState.CHEWING) {
-        val infiniteTransition = rememberInfiniteTransition(label = "chewing")
-        val animateChew by infiniteTransition.animateFloat(
-            initialValue = 0.2f,
-            targetValue = 1.0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(180, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "chewHeight"
-        )
-        LaunchedEffect(animateChew) {
-            mouthScaleY.snapTo(animateChew)
-        }
-    } else {
-        LaunchedEffect(state) {
-            mouthScaleY.animateTo(1.0f)
-        }
-    }
-
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        val showOpenMouth = state == PetState.MOUTH_OPEN || isFoodOverMouth
-
-        if (showOpenMouth) {
-            // Large glowing round open mouth (for feeding)
-            Box(
-                modifier = Modifier
-                    .padding(bottom = 32.dp)
-                    .size(64.dp)
-                    .border(BorderStroke(4.dp, ColorYellow), CircleShape)
-                    .background(Color(0xFF42221D), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                // Cute pink tongue
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .size(34.dp, 18.dp)
-                        .background(ColorPink, RoundedCornerShape(12.dp))
-                )
-            }
-        } else {
-            // Friendly warm smile (adjustable scaleY for chewing)
-            Box(
-                modifier = Modifier
-                    .padding(bottom = 44.dp)
-                    .size(40.dp, 20.dp)
-                    .graphicsLayer { scaleY = mouthScaleY.value }
-                    .border(BorderStroke(3.dp, ColorInk), RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
-                    .background(Color.Transparent)
-            )
-        }
-    }
-}
-
 @Composable
 fun ConfettiSplashLayer() {
     val items = remember { List(25) { Random.nextInt(360) } }
@@ -1046,7 +743,6 @@ fun ConfettiSplashLayer() {
         }
     }
 }
-
 
 // ---------------------------------------------------------------------------------------------
 // Питомцы-картинки: анимация дыхания, жевания, прыжков и открывающийся рот поверх рисунка.

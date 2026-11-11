@@ -47,7 +47,7 @@ private val DUMPLING_ICON = com.example.R.drawable.pelmen_icon
 
 /**
  * Единый источник правды: какие игры лежат в каких папках и в каких разделах.
- * «Кто в коробке?» живёт только на главном экране, поэтому в папках его нет.
+ * Индексы 25 («Кто в коробке?») и 45 («Гардероб героев») выведены из использования: их здесь нет и быть не должно.
  */
 val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
     FolderType.GAMES to listOf(
@@ -97,7 +97,6 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
             FolderItem("Магазин пельменей", "🛒", 42, ColorPink),
             FolderItem("Погодная комната", "🌦️", 43, ColorBlue),
             FolderItem("Птичка-летунья", "🐦", 44, ColorGreen),
-            FolderItem("Гардероб героев", "🎭", 45, ColorBlue),
             FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange),
             FolderItem("Пушистики", "🐹", 47, ColorPink),
             FolderItem("Блок-пазл", "🧱", 48, ColorBlue),

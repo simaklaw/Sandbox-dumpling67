@@ -32,10 +32,17 @@ class GameNavigationTest {
 
     @Test
     fun homeLevelGamesReturnHome() {
-        listOf(1, 7, 9, 25).forEach {
+        listOf(1, 7, 9).forEach {
             assertNull(folderTypeForPage(it))
             assertEquals(AppScreenState.Home, parentStateForGame(it, isToddler2 = false))
         }
+    }
+
+    @Test
+    fun retiredPageIndexesAreNotInFolders() {
+        // 25 — «Кто в коробке?», 45 — «Гардероб героев»: комнаты убраны, индексы не переиспользуем.
+        val inFolders = FOLDER_ITEMS.values.flatten().map { it.pageIndex }.toSet()
+        listOf(25, 45).forEach { assertTrue("Индекс $it выведен из использования", it !in inFolders) }
     }
 
     @Test

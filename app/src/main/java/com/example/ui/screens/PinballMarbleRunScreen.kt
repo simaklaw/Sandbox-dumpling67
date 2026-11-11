@@ -46,8 +46,6 @@ import kotlin.random.Random
 
 // ───────────────────────── палитра стола ─────────────────────────
 private val PbNavy = Color(0xFF0B0630)
-private val PbDeepA = Color(0xFF140A52)
-private val PbDeepB = Color(0xFF2A1580)
 private val PbNeonCyan = Color(0xFF4DE8FF)
 private val PbNeonPink = Color(0xFFFF4FA3)
 private val PbNeonGold = Color(0xFFFFD54A)

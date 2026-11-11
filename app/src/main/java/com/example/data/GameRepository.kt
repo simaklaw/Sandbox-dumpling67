@@ -10,7 +10,6 @@ import com.example.data.local.GameSaveEntity
 import com.example.data.local.PelmenVariantDao
 import com.example.data.local.PelmenVariantEntity
 import com.example.data.local.PlayerInventoryDao
-import com.example.data.local.PlayerInventoryEntity
 import com.example.data.local.RunnerHighScoreEntity
 import com.example.data.local.StickerDao
 import com.example.data.local.StickerEntity
@@ -43,17 +42,7 @@ class GameRepository(context: Context) {
     val stickerDao: StickerDao = database.stickerDao()
     private val ioScope = CoroutineScope(Dispatchers.IO)
 
-    val topRunnerHighScores: Flow<List<RunnerHighScoreEntity>> = dao.getTopScores()
-    val allBlindBoxRewards: Flow<List<BlindBoxRewardEntity>> = blindBoxDao.getAllRewards()
-    val unlockedBlindBoxItemIds: Flow<List<Int>> = blindBoxDao.getDistinctUnlockedItemIds()
-    val distinctBlindBoxCount: Flow<Int> = blindBoxDao.getDistinctCount()
-    val unlockedPelmenVariants: Flow<List<PelmenVariantEntity>> = pelmenVariantDao.getAllVariants()
-    val unlockedPelmenCount: Flow<Int> = pelmenVariantDao.getUnlockedCount()
-    val localGameSave: Flow<GameSaveEntity?> = gameSaveDao.getSaveFlow()
-    val offlineUnlockedSkins: Flow<List<UnlockedSkinEntity>> = unlockedSkinDao.getAllUnlockedSkins()
-    val playerInventory: Flow<List<PlayerInventoryEntity>> = playerInventoryDao.getAllInventory()
     val allStickers: Flow<List<StickerEntity>> = stickerDao.getAllStickers()
-    val unlockedStickers: Flow<List<StickerEntity>> = stickerDao.getUnlockedStickers()
     val unlockedStickerCount: Flow<Int> = stickerDao.getUnlockedCount()
 
     init {
@@ -272,11 +261,6 @@ class GameRepository(context: Context) {
         }
     }
 
-    fun addPlayTimeSeconds(seconds: Long) {
-        val current = _gameState.value
-        persist(current.copy(totalPlayTimeSeconds = current.totalPlayTimeSeconds + seconds))
-    }
-
     fun checkAndUnlockAccomplishments(state: GameState): GameState {
         val newUnlocked = state.unlockedAccessoryIds.toMutableSet()
 
@@ -302,84 +286,10 @@ class GameRepository(context: Context) {
         }
     }
 
-    fun recordSquishTap() {
-        val current = _gameState.value
-        val updated = current.copy(totalSquishCount = current.totalSquishCount + 1)
-        persist(updated)
-    }
-
-    fun recordAnimalFeed() {
-        val current = _gameState.value
-        val updated = current.copy(totalFeedCount = current.totalFeedCount + 1)
-        persist(updated)
-    }
-
-    fun equipAccessory(category: com.example.model.AccessoryCategory, accessoryId: String) {
-        val current = _gameState.value
-        if (!current.unlockedAccessoryIds.contains(accessoryId)) return
-        val updated = when (category) {
-            com.example.model.AccessoryCategory.HAT -> current.copy(equippedHatId = accessoryId)
-            com.example.model.AccessoryCategory.GLASSES -> current.copy(equippedGlassesId = accessoryId)
-            com.example.model.AccessoryCategory.BODY -> current.copy(equippedBodyId = accessoryId)
-        }
-        persist(updated)
-    }
-
-    fun buyAccessoryWithCoins(accessoryId: String, price: Int): Boolean {
-        val current = _gameState.value
-        if (current.coins < price) return false
-        val newUnlocked = current.unlockedAccessoryIds.toMutableSet()
-        newUnlocked.add(accessoryId)
-        persist(current.copy(coins = current.coins - price, unlockedAccessoryIds = newUnlocked))
-        return true
-    }
-
     fun addCoins(amount: Int) {
         val current = _gameState.value
         val newCoins = (current.coins + amount).coerceAtLeast(0)
         persist(current.copy(coins = newCoins))
-    }
-
-    fun addBrainrot(points: Int) {
-        val current = _gameState.value
-        val newScore = current.brainrotScore + points
-        val newLevel = (newScore / 200) + 1
-        persist(current.copy(brainrotScore = newScore, brainrotLevel = newLevel))
-    }
-
-    fun addPelmenPoints(amount: Int) {
-        val current = _gameState.value
-        persist(current.copy(pelmenPoints = (current.pelmenPoints + amount).coerceAtLeast(0)))
-    }
-
-    fun setLocation(location: RunnerLocation) {
-        val current = _gameState.value
-        persist(current.copy(selectedLocation = location))
-    }
-
-    fun claimDailyReward(rewardChoice: String = "box"): Boolean {
-        val current = _gameState.value
-        if (!current.isDailyRewardReady()) return false
-        val now = System.currentTimeMillis()
-        if (rewardChoice == "coins") {
-            persist(
-                current.copy(
-                    coins = current.coins + 200,
-                    brainrotScore = current.brainrotScore + 50,
-                    lastDailyRewardTimestamp = now
-                )
-            )
-        } else {
-            // Free Loot Box reward: +100 coins + 50 brainrot + 1 free box unlock
-            persist(
-                current.copy(
-                    coins = current.coins + 100,
-                    brainrotScore = current.brainrotScore + 50,
-                    lastDailyRewardTimestamp = now
-                )
-            )
-        }
-        return true
     }
 
     fun updateRunnerHighScore(score: Int) {
@@ -408,53 +318,6 @@ class GameRepository(context: Context) {
                 )
             )
         }
-    }
-
-    fun updateSlapHighScore(score: Int) {
-        val current = _gameState.value
-        if (score > current.slapHighScore) {
-            persist(current.copy(slapHighScore = score))
-        }
-    }
-
-    fun toggleEquippedCompanion(characterId: String) {
-        val current = _gameState.value
-        if (!current.unlockedCharacterIds.contains(characterId)) return
-        val currentList = current.equippedCompanionIds.toMutableList()
-        if (currentList.contains(characterId)) {
-            currentList.remove(characterId)
-        } else {
-            // Max 3 companion slots
-            if (currentList.size < 3) {
-                currentList.add(characterId)
-            } else {
-                currentList[0] = characterId
-            }
-        }
-        persist(current.copy(equippedCompanionIds = currentList))
-    }
-
-    fun upgradeHeroStat(stat: String): Boolean {
-        val current = _gameState.value
-        val cost = when (stat) {
-            "speed" -> current.heroSpeedLevel * 40
-            "jump" -> current.heroJumpLevel * 40
-            "boost" -> current.heroBoostLevel * 50
-            "magnet" -> current.heroMagnetLevel * 50
-            else -> 999
-        }
-
-        if (current.coins < cost) return false
-
-        val updated = when (stat) {
-            "speed" -> current.copy(coins = current.coins - cost, heroSpeedLevel = current.heroSpeedLevel + 1)
-            "jump" -> current.copy(coins = current.coins - cost, heroJumpLevel = current.heroJumpLevel + 1)
-            "boost" -> current.copy(coins = current.coins - cost, heroBoostLevel = current.heroBoostLevel + 1)
-            "magnet" -> current.copy(coins = current.coins - cost, heroMagnetLevel = current.heroMagnetLevel + 1)
-            else -> current
-        }
-        persist(updated)
-        return true
     }
 
     data class BoxOpeningResult(
@@ -597,94 +460,6 @@ class GameRepository(context: Context) {
         )
     }
 
-    fun incrementSquishMission() {
-        val current = _gameState.value
-        persist(current.copy(missionSquishCount = current.missionSquishCount + 1))
-    }
-
-    fun incrementBoosterMission() {
-        val current = _gameState.value
-        persist(current.copy(mission67BoosterCount = current.mission67BoosterCount + 1))
-    }
-
-    fun recordRunnerMissionProgress(enemiesSmashed: Int) {
-        val current = _gameState.value
-        persist(current.copy(missionRunnerScore = current.missionRunnerScore + enemiesSmashed))
-    }
-
-    fun claimMissionReward(missionId: String): Boolean {
-        val current = _gameState.value
-        when (missionId) {
-            "squish_10" -> {
-                if (current.missionSquishCount >= 10 && !current.missionSquishClaimed) {
-                    persist(current.copy(coins = current.coins + 120, brainrotScore = current.brainrotScore + 40, missionSquishClaimed = true))
-                    return true
-                }
-            }
-            "open_2_boxes" -> {
-                if (current.missionOpenBoxesCount >= 2 && !current.missionBoxesClaimed) {
-                    persist(current.copy(coins = current.coins + 150, brainrotScore = current.brainrotScore + 60, missionBoxesClaimed = true))
-                    return true
-                }
-            }
-            "smash_5_enemies" -> {
-                if (current.missionRunnerScore >= 5 && !current.missionRunnerClaimed) {
-                    persist(current.copy(coins = current.coins + 140, brainrotScore = current.brainrotScore + 50, missionRunnerClaimed = true))
-                    return true
-                }
-            }
-            "booster_3_times" -> {
-                if (current.mission67BoosterCount >= 3 && !current.missionBoosterClaimed) {
-                    persist(current.copy(coins = current.coins + 167, brainrotScore = current.brainrotScore + 67, missionBoosterClaimed = true))
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    fun getDailyMissions(): List<com.example.model.DailyMissionItem> {
-        val current = _gameState.value
-        return listOf(
-            com.example.model.DailyMissionItem(
-                id = "squish_10",
-                title = "Помять 10 пельмешек",
-                emoji = "🥟",
-                currentProgress = current.missionSquishCount,
-                maxProgress = 10,
-                rewardCoins = 120,
-                isClaimed = current.missionSquishClaimed
-            ),
-            com.example.model.DailyMissionItem(
-                id = "open_2_boxes",
-                title = "Открыть 2 блайнд-бокса",
-                emoji = "📦",
-                currentProgress = current.missionOpenBoxesCount,
-                maxProgress = 2,
-                rewardCoins = 150,
-                isClaimed = current.missionBoxesClaimed
-            ),
-            com.example.model.DailyMissionItem(
-                id = "smash_5_enemies",
-                title = "Раздавить 5 врагов в раннере",
-                emoji = "💥",
-                currentProgress = current.missionRunnerScore,
-                maxProgress = 5,
-                rewardCoins = 140,
-                isClaimed = current.missionRunnerClaimed
-            ),
-            com.example.model.DailyMissionItem(
-                id = "booster_3_times",
-                title = "Запустить буст «67» 3 раза",
-                emoji = "⚡",
-                currentProgress = current.mission67BoosterCount,
-                maxProgress = 3,
-                rewardCoins = 167,
-                isClaimed = current.missionBoosterClaimed
-            )
-        )
-    }
-
     fun toggleSound(enabled: Boolean) {
         val current = _gameState.value
         persist(current.copy(soundEnabled = enabled))
@@ -695,16 +470,6 @@ class GameRepository(context: Context) {
         persist(current.copy(musicEnabled = enabled))
     }
 
-    fun toggleHaptics(enabled: Boolean) {
-        val current = _gameState.value
-        persist(current.copy(hapticsEnabled = enabled))
-    }
-
-    fun setParentalLock(enabled: Boolean) {
-        val current = _gameState.value
-        persist(current.copy(parentalLockEnabled = enabled))
-    }
-
     fun togglePalmRejection(enabled: Boolean) {
         val current = _gameState.value
         persist(current.copy(palmRejectionEnabled = enabled))
@@ -713,33 +478,6 @@ class GameRepository(context: Context) {
     fun setPalmRejectionMargin(marginDp: Float) {
         val current = _gameState.value
         persist(current.copy(palmRejectionMarginDp = marginDp.coerceIn(12f, 48f)))
-    }
-
-    fun toggleFavoritePelmenVariant(variantId: String) {
-        ioScope.launch {
-            pelmenVariantDao.toggleFavorite(variantId)
-        }
-    }
-
-    fun setEquippedPelmenVariant(variantId: String) {
-        ioScope.launch {
-            pelmenVariantDao.unequipAll()
-            pelmenVariantDao.setEquipped(variantId, true)
-        }
-        toggleEquippedCompanion(variantId)
-    }
-
-    fun recordPelmenVariantSquish(variantId: String) {
-        ioScope.launch {
-            pelmenVariantDao.incrementSquishCount(variantId)
-        }
-        incrementSquishMission()
-    }
-
-    fun togglePelmenVariantFavorite(variantId: String) {
-        ioScope.launch {
-            pelmenVariantDao.toggleFavorite(variantId)
-        }
     }
 
     fun unlockSticker(stickerId: String) {

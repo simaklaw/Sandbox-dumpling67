@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import com.example.shared.i18n.Text
@@ -36,12 +35,13 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.R
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
@@ -80,6 +81,10 @@ import kotlin.random.Random
  *  • плазменная граната (отскакивает и взрывается),
  *  • звёздные ракеты с самонаведением (присесть + огонь; патроны выпадают из монстров).
  * У Зелика 10 единиц здоровья и 3 жизни; когда здоровье кончается, он красиво падает.
+ *
+ * Враги: скелеты с оружием (ходят, замахиваются, стреляют из лука) и герои из модульного набора ch_*.
+ * Босс каждой локации — гигантский скелет с огромным мечом. Один раз за игру, в одной случайной локации,
+ * вместо него выходит злой дух: бросает порывы воздуха, а на Зелика нападают 10 героев.
  */
 
 // ---------- Константы (мировые единицы, шаг физики — 60 кадров в секунду) ----------
@@ -108,6 +113,7 @@ private const val MORTAR_COOLDOWN = 90
 private const val PLAYER_MAX_HP = 10
 private const val START_LIVES = 3
 private const val SPRITE_H = 84f
+private const val BOSS_H = 190f          // рост гигантского скелета-босса
 
 private val MOB_HP = intArrayOf(10, 20, 30)
 private val MOB_DMG = intArrayOf(2, 3, 5)
@@ -127,6 +133,22 @@ private class ZEnemy(
     val anim = Random.nextFloat() * 6.28f
     var fireCd = 90 + Random.nextInt(120)   // подсолнухи плюются огнём
     var windup = 0
+
+    // Бойцы (tier 0): скелеты с оружием и герои. У подсолнухов (tier 1–2) эти поля не используются.
+    var look = 0                 // 0..7 — скелет, 100..108 — герой из набора, 109 — золотой богатырь
+    var weapon = 0
+    var dmg = 2
+    var hh = 64f                 // рост рисунка
+    var floorY = 0f              // линия земли под ногами
+    var minX = 0f
+    var maxX = 0f
+    var aggro = false            // нападает, где бы ни стоял игрок (герои финала)
+    var gold = false
+    var style: SkelStyle? = null
+    var walk = 0f
+    var stride = 0f
+    var atkT = 0
+    var atkCd = 40
 }
 
 private class ZCured(val x: Float, val bottom: Float, val h: Float) { var age = 0 }
@@ -141,9 +163,9 @@ private class ZBoss(
     var active = false
     var dead = false
     var shootTimer = 90
-    var kind = 0          // 0 — пурпурный, 1 — лесной, 2 — огненный
+    var kind = 0          // 0..3 — гигантский скелет по локации, 4 — злой дух
     var phase = 0         // 0..2 — по потере здоровья
-    var state = 0         // 0 ходьба, 1 разгон (предупреждение), 2 рывок, 3 прыжок вверх, 4 падение
+    var state = 0         // 0 ходьба, 1 разгон (предупреждение), 2 рывок, 3 прыжок вверх, 4 падение, 5 замах мечом, 6 удар мечом
     var stateT = 0
     var skillCd = 120
     var lastSkill = -1
@@ -151,6 +173,8 @@ private class ZBoss(
     var vy = 0f
     var dashDir = 1f
     var deadT = 0
+    var walk = 0f
+    var stride = 0f
 }
 
 private class ZShock(var x: Float, val dir: Float) { var life = 150 }
@@ -181,6 +205,12 @@ private class ZBossRocket(var x: Float, var y: Float, var vx: Float, var vy: Flo
     var homingTimer = 20
     var angle = -1.57f
     var trail = 0
+}
+
+/** Снаряд врага: kind 0 — стрела, 1 — звезда волшебника, 2 — порыв воздуха злого духа. */
+private class ZEShot(var x: Float, var y: Float, var vx: Float, var vy: Float, val kind: Int, val dmg: Int) {
+    var life = 260
+    var t = 0
 }
 
 private class ZPickup(var x: Float, var y: Float, var vx: Float, var vy: Float) { var phase = 0f }
@@ -215,7 +245,9 @@ private data class ZHud(
     val bossMax: Int = 1,
     val bossActive: Boolean = false,
     val mobsLeft: Int = 0,
-    val level: Int = 1
+    val level: Int = 1,
+    val bossKind: Int = 0,
+    val heroesLeft: Int = 0
 )
 
 private class ZHelperGfx(val imgs: MonImgs, val spec: MonSpec, val anim: MonAnim)
@@ -312,6 +344,14 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     var levelDone = false
     var mobsTotal = 0
 
+    // «Злой дух и 10 героев»: один раз за игру, в одной случайной локации
+    private val spiritBiome = Random.nextInt(BIOME_COUNT)
+    private var spiritDone = false
+    var forceSpirit = false          // отладка: финал на первом же уровне
+    var spiritLevel = false
+    private val roster = ArrayList<Int>()   // герои, которые ещё не вышли
+    private var heroCd = 0
+
     val platforms = ArrayList<ZPlat>()
     val springs = ArrayList<ZSpring>()
     var coyote = 0
@@ -327,6 +367,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     val grenades = ArrayList<ZGrenade>()
     val homings = ArrayList<ZHoming>()
     val bossRockets = ArrayList<ZBossRocket>()
+    val eShots = ArrayList<ZEShot>()
     val shocks = ArrayList<ZShock>()
     val rainCoins = ArrayList<ZRainCoin>()
     val pickups = ArrayList<ZPickup>()
@@ -356,6 +397,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     var mortarCooldown = 0
     var airJumps = 1
     var jumpPrev = false
+    var jumpBuf = 0
     var wingT = -1
     var healT = -1
     var ammo = HOMING_MAX_AMMO
@@ -402,7 +444,9 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         var gx = 450f
         val endX = arenaLeft - 350f
         while (gx < endX) {
-            when (rng.nextInt(4)) {
+            var pattern = rng.nextInt(4)
+            if (pattern == 0 && gx + 800f > arenaLeft - 120f) pattern = 3 // лестнице не хватает места до арены
+            when (pattern) {
                 0 -> { // лестница вверх и вниз: герой поднимается пешком
                     val steps = 3 + rng.nextInt(3)
                     val sw = 64f; val sh = 26f
@@ -443,14 +487,21 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
                 }
             }
         }
+        // арена босса чистая: ни ступеней, ни пружин от обычных участков
+        val ground = platforms[0]
+        platforms.removeAll { it !== ground && it.x + it.w > arenaLeft - 60f }
+        structCoins.removeAll { it.x > arenaLeft - 60f }
+        springs.removeAll { it.x > arenaLeft - 60f }
         platforms.add(ZPlat(arenaLeft + 30f, 380f, 140f, 18f, true))
         platforms.add(ZPlat(arenaRight - 160f, 380f, 140f, 18f, true))
         platforms.add(ZPlat(arenaLeft + 260f, 300f, 150f, 18f, true))
 
         enemies.clear()
+        eShots.clear()
+        val biome = biomeOfLevel(n)
+        spiritLevel = !spiritDone && (forceSpirit || biome == spiritBiome)
         val base = 18 + n * 3
         val total = if (diff == 0) (base * 0.6f).toInt() else base
-        mobsTotal = total
         val tiers = MutableList(total) { 0 }
         if (diff == 1) {
             val c2 = (total * 0.4f).toInt()
@@ -462,29 +513,58 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             for (i in c1 + c2 until total) tiers[i] = 2
         }
         tiers.shuffle(rng)
+        val solids = platforms.filter { it !== ground && !it.oneWay }
+        val flo = platforms.filter { it.oneWay && !(it.x + it.w > arenaLeft - 100f && it.x < arenaRight + 100f) }
         for (i in 0 until total) {
-            val r = (16f + rng.nextInt(10)) * 1.25f
-            val ex: Float
-            val ey: Float
-            val flo = platforms.filter { it.oneWay && !(it.x + it.w > arenaLeft - 100f && it.x < arenaRight + 100f) }
-            val p = if (rng.nextFloat() < 0.5f && flo.isNotEmpty()) flo[rng.nextInt(flo.size)] else null
-            if (p != null && !(p.x + p.w > arenaLeft - 100f && p.x < arenaRight + 100f)) {
-                ex = p.x + 20f + rng.nextFloat() * (p.w - 40f)
-                ey = p.y - r - 4f
-            } else {
-                ex = 400f + rng.nextFloat() * (arenaLeft - 800f)
-                ey = GROUND_Y - r - 8f
-            }
             val tier = tiers[i]
-            enemies.add(
-                ZEnemy(
-                    ex, ey, r, tier, MOB_HP[tier], MOB_HP[tier],
-                    0.7f + rng.nextFloat() * 0.7f,
-                    if (rng.nextBoolean()) 1f else -1f,
-                    ex, 60f + rng.nextFloat() * 80f
-                )
-            )
+            val onPlat = rng.nextFloat() < 0.5f && flo.isNotEmpty()
+            val patrol = 60f + rng.nextFloat() * 80f
+            val dir = if (rng.nextBoolean()) 1f else -1f
+            if (tier == 0) {
+                // боец: скелет с оружием или герой из набора
+                val look = if (rng.nextFloat() < 0.55f) rng.nextInt(SKEL_WEAPONS.size) else 100 + rng.nextInt(HERO_COUNT)
+                if (onPlat) {
+                    val p = flo[rng.nextInt(flo.size)]
+                    val range = min(patrol, p.w / 2f - 24f)
+                    val ex = p.x + p.w / 2f + (rng.nextFloat() * 2f - 1f) * range
+                    enemies.add(makeFighter(ex, p.y, look, dir, p.x + 20f, p.x + p.w - 20f, range, rng))
+                } else {
+                    var ex = 400f + rng.nextFloat() * (arenaLeft - 800f)
+                    var tries = 0
+                    while (tries < 12 && solids.any { ex + patrol + 30f > it.x && ex - patrol - 30f < it.x + it.w }) {
+                        ex = 400f + rng.nextFloat() * (arenaLeft - 800f)
+                        tries++
+                    }
+                    if (tries >= 12) continue // рядом слишком много ступеней: этот враг не появляется
+                    var lo = 60f
+                    var hi = arenaLeft - 40f
+                    for (s in solids) {
+                        if (s.x + s.w <= ex) lo = max(lo, s.x + s.w + 20f) else if (s.x >= ex) hi = min(hi, s.x - 20f)
+                    }
+                    enemies.add(makeFighter(ex, GROUND_Y, look, dir, lo, hi, patrol, rng))
+                }
+            } else {
+                // подсолнух
+                val r = (16f + rng.nextInt(10)) * 1.25f
+                val ex: Float
+                val ey: Float
+                val baseX: Float
+                var range = patrol
+                if (onPlat) {
+                    val p = flo[rng.nextInt(flo.size)]
+                    range = min(patrol, p.w / 2f - 24f)
+                    baseX = p.x + p.w / 2f
+                    ex = baseX + (rng.nextFloat() * 2f - 1f) * range
+                    ey = p.y - r - 4f
+                } else {
+                    ex = 400f + rng.nextFloat() * (arenaLeft - 800f)
+                    baseX = ex
+                    ey = GROUND_Y - r - 8f
+                }
+                enemies.add(ZEnemy(ex, ey, r, tier, MOB_HP[tier], MOB_HP[tier], 0.7f + rng.nextFloat() * 0.7f, dir, baseX, range))
+            }
         }
+        mobsTotal = enemies.size
 
         coins.clear()
         cured.clear()
@@ -499,11 +579,27 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         meds.add(ZMed(levelLength * 0.25f, GROUND_Y - 40f))
         meds.add(ZMed(levelLength * 0.5f, GROUND_Y - 40f))
         meds.add(ZMed(levelLength * 0.75f, GROUND_Y - 40f))
+        if (spiritLevel) { // в финале на арене лежат три аптечки
+            meds.add(ZMed(arenaLeft + 120f, GROUND_Y - 40f))
+            meds.add(ZMed((arenaLeft + arenaRight) / 2f, GROUND_Y - 40f))
+            meds.add(ZMed(arenaRight - 120f, GROUND_Y - 40f))
+        }
 
         val bossHp = ((when (diff) { 0 -> 40; 1 -> 60; else -> 80 }) * 1.8f).toInt() + (n - 1) * 16
         val interval = max(110, 190 - n * 12) + (if (diff == 0) 50 else 0)
-        boss = ZBoss(levelLength - 300f, GROUND_Y - 140f, 92f, 140f, bossHp, bossHp, interval)
-        boss.kind = biomeOfLevel(n)
+        roster.clear()
+        if (spiritLevel) {
+            val hp = (bossHp * 1.25f).toInt()
+            boss = ZBoss(levelLength - 300f, GROUND_Y - 165f, 92f, 130f, hp, hp, (interval * 0.7f).toInt())
+            boss.kind = 4
+            // девять разных героев из набора и десятый — золотой богатырь
+            roster.addAll((0 until HERO_COUNT).shuffled(rng).map { 100 + it })
+            roster.add(109)
+            heroCd = 70
+        } else {
+            boss = ZBoss(levelLength - 300f, GROUND_Y - BOSS_H, 96f, BOSS_H, bossHp, bossHp, interval)
+            boss.kind = biome
+        }
         shocks.clear(); rainCoins.clear()
 
         bolts.clear(); grenades.clear(); homings.clear(); bossRockets.clear()
@@ -632,27 +728,33 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             pvx = 0f
         } else {
             if (abs(input.stickX) > 0.25f) moveX = input.stickX.coerceIn(-1f, 1f)
-            crouching = input.stickY > 0.55f && onGround
+            crouching = ZelikControls.crouch(input.stickX, input.stickY, onGround)
             val speedMul = if (crouching) 0.5f else 1f
             pvx = moveX * MOVE_SPEED * speedMul
 
             if (onGround) { airJumps = 1; coyote = 7 } else if (coyote > 0) coyote--
             val standingOnOneWay = onGround && platforms.any { it.oneWay && px < it.x + it.w && px + pw > it.x && abs(py + ph - it.y) < 1.5f }
-            if (input.jump && !jumpPrev && crouching && standingOnOneWay) {
-                dropT = 14; py += 3f; onGround = false; coyote = 0 // спрыгнуть вниз сквозь площадку
-            } else if (input.jump && (onGround || coyote > 0) && !crouching) {
+            // Прыжок: кнопка или уверенный стик вверх; нажатие чуть раньше приземления не пропадает.
+            val jumpHeld = input.jump || ZelikControls.stickJump(input.stickX, input.stickY)
+            val jumpPress = jumpHeld && !jumpPrev
+            if (jumpPress) jumpBuf = ZelikControls.JUMP_BUFFER else if (jumpBuf > 0) jumpBuf--
+            if (jumpPress && crouching && standingOnOneWay) {
+                dropT = 14; py += 3f; onGround = false; coyote = 0; jumpBuf = 0 // спрыгнуть вниз сквозь площадку
+            } else if ((jumpHeld || jumpBuf > 0) && (onGround || coyote > 0)) {
                 pvy = JUMP_POWER
                 onGround = false
                 coyote = 0
+                jumpBuf = 0
                 onEvent("jump")
-            } else if (input.jump && !jumpPrev && !onGround && airJumps > 0 && !crouching) {
+            } else if (jumpPress && !onGround && airJumps > 0) {
                 // второй прыжок — на крыльях
                 airJumps--
                 pvy = JUMP_POWER * 0.92f
                 wingT = 0
+                jumpBuf = 0
                 onEvent("wings")
             }
-            jumpPrev = input.jump
+            jumpPrev = jumpHeld
 
             if (input.attack) {
                 if (crouching) {
@@ -814,6 +916,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             onEvent("heal")
         } else {
             spawnDeathFX(e.x, e.y)
+            spawnBones(e.x, e.y, e.look >= 100)
             onEvent("boom_small")
         }
         maybeDrop(e)
@@ -837,7 +940,10 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             boss.dead = true
             boss.deadT = 0
             shocks.clear()
-            enemies.clear()
+            if (boss.kind != 4) enemies.clear() // герои духа продолжают бой, пока не погибнут
+            eShots.clear()
+            roster.clear()
+            if (boss.kind == 4) spiritDone = true
             val bcx = boss.x + boss.w / 2f
             val bcy = boss.y + boss.h / 2f
             repeat(5) { spawnBigExplosion(bcx + (Random.nextFloat() - 0.5f) * 60f, bcy + (Random.nextFloat() - 0.5f) * 60f, 70f) }
@@ -1071,6 +1177,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         }
         if (!boss.active) return
         if (boss.hitFlash > 0) boss.hitFlash--
+        if (boss.kind == 4) { updateSpirit(); return }
         val pcx = px + pw / 2f
         val bcx = boss.x + boss.w / 2f
         val dx = pcx - bcx
@@ -1079,6 +1186,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         val groundTop = GROUND_Y - boss.h
         val rage = 1f + boss.phase * 0.3f
         boss.stateT++
+        val x0 = boss.x
         when (boss.state) {
             0 -> {
                 val speed = 1.4f * rage
@@ -1117,7 +1225,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
                 boss.y += 20f
                 if (boss.y >= groundTop) {
                     boss.y = groundTop
-                    boss.state = 0; boss.stateT = 0
+                    boss.state = 6; boss.stateT = 6 // меч врезается в землю, затем возврат
                     boss.skillCd = (boss.shootInterval * 0.7f).toInt()
                     val cx = boss.x + boss.w / 2f
                     shocks.add(ZShock(cx - 20f, -1f)); shocks.add(ZShock(cx + 20f, 1f))
@@ -1127,9 +1235,23 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
                     if (!dead && invuln <= 0 && py + ph > GROUND_Y - 24f && abs(pcx - cx) < 70f) hurtPlayer(5, cx, 7f, -8f)
                 }
             }
+            5 -> { // замах сокрушающего удара: меч поднят над головой, на земле горит зона удара
+                boss.y = groundTop
+                boss.x -= dir * 0.3f
+                if (boss.stateT == 1) onEvent("bossCharge")
+                if (boss.stateT >= 38) { crushStrike(dir); boss.state = 6; boss.stateT = 0 }
+            }
+            6 -> { // удар мечом и возврат в стойку
+                boss.y = groundTop
+                if (boss.stateT >= 26) { boss.state = 0; boss.stateT = 0 }
+            }
         }
         if (boss.x < arenaLeft + 10f) boss.x = arenaLeft + 10f
         if (boss.x + boss.w > arenaRight - 10f) boss.x = arenaRight - 10f - boss.w
+        val moved = abs(boss.x - x0)
+        val walking = (boss.state == 0 || boss.state == 2) && moved > 0.05f
+        if (walking) boss.walk += moved * (6.2832f / (0.85f * boss.h))
+        boss.stride += ((if (walking) 1f else 0f) - boss.stride) * 0.15f
 
         if (!dead && invuln <= 0) {
             if (px < boss.x + boss.w && px + pw > boss.x && py < boss.y + boss.h && py + ph > boss.y) {
@@ -1143,7 +1265,8 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         options.add(0)                           // залп ракет
         options.add(2)                           // рывок
         options.add(3)                           // прыжок с ударной волной
-        if (boss.phase >= 1) { options.add(1); options.add(4) }   // веер огня, призыв
+        options.add(5)                           // сокрушающий удар мечом
+        if (boss.phase >= 1) { options.add(1); options.add(4); options.add(5) }   // веер огня, призыв
         if (boss.phase >= 2) { options.add(1); options.add(2); options.add(3) }
         var pick = options.random()
         if (pick == boss.lastSkill && options.size > 1) pick = options.random()
@@ -1154,17 +1277,262 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             1 -> { fireBossFan(5 + boss.phase * 2); boss.skillCd = (interval * 0.8f).toInt() }
             2 -> { boss.state = 1; boss.stateT = 0 }
             3 -> { boss.state = 3; boss.stateT = 0 }
+            5 -> { boss.state = 5; boss.stateT = 0 }
             4 -> {
                 if (enemies.size < 3) {
                     for (sgn in floatArrayOf(-1f, 1f)) {
                         val ex = (boss.x + boss.w / 2f + sgn * 110f).coerceIn(arenaLeft + 40f, arenaRight - 40f)
-                        val r = 20f
-                        enemies.add(ZEnemy(ex, GROUND_Y - r - 8f, r, 0, MOB_HP[0], MOB_HP[0], 1.2f, sgn, ex, 120f))
+                        val look = if (Random.nextBoolean()) Random.nextInt(SKEL_WEAPONS.size) else 100 + Random.nextInt(HERO_COUNT)
+                        val e = makeFighter(ex, GROUND_Y, look, -sgn, arenaLeft + 10f, arenaRight - 10f, 120f)
+                        e.aggro = true
+                        enemies.add(e)
                     }
                     onEvent("bossSummon")
                 }
                 boss.skillCd = (interval * 0.9f).toInt()
             }
+        }
+    }
+
+    /** Сокрушающий удар гигантского меча: волна по земле вперёд, урон тому, кто стоит под клинком. */
+    private fun crushStrike(dir: Float) {
+        val cx = boss.x + boss.w / 2f
+        val hitX = cx + dir * 150f
+        spawnBigExplosion(hitX, GROUND_Y - 10f, 100f)
+        shocks.add(ZShock(hitX, dir))
+        if (boss.phase >= 1) shocks.add(ZShock(hitX, -dir))
+        boss.skillCd = (boss.shootInterval * 0.65f).toInt()
+        onEvent("bossSlam")
+        val front = (px + pw / 2f - cx) * dir
+        if (!dead && invuln <= 0 && front > 40f && front < 270f && py + ph > GROUND_Y - 80f) hurtPlayer(5, hitX, 7f, -8f)
+    }
+
+    // ----- злой дух и герои -----
+    private fun aliveHeroes(): Int {
+        var n = 0
+        for (e in enemies) if (e.look >= 100) n++
+        return n
+    }
+
+    /** Следующий герой выходит с дальнего от Зелика края арены. */
+    private fun spawnFinaleHero() {
+        if (roster.isEmpty()) return
+        val look = roster.removeAt(0)
+        val fromRight = px + pw / 2f < (arenaLeft + arenaRight) / 2f
+        val x = if (fromRight) arenaRight - 60f - Random.nextFloat() * 80f else arenaLeft + 60f + Random.nextFloat() * 80f
+        val e = makeFighter(x, GROUND_Y, look, if (fromRight) -1f else 1f, arenaLeft + 10f, arenaRight - 10f, 0f)
+        e.aggro = true
+        e.atkCd = 45
+        enemies.add(e)
+        spawnBigExplosion(e.x, GROUND_Y - e.hh * 0.5f, 50f)
+        onEvent("bossSummon")
+    }
+
+    private fun updateSpirit() {
+        val pcx = px + pw / 2f
+        val bcx = boss.x + boss.w / 2f
+        val dx = pcx - bcx
+        val dist = abs(dx)
+        val dir = if (dx >= 0f) 1f else -1f
+        val rage = 1f + boss.phase * 0.3f
+        boss.stateT++
+        // парит невысоко над землёй, чтобы Зелик мог достать
+        boss.y = GROUND_Y - 165f + sin(animTime * 0.05f) * 22f
+        if (dist > 470f) boss.x += dir * 1.8f * rage else if (dist < 240f) boss.x -= dir * 1.4f * rage
+        boss.x += sin(animTime * 0.021f) * 0.9f
+        boss.x = boss.x.coerceIn(arenaLeft + 10f, arenaRight - 10f - boss.w)
+        // герои выходят по одному, пока не выйдут все десять
+        if (roster.isNotEmpty() && --heroCd <= 0 && aliveHeroes() < 6) {
+            spawnFinaleHero()
+            heroCd = 75 - boss.phase * 12
+        }
+        if (boss.state == 0) {
+            if (--boss.skillCd <= 0) {
+                boss.state = 1; boss.stateT = 0
+                val opts = ArrayList<Int>()
+                opts.add(0); opts.add(0)
+                if (boss.phase >= 1) opts.add(1)
+                if (boss.phase >= 2) opts.add(2)
+                boss.lastSkill = opts.random()
+            }
+        } else if (boss.stateT >= 28) { // копил порыв 28 тиков — бросает
+            spiritCast(boss.lastSkill)
+            boss.state = 0; boss.stateT = 0
+            boss.skillCd = (boss.shootInterval * 0.8f).toInt()
+        }
+        if (!dead && invuln <= 0 && px < boss.x + boss.w && px + pw > boss.x && py < boss.y + boss.h && py + ph > boss.y) {
+            hurtPlayer(2, bcx, 7f, -7f)
+        }
+    }
+
+    /** Бросок воздуха: 0 — веер, 1 — кольцо во все стороны, 2 — один большой быстрый порыв. */
+    private fun spiritCast(skill: Int) {
+        val cx = boss.x + boss.w / 2f
+        val cy = boss.y + boss.h * 0.4f
+        val toPlayer = atan2((py + ph / 2f) - cy, (px + pw / 2f) - cx)
+        when (skill) {
+            0 -> {
+                val n = 3 + boss.phase
+                for (i in 0 until n) {
+                    val a = toPlayer + (i - (n - 1) / 2f) * 0.38f
+                    eShots.add(ZEShot(cx, cy, cos(a) * 3.6f, sin(a) * 3.6f, 2, 1))
+                }
+            }
+            1 -> for (i in 0 until 10) {
+                val a = i * 6.2832f / 10f + animTime * 0.01f
+                eShots.add(ZEShot(cx, cy, cos(a) * 2.7f, sin(a) * 2.7f, 2, 1))
+            }
+            else -> eShots.add(ZEShot(cx, cy, cos(toPlayer) * 5.2f, sin(toPlayer) * 5.2f, 2, 2).also { it.life = 200 })
+        }
+        onEvent("spiritAir")
+    }
+
+    // ----- бойцы: скелеты с оружием и герои -----
+    private fun makeFighter(x: Float, floorY: Float, look: Int, dir: Float, minX: Float, maxX: Float, patrol: Float, rng: Random = Random): ZEnemy {
+        val hero = look >= 100
+        val h = if (look == 109) 7 else look - 100
+        val hh = if (hero) HERO_HEIGHT[h] * (if (look == 109) 1.12f else 1f) else 58f + rng.nextInt(10)
+        val hp = if (!hero) MOB_HP[0] else if (look == 109) 60 else HERO_HP[h]
+        val speed = (0.7f + rng.nextFloat() * 0.6f) * (if (hero) HERO_SPEED[h] else 1f)
+        val cx = x.coerceIn(minX, maxX)
+        val e = ZEnemy(cx, floorY - hh * 0.5f, hh * 0.36f, 0, hp, hp, speed, dir, cx, patrol)
+        e.look = look
+        e.hh = hh
+        e.floorY = floorY
+        e.minX = minX
+        e.maxX = maxX
+        if (hero) {
+            e.weapon = HERO_WEAPON[h]
+            e.dmg = if (look == 109) 3 else HERO_DMG[h]
+            e.gold = look == 109
+        } else {
+            e.weapon = SKEL_WEAPONS[look.coerceIn(0, SKEL_WEAPONS.size - 1)]
+            e.dmg = MOB_DMG[0]
+            val shield = (e.weapon == 0 || e.weapon == 2 || e.weapon == 3) && rng.nextInt(3) != 0
+            e.style = skelStyle(e.weapon, rng.nextInt(7), biomeOfLevel(level), shield)
+        }
+        return e
+    }
+
+    private fun updateFighter(e: ZEnemy) {
+        val ranged = weaponRanged(e.weapon)
+        val windup = weaponWindup(e.weapon)
+        val pcx = px + pw / 2f
+        val dx = pcx - e.x
+        val dist = abs(dx)
+        val dyFeet = (py + ph) - e.floorY // меньше нуля — Зелик выше врага
+        val sight = if (ranged) 520f else 330f
+        val near = !dead && (e.aggro || (dist < sight && dyFeet > -130f && dyFeet < 70f))
+        if (e.atkCd > 0) e.atkCd--
+        var moved = 0f
+        if (e.atkT > 0) {
+            e.atkT++
+            if (e.atkT == windup) foeStrike(e, dx)
+            if (e.atkT >= windup + 18) { e.atkT = 0; e.atkCd = (if (ranged) 110 else 55) + Random.nextInt(40) }
+        } else {
+            var step = 0f
+            if (near) {
+                val want = if (dx >= 0f) 1f else -1f
+                e.dir = want
+                val reach = weaponReach(e.weapon)
+                if (ranged) {
+                    if (dist < 170f) step = -want * e.vx * 1.1f else if (dist > 380f) step = want * e.vx * 1.2f
+                    if (e.atkCd <= 0 && dist > 110f && dist < 560f && dyFeet > -320f) e.atkT = 1
+                } else {
+                    if (dist > reach * 0.75f) step = want * e.vx * 1.5f
+                    if (e.atkCd <= 0 && dist <= reach + 6f) e.atkT = 1
+                }
+            } else {
+                step = e.dir * e.vx
+                if (e.x > e.baseX + e.range) e.dir = -1f
+                if (e.x < e.baseX - e.range) e.dir = 1f
+            }
+            if (step != 0f) {
+                var nx = e.x + step
+                if (nx < e.minX || nx > e.maxX) {
+                    nx = nx.coerceIn(e.minX, e.maxX)
+                    if (!near) e.dir = -e.dir
+                }
+                // герои финала не слипаются: идущий сзади ждёт того, кто впереди
+                if (e.aggro && enemies.any { o -> o !== e && o.tier == 0 && abs(o.x - nx) < 22f && abs(o.x - e.x) > abs(o.x - nx) }) nx = e.x
+                moved = abs(nx - e.x)
+                e.x = nx
+            }
+        }
+        e.walk += moved * (6.2832f / (0.85f * e.hh))
+        e.stride += ((if (moved > 0.01f) 1f else 0f) - e.stride) * 0.2f
+        // толчок телом — лёгкий ушиб, чтобы нельзя было пробегать сквозь врага
+        if (!dead && invuln <= 0 && e.atkT == 0 && hypot(pcx - e.x, (py + ph / 2f) - e.y) < e.r + 14f) {
+            hurtPlayer(1, e.x, 4f, -5.5f)
+        }
+    }
+
+    /** Момент удара или выстрела. */
+    private fun foeStrike(e: ZEnemy, dx: Float) {
+        val pcx = px + pw / 2f
+        if (weaponRanged(e.weapon)) {
+            val sx = e.x + e.dir * 24f
+            val sy = e.floorY - e.hh * 0.55f
+            val a = atan2((py + ph * 0.45f) - sy, pcx - sx)
+            val magic = e.weapon == 11
+            val sp = if (magic) 4.4f else 6f
+            eShots.add(ZEShot(sx, sy, cos(a) * sp, sin(a) * sp, if (magic) 1 else 0, e.dmg))
+            if (abs(dx) < 700f) onEvent("foeShoot")
+            return
+        }
+        if (abs(dx) < 700f) onEvent("foeSwing")
+        val reach = weaponReach(e.weapon)
+        val front = (pcx - e.x) * e.dir
+        val low = (py + ph) > e.floorY - 70f && py < e.floorY // перепрыгнувшему удар не страшен
+        if (!dead && front > -14f && front < reach + 22f && low) hurtPlayer(e.dmg, e.x, 6f, -6.5f)
+        val tx = e.x + e.dir * reach
+        repeat(5) {
+            parts.add(ZPart(tx, e.floorY - 8f, e.dir * Random.nextFloat() * 2.5f, -Random.nextFloat() * 2f, 1f, 0.07f, 2f + Random.nextFloat() * 2f, fxColors.random()))
+        }
+    }
+
+    private fun updateEShots() {
+        val iter = eShots.iterator()
+        while (iter.hasNext()) {
+            val s = iter.next()
+            s.t++
+            s.life--
+            if (s.kind == 0) s.vy += 0.06f
+            s.x += s.vx
+            s.y += s.vy
+            var hit = false
+            val pad = if (s.kind == 2) (if (s.dmg >= 2) 20f else 12f) else 6f
+            if (!dead && invuln <= 0 && s.x > px - pad && s.x < px + pw + pad && s.y > py - pad && s.y < py + ph + pad) {
+                hurtPlayer(s.dmg, s.x - s.vx * 3f, 4f, -5f)
+                hit = true
+            }
+            if (!hit && s.kind != 2) { // стрелы и звёзды застревают в площадках
+                for (p in platforms) {
+                    if (s.x > p.x && s.x < p.x + p.w && s.y > p.y && s.y < p.y + p.h) { hit = true; break }
+                }
+            }
+            if (!hit) { // выстрел Зелика сбивает снаряд
+                val bi = bolts.iterator()
+                while (bi.hasNext()) {
+                    val b = bi.next()
+                    if (hypot(b.x - s.x, b.y - s.y) < 18f) { bi.remove(); hit = true; break }
+                }
+            }
+            if (hit) {
+                repeat(4) {
+                    parts.add(ZPart(s.x, s.y, (Random.nextFloat() - 0.5f) * 3f, (Random.nextFloat() - 0.5f) * 3f - 1f, 1f, 0.06f, 2.5f, if (s.kind == 2) Color(0xFFB3E5FC) else Color(0xFFFFE082)))
+                }
+            }
+            if (hit || s.life <= 0 || s.y > GROUND_Y + 40f) iter.remove()
+        }
+    }
+
+    private fun spawnBones(x: Float, y: Float, hero: Boolean) {
+        val col = if (hero) Color(0xFFFFEB3B) else Color(0xFFF1EBDD)
+        repeat(12) {
+            val a = Random.nextFloat() * 6.28f
+            val s = Random.nextFloat() * 3.5f + 1f
+            parts.add(ZPart(x, y, cos(a) * s, sin(a) * s - 2.5f, 1f, 0.025f, 3f + Random.nextFloat() * 3f, col))
         }
     }
 
@@ -1290,6 +1658,11 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
     private fun updateEnemies() {
         for (e in enemies) {
+            if (e.tier == 0) {
+                if (e.hitFlash > 0) e.hitFlash--
+                updateFighter(e)
+                continue
+            }
             if (e.tier >= 1 && !dead) {
                 val dxp = px + pw / 2f - e.x
                 val dyp = py + ph / 2f - e.y
@@ -1423,12 +1796,13 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         updatePickups()
         updateBoss()
         updateBossRockets()
+        updateEShots()
         updateShocks()
         updateRainCoins()
         updateEnemies()
         updateFX()
         updateCamera()
-        if (!levelDone && boss.dead && !dead && boss.deadT > 300) {
+        if (!levelDone && boss.dead && !dead && boss.deadT > 300 && (boss.kind != 4 || aliveHeroes() == 0)) {
             levelDone = true
             onEvent("levelDone")
         }
@@ -1437,97 +1811,43 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     fun hud(): ZHud = ZHud(
         hp = max(0, hp), lives = lives, coins = coinCount, ammo = ammo, weapon = weapon,
         bossHp = max(0, boss.hp), bossPhase = boss.phase, bossMax = boss.maxHp, bossActive = boss.active && !boss.dead,
-        mobsLeft = enemies.size, level = level
+        mobsLeft = enemies.size, level = level,
+        bossKind = boss.kind, heroesLeft = if (spiritLevel) aliveHeroes() + roster.size else 0
     )
 }
 
 // ---------- Рисование ----------
-private val TIER_COLORS = listOf(
-    Color(0xFFFF8A65) to Color(0xFFD84315),
-    Color(0xFFBA68C8) to Color(0xFF7B1FA2),
-    Color(0xFF7986CB) to Color(0xFF303F9F)
-)
+/** Картинки героев (враги из модульного набора); заполняются из композиции. */
+private var zHeroes: HeroSet? = null
 
-/** Скелетики (врагов и боссов рисуем ими); заполняется из композиции. */
-private var zSkel: List<androidx.compose.ui.graphics.ImageBitmap> = emptyList()
+private val HIT_TINT = ColorFilter.tint(Color.White.copy(alpha = 0.75f), BlendMode.SrcAtop)
+private val GOLD_TINT = ColorFilter.tint(Color(0xFFFFD54F).copy(alpha = 0.45f), BlendMode.SrcAtop)
 
-private fun DrawScope.drawMob(e: ZEnemy, t: Int, tx: Float, ty: Float) {
-    if (zSkel.isNotEmpty()) {
-        val vi = ((e.anim * 10f).toInt() and 3)
-        val hh = e.r * 3.6f
-        drawOval(Color.Black.copy(alpha = 0.22f), Offset(e.x - e.r * 0.8f, e.y + e.r * 0.82f), Size(e.r * 1.6f, e.r * 0.3f))
-        drawSkeleton(zSkel[vi], e.x, e.y + e.r * 0.95f, hh, e.dir >= 0f, t * 0.16f + e.anim, if (e.windup > 0) -8f else 0f, 1f, e.hitFlash > 0)
-        if (e.hp < e.maxHp) {
-            val bw = e.r * 1.6f
-            drawRoundRect(Color.Black.copy(alpha = 0.5f), Offset(e.x - bw / 2f, e.y - e.r * 2.6f), Size(bw, 6f), CornerRadius(3f))
-            drawRoundRect(Color(0xFF66BB6A), Offset(e.x - bw / 2f, e.y - e.r * 2.6f), Size(bw * e.hp / e.maxHp, 6f), CornerRadius(3f))
-        }
-        return
+/** Боец: скелет с оружием или герой. Ноги стоят на линии floorY, шаг идёт по фазе walk. */
+private fun DrawScope.drawFighter(e: ZEnemy) {
+    val face = if (e.dir >= 0f) 1f else -1f
+    val windup = weaponWindup(e.weapon)
+    val arm = atkPose(e.atkT, windup)
+    val k = if (e.atkT in 1 until windup) e.atkT / windup.toFloat() else 0f
+    val bowPull = if (e.weapon == 4) k else 0f
+    val charge = if (e.weapon == 11) k else 0f
+    val flash = e.hitFlash > 0
+    drawOval(Color.Black.copy(alpha = 0.22f), Offset(e.x - e.hh * 0.3f, e.floorY - 4f), Size(e.hh * 0.6f, 8f))
+    val st = e.style
+    val set = zHeroes
+    if (e.look >= 100) {
+        if (set == null) return
+        val hero = if (e.look == 109) 7 else e.look - 100
+        val tint = if (flash) HIT_TINT else if (e.gold) GOLD_TINT else null
+        drawHeroFighter(set, hero, e.x, e.floorY, e.hh, face, e.walk, e.stride, arm, tint, bowPull, charge)
+    } else if (st != null) {
+        drawBoneFighter(e.x, e.floorY, e.hh, face, st, e.walk, e.stride, arm, flash = flash, bowPull = bowPull, charge = charge)
     }
-    val bob = sin(t * 0.09f + e.anim) * 4f
-    val cx = e.x
-    val cy = e.y + bob
-    val r = e.r
-    val (light, dark) = TIER_COLORS[e.tier]
-    // рожки / шипы
-    if (e.tier >= 1) {
-        for (side in floatArrayOf(-1f, 1f)) {
-            val horn = Path().apply {
-                moveTo(cx + side * r * 0.35f, cy - r * 0.8f)
-                lineTo(cx + side * r * 0.75f, cy - r * 1.45f)
-                lineTo(cx + side * r * 0.85f, cy - r * 0.55f)
-                close()
-            }
-            drawPath(horn, dark)
-        }
-    }
-    if (e.tier == 2) {
-        for (i in -1..1) {
-            val sp = Path().apply {
-                moveTo(cx + i * r * 0.3f - r * 0.12f, cy - r * 0.95f)
-                lineTo(cx + i * r * 0.3f, cy - r * 1.35f)
-                lineTo(cx + i * r * 0.3f + r * 0.12f, cy - r * 0.95f)
-                close()
-            }
-            drawPath(sp, Color(0xFFFFEB3B))
-        }
-    }
-    drawCircle(
-        Brush.radialGradient(listOf(Color.White.copy(alpha = 0.85f), light, dark), center = Offset(cx - r * 0.3f, cy - r * 0.35f), radius = r * 1.5f),
-        r, Offset(cx, cy)
-    )
-    // ножки
-    val step = sin(t * 0.2f + e.anim) * 3f
-    drawCircle(dark, r * 0.22f, Offset(cx - r * 0.4f + step, cy + r * 0.95f))
-    drawCircle(dark, r * 0.22f, Offset(cx + r * 0.4f - step, cy + r * 0.95f))
-    // глаза следят за Зеликом
-    val dx = tx - cx
-    val dy = ty - cy
-    val len = hypot(dx, dy).coerceAtLeast(1f)
-    val ox = dx / len * r * 0.1f
-    val oy = dy / len * r * 0.1f
-    for (side in floatArrayOf(-1f, 1f)) {
-        val ex = cx + side * r * 0.38f
-        val ey = cy - r * 0.12f
-        drawCircle(Color.White, r * 0.3f, Offset(ex, ey))
-        drawCircle(Color(0xFF212121), r * 0.15f, Offset(ex + ox, ey + oy))
-        drawCircle(Color.White, r * 0.05f, Offset(ex + ox - r * 0.04f, ey + oy - r * 0.05f))
-    }
-    // брови и рот
-    if (e.tier >= 1) {
-        drawLine(Color(0xFF212121), Offset(cx - r * 0.6f, cy - r * 0.5f), Offset(cx - r * 0.15f, cy - r * 0.32f), r * 0.1f, StrokeCap.Round)
-        drawLine(Color(0xFF212121), Offset(cx + r * 0.6f, cy - r * 0.5f), Offset(cx + r * 0.15f, cy - r * 0.32f), r * 0.1f, StrokeCap.Round)
-    }
-    drawArc(
-        Color(0xFF212121), 200f, 140f, false,
-        Offset(cx - r * 0.3f, cy + r * 0.2f), Size(r * 0.6f, r * 0.35f),
-        style = Stroke(width = r * 0.09f, cap = StrokeCap.Round)
-    )
-    if (e.hitFlash > 0) drawCircle(Color.White.copy(alpha = 0.6f), r, Offset(cx, cy))
     if (e.hp < e.maxHp) {
-        val bw = r * 1.6f
-        drawRoundRect(Color.Black.copy(alpha = 0.5f), Offset(cx - bw / 2f, cy - r * 1.6f), Size(bw, 6f), CornerRadius(3f))
-        drawRoundRect(Color(0xFF66BB6A), Offset(cx - bw / 2f, cy - r * 1.6f), Size(bw * e.hp / e.maxHp, 6f), CornerRadius(3f))
+        val bw = e.hh * 0.6f
+        val by = e.floorY - e.hh - 12f
+        drawRoundRect(Color.Black.copy(alpha = 0.5f), Offset(e.x - bw / 2f, by), Size(bw, 6f), CornerRadius(3f))
+        drawRoundRect(Color(0xFF66BB6A), Offset(e.x - bw / 2f, by), Size(bw * e.hp / e.maxHp, 6f), CornerRadius(3f))
     }
 }
 
@@ -1562,86 +1882,54 @@ private fun DrawScope.drawSunflower(e: ZEnemy, t: Int, f: ZFrames) {
 
 private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
     if (b.dead) return
-    val cDark: Color; val cMid: Color; val cLight: Color
-    when (b.kind) {
-        1 -> { cDark = Color(0xFF1B5E20); cMid = Color(0xFF43A047); cLight = Color(0xFFC8E6C9) }
-        2 -> { cDark = Color(0xFF7F0000); cMid = Color(0xFFE64A19); cLight = Color(0xFFFFCCBC) }
-        3 -> { cDark = Color(0xFF3E0A0A); cMid = Color(0xFFBF360C); cLight = Color(0xFFFFE082) }
-        else -> { cDark = Color(0xFF4A148C); cMid = Color(0xFF8E24AA); cLight = Color(0xFFE1BEE7) }
-    }
+    val sx = b.x + b.w / 2f
+    val face = if (tx >= sx) 1f else -1f
     val rage = b.phase >= 2
-    // предупреждение рывка/падения
+    if (rage) drawCircle(Color(0xFFFF1744).copy(alpha = 0.16f + 0.08f * sin(t * 0.3f)), b.w * 1.3f, Offset(sx, b.y + b.h / 2f))
+    if (b.kind == 4) { // злой дух парит над землёй, под ним лёгкая тень
+        val charge = if (b.state == 1) min(1f, b.stateT / 28f) else 0f
+        val lift = ((GROUND_Y - (b.y + b.h)) / 220f).coerceIn(0f, 1f)
+        drawOval(Color.Black.copy(alpha = 0.2f * (1f - lift * 0.6f)), Offset(sx - b.w * 0.45f, GROUND_Y - 7f), Size(b.w * 0.9f * (1f - lift * 0.3f), 13f))
+        drawSpirit(sx, b.y + b.h * 0.5f, b.w, b.h, t, b.hitFlash > 0, charge)
+        return
+    }
+    // предупреждения: рывок, прыжок и сокрушающий удар мечом
     if (b.state == 1) {
         val a = 0.25f + 0.25f * sin(t * 0.5f)
         drawRect(Color.Red.copy(alpha = a.coerceIn(0f, 1f)), Offset(b.x - 900f, GROUND_Y - 60f), Size(1800f, 60f))
     }
     if (b.state == 3 || b.state == 4) {
-        drawCircle(Color.Red.copy(alpha = 0.35f), 70f, Offset(b.x + b.w / 2f, GROUND_Y - 4f), style = Stroke(6f))
+        drawCircle(Color.Red.copy(alpha = 0.35f), 70f, Offset(sx, GROUND_Y - 4f), style = Stroke(6f))
     }
-    if (rage) drawCircle(Color(0xFFFF1744).copy(alpha = 0.18f + 0.1f * sin(t * 0.3f)), b.w * 1.1f, Offset(b.x + b.w / 2f, b.y + b.h / 2f))
-
-    if (zSkel.isNotEmpty() && b.kind >= 2) {
-        val sx = b.x + b.w / 2f
-        val face = tx >= sx
-        val lean = when (b.state) { 1 -> -14f + sin(t * 0.8f) * 3f; 2 -> 14f; 3 -> -6f; 4 -> 8f; else -> 0f }
-        val sqz = when (b.state) { 3 -> 1.12f; 4 -> 1.08f; else -> 1f }
-        val hh = b.h * 1.55f
-        val feet = b.y + b.h + 6f
-        drawOval(Color.Black.copy(alpha = 0.25f), Offset(sx - b.w * 0.5f, GROUND_Y - 8f), Size(b.w, 16f))
-        drawSkeleton(zSkel[if (b.kind == 2) 3 else 1], sx, feet, hh, face, t * 0.12f, lean, sqz, b.hitFlash > 0)
-        return
+    if (b.state == 5) {
+        val k = (b.stateT / 38f).coerceIn(0f, 1f)
+        val zx = sx + face * 150f
+        drawRect(Color.Red.copy(alpha = 0.12f + 0.3f * k), Offset(zx - 95f, GROUND_Y - 16f), Size(190f, 16f))
+        drawCircle(Color.Red.copy(alpha = 0.2f + 0.3f * k), 40f + 50f * k, Offset(zx, GROUND_Y - 4f), style = Stroke(5f))
     }
-    val cx = b.x + b.w / 2f
-    val bob = sin(t * 0.07f) * 4f
-    val cy = b.y + b.h / 2f + bob
-    val rw = b.w * 0.95f
-    val rh = b.h * 0.62f
-    // антенны-пушки
-    for (side in floatArrayOf(-1f, 1f)) {
-        drawLine(cDark, Offset(cx + side * rw * 0.35f, cy - rh * 0.8f), Offset(cx + side * rw * 0.55f, cy - rh * 1.45f), 7f, StrokeCap.Round)
-        drawCircle(Color(0xFFFF5252), 9f, Offset(cx + side * rw * 0.55f, cy - rh * 1.45f))
+    val st = BOSS_STYLES[b.kind.coerceIn(0, BOSS_STYLES.size - 1)]
+    val arm = when (b.state) {
+        1 -> 0.55f + 0.1f * sin(t * 0.7f)
+        2 -> -0.5f
+        3 -> 1f
+        4 -> -1f
+        5 -> atkPose(b.stateT, 38)
+        6 -> atkPose(38 + b.stateT, 38)
+        else -> 0f
     }
-    // рога
-    for (side in floatArrayOf(-1f, 1f)) {
-        val hp = Path().apply {
-            moveTo(cx + side * rw * 0.22f, cy - rh * 0.95f)
-            lineTo(cx + side * rw * 0.42f, cy - rh * (if (rage) 1.9f else 1.5f))
-            lineTo(cx + side * rw * 0.1f, cy - rh * 1.0f)
-            close()
-        }
-        drawPath(hp, if (rage) Color(0xFFFFEB3B) else Color(0xFFFFF8E1))
+    val lean = when (b.state) {
+        1 -> -0.25f + sin(t * 0.8f) * 0.05f
+        2 -> 0.3f
+        3 -> -0.1f
+        4 -> 0.2f
+        5 -> -0.2f * (b.stateT / 38f).coerceIn(0f, 1f)
+        6 -> 0.22f * (1f - b.stateT / 26f).coerceIn(0f, 1f)
+        else -> 0f
     }
-    // ножки
-    val st = sin(t * 0.15f) * 5f
-    drawRoundRect(cDark, Offset(cx - rw * 0.45f + st, cy + rh * 0.7f), Size(18f, 26f), CornerRadius(8f))
-    drawRoundRect(cDark, Offset(cx + rw * 0.45f - 18f - st, cy + rh * 0.7f), Size(18f, 26f), CornerRadius(8f))
-    // тело
-    drawOval(
-        Brush.radialGradient(listOf(cLight, cMid, cDark), center = Offset(cx - rw * 0.2f, cy - rh * 0.3f), radius = rw * 1.1f),
-        Offset(cx - rw / 2f, cy - rh), Size(rw, rh * 2f)
-    )
-    // глаза
-    val dir = if (tx >= cx) 1f else -1f
-    for (side in floatArrayOf(-1f, 1f)) {
-        val ex = cx + side * rw * 0.2f
-        val ey = cy - rh * 0.25f
-        drawCircle(Color.White, 11f, Offset(ex, ey))
-        drawCircle(Color(0xFFD50000), 6f, Offset(ex + dir * 3f, ey))
-        drawLine(Color(0xFF212121), Offset(ex - side * 14f, ey - 16f - side * 0f), Offset(ex + side * 8f, ey - 8f), 4f, StrokeCap.Round)
-    }
-    // зубастый рот
-    val mouth = Path().apply {
-        moveTo(cx - rw * 0.28f, cy + rh * 0.25f)
-        lineTo(cx - rw * 0.14f, cy + rh * 0.45f)
-        lineTo(cx, cy + rh * 0.25f)
-        lineTo(cx + rw * 0.14f, cy + rh * 0.45f)
-        lineTo(cx + rw * 0.28f, cy + rh * 0.25f)
-        lineTo(cx + rw * 0.28f, cy + rh * 0.55f)
-        lineTo(cx - rw * 0.28f, cy + rh * 0.55f)
-        close()
-    }
-    drawPath(mouth, Color(0xFF311B92))
-    if (b.hitFlash > 0) drawOval(Color.White.copy(alpha = 0.55f), Offset(cx - rw / 2f, cy - rh), Size(rw, rh * 2f))
+    val tuck = if (b.state == 3 || b.state == 4) 1f else 0f
+    val jaw = if (b.state == 1 || b.state == 5 || b.state == 3) 0.9f else 0f
+    drawOval(Color.Black.copy(alpha = 0.25f), Offset(sx - b.w * 0.55f, GROUND_Y - 9f), Size(b.w * 1.1f, 18f))
+    drawBoneFighter(sx, b.y + b.h, b.h, face, st, b.walk, b.stride, arm, lean = lean, tuck = tuck, flash = b.hitFlash > 0, jaw = jaw)
 }
 
 private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireSheet, fb: FireSheet, wings: FireSheet, water: FireSheet, helper: ZHelperGfx? = null, bio: ZBiomeGfx? = null) {
@@ -1784,10 +2072,9 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
         }
         // мобы
         val tx = w.px + w.pw / 2f
-        val ty = w.py + w.ph / 2f
         for (e in w.enemies) {
             if (e.x < left - 60f || e.x > right + 60f) continue
-            if (e.tier >= 1) drawSunflower(e, t, f) else drawMob(e, t, tx, ty)
+            if (e.tier >= 1) drawSunflower(e, t, f) else drawFighter(e)
         }
         drawBoss(w.boss, t, tx)
         if (helper != null && w.helperOn && !w.dead) {
@@ -1843,6 +2130,8 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
         for (r in w.bossRockets) {
             drawFire(fb, r.trail / 2, r.x - cos(r.angle) * 22f, r.y - sin(r.angle) * 22f, 64f, r.angle * 57.2958f)
         }
+        // стрелы, звёзды и порывы воздуха врагов
+        for (s in w.eShots) drawFoeShot(s.kind, s.x, s.y, atan2(s.vy, s.vx), s.t, s.dmg >= 2)
 
         // крылья за спиной при втором прыжке
         if (w.wingT >= 0) {
@@ -2024,7 +2313,7 @@ fun ZelikAdventureScreen(
     val helperImgs = rememberMonImgs(helperSpec)
     val helperAnim = remember { MonAnim() }
     val biomeGfx = rememberZBiomeGfx()
-    zSkel = rememberSkeletons()
+    zHeroes = rememberHeroSet()
     val helperGfx = remember(helperImgs, helperSpec) { ZHelperGfx(helperImgs, helperSpec, helperAnim) }
 
     var screen by remember { mutableStateOf(ZScreen.MENU) }
@@ -2057,6 +2346,9 @@ fun ZelikAdventureScreen(
             "bossDash" -> soundManager.play("zb_dash", volume = 0.9f)
             "bossSlam" -> { soundManager.play("zb_slam", volume = 1f); soundManager.play("zb_shock", volume = 0.7f) }
             "bossSummon" -> soundManager.play("zb_summon", volume = 0.9f)
+            "spiritAir" -> { soundManager.play("zb_dash", volume = 0.8f, rate = 1.5f); soundPlayer.playMagicSparkle() }
+            "foeShoot" -> soundPlayer.playBowShot()
+            "foeSwing" -> soundManager.play("zb_dash", volume = 0.3f, rate = 1.7f)
             "bossPhase" -> soundManager.play("zb_phase", volume = 1f)
             "bossCoinRain" -> soundManager.play("zb_coinrain", volume = 1f)
             "bossDead" -> { soundManager.play("zb_down", volume = 1f); soundManager.play("zb_victory", volume = 0.9f); confettiTrig++ }
@@ -2094,11 +2386,12 @@ fun ZelikAdventureScreen(
         }
     }
 
-    fun beginGame(d: Int) {
+    fun beginGame(d: Int, spirit: Boolean = false) {
         diff = d
         val w = ZelikWorld(d, input)
         w.onEvent = { ev -> playEvent(ev, w) }
         w.helperOn = helperIdx >= 0
+        w.forceSpirit = spirit
         w.startLevel(1 + startBiome)
         world = w
         screen = ZScreen.PLAY
@@ -2182,7 +2475,9 @@ fun ZelikAdventureScreen(
                         .width(220.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(if (hud.bossPhase >= 2) "БОСС 🔥 ЯРОСТЬ!" else if (hud.bossPhase == 1) "БОСС 😡 ${hud.bossHp}/${hud.bossMax}" else "БОСС ${hud.bossHp}/${hud.bossMax}", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF4A148C))
+                    val bossName = if (hud.bossKind == 4) "ЗЛОЙ ДУХ" else "БОСС"
+                    Text(if (hud.bossPhase >= 2) "$bossName 🔥 ЯРОСТЬ!" else if (hud.bossPhase == 1) "$bossName 😡 ${hud.bossHp}/${hud.bossMax}" else "$bossName ${hud.bossHp}/${hud.bossMax}", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF4A148C))
+
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -2197,6 +2492,22 @@ fun ZelikAdventureScreen(
                                 .background(if (hud.bossPhase >= 2) Color(0xFFE53935) else if (hud.bossPhase == 1) Color(0xFFFB8C00) else Color(0xFF8E24AA))
                         )
                     }
+                }
+            }
+
+            if (hud.heroesLeft > 0) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = if (hud.bossActive) 110.dp else 74.dp),
+                    shape = RoundedCornerShape(12.dp), color = Color.White.copy(alpha = 0.8f)
+                ) {
+                    Text(
+                        "Героев осталось: ${hud.heroesLeft}",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B9A)
+                    )
                 }
             }
 
@@ -2260,7 +2571,7 @@ fun ZelikAdventureScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Беги вправо, прыгай (два раза — на крыльях), собирай монеты и победи босса!\nПрисядь и жми 💥 — звёздная ракета.",
+                        "Беги вправо, прыгай (два раза — на крыльях), собирай монеты и победи босса!\nПрисядь и жми 💥 — звёздная ракета.\nСкелеты и герои с оружием — берегись!",
                         fontSize = 12.sp, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(6.dp))
@@ -2296,6 +2607,10 @@ fun ZelikAdventureScreen(
                     }
                     Spacer(Modifier.height(6.dp))
                     KitLongButton(R.drawable.ui_btn_long_green, "СТАРТ ▶", 210.dp, 22.sp) { beginGame(diff) }
+                    if (BuildConfig.DEBUG) {
+                        Spacer(Modifier.height(4.dp))
+                        KitLongButton(R.drawable.ui_btn_long_red, "ФИНАЛ: дух + 10 героев (отладка)", 250.dp, 11.sp) { beginGame(diff, spirit = true) }
+                    }
                 }
             }
         }

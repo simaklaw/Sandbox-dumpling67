@@ -614,19 +614,6 @@ object SoundCatalog {
             description = "Щелчок рычага"
         ),
         SoundEntry(
-            name = "lever_hum",
-            category = SoundCategory.SFX,
-            files = listOf("lever_hum_loop"),
-            loop = true,
-            volume = 0.75f,
-            minIntervalMs = 0L,
-            maxConcurrent = 1,
-            pitchJitter = 0f,
-            group = "busyboard",
-            priority = SoundPriority.P2_IMPORTANT,
-            description = "Гудение генератора/моторчика"
-        ),
-        SoundEntry(
             name = "confetti_rain",
             category = SoundCategory.SFX,
             files = listOf("confetti_rain"),
@@ -661,18 +648,6 @@ object SoundCatalog {
             group = "busyboard",
             priority = SoundPriority.P2_IMPORTANT,
             description = "Магические искры"
-        ),
-        SoundEntry(
-            name = "quack",
-            category = SoundCategory.SFX,
-            files = listOf("quack_1", "quack_2", "quack_3"),
-            volume = 0.85f,
-            minIntervalMs = 250L,
-            maxConcurrent = 2,
-            pitchJitter = 0.04f,
-            group = "busyboard",
-            priority = SoundPriority.P2_IMPORTANT,
-            description = "Мультяшное кряканье"
         ),
         SoundEntry(
             name = "frog_boing",
@@ -733,30 +708,6 @@ object SoundCatalog {
             group = "busyboard",
             priority = SoundPriority.P2_IMPORTANT,
             description = "Выключение тумблера"
-        ),
-        SoundEntry(
-            name = "jingle_lights",
-            category = SoundCategory.SFX,
-            files = listOf("jingle_lights"),
-            volume = 0.85f,
-            minIntervalMs = 500L,
-            maxConcurrent = 1,
-            pitchJitter = 0.02f,
-            group = "busyboard",
-            priority = SoundPriority.P2_IMPORTANT,
-            description = "Перезвон огоньков гирлянды"
-        ),
-        SoundEntry(
-            name = "knob_tick",
-            category = SoundCategory.SFX,
-            files = listOf("knob_tick"),
-            volume = 0.7f,
-            minIntervalMs = 50L,
-            maxConcurrent = 3,
-            pitchJitter = 0.04f,
-            group = "busyboard",
-            priority = SoundPriority.P2_IMPORTANT,
-            description = "Щелчок крутилки"
         ),
         SoundEntry(
             name = "door_creak",

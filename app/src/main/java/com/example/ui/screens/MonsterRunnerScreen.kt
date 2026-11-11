@@ -44,8 +44,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.res.imageResource
 import com.example.R
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
@@ -408,11 +406,7 @@ fun MonsterRunnerScreen(
     }
     var hudBoss by remember { mutableFloatStateOf(-1f) }
     val biomeGfx = rememberZBiomeGfx()
-    val chHeads = listOf(R.drawable.ch_h0, R.drawable.ch_h1, R.drawable.ch_h2, R.drawable.ch_h3, R.drawable.ch_h4, R.drawable.ch_h5, R.drawable.ch_h6, R.drawable.ch_h7, R.drawable.ch_h8).map { ImageBitmap.imageResource(it) }
-    val chBodies = listOf(R.drawable.ch_b0, R.drawable.ch_b1, R.drawable.ch_b2, R.drawable.ch_b3, R.drawable.ch_b4, R.drawable.ch_b5, R.drawable.ch_b6, R.drawable.ch_b7, R.drawable.ch_b8).map { ImageBitmap.imageResource(it) }
-    val chLf = listOf(R.drawable.ch_lf0, R.drawable.ch_lf1, R.drawable.ch_lf2, R.drawable.ch_lf3, R.drawable.ch_lf4, R.drawable.ch_lf5, R.drawable.ch_lf6, R.drawable.ch_lf7, R.drawable.ch_lf8).map { ImageBitmap.imageResource(it) }
-    val chRf = listOf(R.drawable.ch_rf0, R.drawable.ch_rf1, R.drawable.ch_rf2, R.drawable.ch_rf3, R.drawable.ch_rf4, R.drawable.ch_rf5, R.drawable.ch_rf6, R.drawable.ch_rf7, R.drawable.ch_rf8).map { ImageBitmap.imageResource(it) }
-    val chShadow = ImageBitmap.imageResource(R.drawable.ch_shadow)
+    val heroSet = rememberHeroSet()
     // рисует героя-скин: cx — центр, feetY — линия ног; sc — масштаб; walk — фаза шага
     val skels = rememberSkeletons()
     fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSkin(sk: Int, cx: Float, feetY: Float, sc: Float, walk: Float, bob: Float, flash: Boolean) {
@@ -420,14 +414,14 @@ fun MonsterRunnerScreen(
             drawSkeleton(skels[(sk - 100).coerceIn(0, 3)], cx, feetY, 150f * sc, false, walk, 0f, 1f, flash)
             return
         }
-        val o = DR_OFF[sk]
+        val o = HERO_OFF[sk]
         val tint = if (flash) androidx.compose.ui.graphics.ColorFilter.tint(Color(0xCCFFFFFF), androidx.compose.ui.graphics.BlendMode.SrcAtop) else null
         val by = feetY - 52f * sc + bob
         val st = sin(walk) * 6f * sc
-        drImg(chLf[sk], cx + o[2] * sc + st, by + o[3] * sc - bob + max(0f, -st) * 0.6f, sc, 1f, tint)
-        drImg(chRf[sk], cx + o[4] * sc - st, by + o[5] * sc - bob + max(0f, st) * 0.6f, sc, 1f, tint)
-        drImg(chBodies[sk], cx, by, sc, 1f, tint)
-        drImg(chHeads[sk], cx + o[0] * sc, by + o[1] * sc + sin(walk * 0.5f) * 1.5f * sc, sc, 1f, tint)
+        drImg(heroSet.lfs[sk], cx + o[2] * sc + st, by + o[3] * sc - bob + max(0f, -st) * 0.6f, sc, 1f, tint)
+        drImg(heroSet.rfs[sk], cx + o[4] * sc - st, by + o[5] * sc - bob + max(0f, st) * 0.6f, sc, 1f, tint)
+        drImg(heroSet.bodies[sk], cx, by, sc, 1f, tint)
+        drImg(heroSet.heads[sk], cx + o[0] * sc, by + o[1] * sc + sin(walk * 0.5f) * 1.5f * sc, sc, 1f, tint)
     }
 
     var screen by remember { mutableStateOf(RunScreen.MENU) }

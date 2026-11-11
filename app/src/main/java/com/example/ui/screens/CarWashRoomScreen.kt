@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.media.MediaPlayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -43,6 +45,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.R
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.LocalAgeProfile
@@ -53,6 +59,7 @@ import com.example.shared.rememberHaptics
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -62,7 +69,9 @@ import kotlin.random.Random
 
 // Комната «Автомойка для игрушек».
 // Грязная игрушка въезжает на мойку -> губка (пена стирает грязь) -> душ (смывает пену) -> фен (сушит и наводит блеск)
-// -> игрушка сигналит и уезжает. Награды: наклейки альбома «Главный мойщик» и тюнинг (диски, корона, неон).
+// -> игрушка сигналит и ТАНЦУЕТ под музыку (качается с боку на бок, поднимая то один, то другой бок, прыгает, крутится),
+// потом танцуя уезжает. Награды: наклейки альбома «Главный мойщик» и тюнинг (диски, корона, неон).
+// Музыка — три оригинальные мелодии cw2_dance_*.ogg (generate_carwash_music.py), по одной на машинку, автобус и паровоз.
 
 private const val CW_PREFS = "carwash_prefs"
 private const val CW_GX = 36
@@ -79,6 +88,24 @@ private const val CW_DRYER = 2
 private const val TY_CAR = 0
 private const val TY_BUS = 1
 private const val TY_TRAIN = 2
+
+// Танец чистой игрушки. Темп каждой мелодии (cw2_dance_*.ogg), 6 тактов по 4 доли:
+// 16 долей игрушка танцует на месте, ещё 8 долей танцуя уезжает; меняя темп, перегенерируй музыку.
+private val CW_BPM = floatArrayOf(130f, 120f, 126f)
+private const val CW_LEAD = 0.5f          // пауза перед музыкой: успевают прозвучать «ура» и гудок
+private const val CW_SHOW_BEATS = 16f
+private const val CW_GO_BEATS = 8f
+private val CW_DANCE_RES = intArrayOf(R.raw.cw2_dance_car, R.raw.cw2_dance_bus, R.raw.cw2_dance_train)
+
+// Точки касания земли левого и правого колеса (u, v): вокруг них игрушка наклоняется, приподнимая другой бок
+private val CW_PIV = arrayOf(
+    floatArrayOf(-0.58f, 0.75f, 0.58f, 0.75f),
+    floatArrayOf(-0.6f, 0.75f, 0.6f, 0.75f),
+    floatArrayOf(-0.65f, 0.79f, 0.62f, 0.79f)
+)
+private val CW_CHEER = listOf("Блестит!", "Чистюля!", "Красота!", "Ура!")
+private val CW_NOTE_COLORS = listOf(Color(0xFFFF4DA6), Color(0xFF3FD0FF), Color(0xFFFFC21A), Color(0xFF3FD07A), Color(0xFF9B6BFF))
+private val CW_CONFETTI = listOf(Color(0xFFFF4DA6), Color(0xFF3FD0FF), Color(0xFFFFD54A), Color(0xFF3FD07A), Color(0xFFFF7A3C), Color(0xFF9B6BFF))
 
 private class CwSticker(val id: Int, val name: String, val need: Int, val upgrade: String?)
 
@@ -123,8 +150,28 @@ private class CwModel {
     var blink = 0f
     var nextBlink = 2f
     var toyReal = false
-    var rewardChecked = false
+    var rewardPending: CwSticker? = null
     var waitPopup = false
+
+    // танец и музыка
+    var musicStarted = false
+    var musicFading = false
+    var musicGain = 1f
+    var musicVol = 0.6f
+    var bgPaused = false
+    var skipped = false
+    var lastBeat = -1
+    var dAng = 0f
+    var dPivU = 0f
+    var dPivV = 0.75f
+    var dHop = 0f
+    var dSq = 1f
+    var dFlip = 1f
+    var dShift = 0f
+    var dBeat = 0f
+    var showK = 0f
+    var starT = 0f
+    var bannerT = 0f
 
     val dirt = FloatArray(CW_GX * CW_GY)
     val foam = FloatArray(CW_GX * CW_GY)
@@ -258,7 +305,10 @@ private fun DrawScope.cwFace(x: Float, y: Float, k: Float, mood: Int, blink: Flo
     for (sg in listOf(-1f, 1f)) {
         val ex = sx + sg * 0.22f * k
         val er = 0.1f * k
-        if (blink > 0f || mood == 0) {
+        if (mood == 3) {
+            // поёт и жмурится от радости: глазки-«домики»
+            drawArc(ink, 200f, 140f, false, Offset(ex - er, y - er * 0.5f), Size(er * 2f, er * 1.5f), style = Stroke(0.05f * k, cap = StrokeCap.Round))
+        } else if (blink > 0f || mood == 0) {
             if (mood == 0) {
                 // грустные полуприкрытые глазки
                 drawArc(ink, 0f, 180f, false, Offset(ex - er, y - er), Size(er * 2f, er * 1.6f), style = Stroke(0.045f * k, cap = StrokeCap.Round))
@@ -269,16 +319,20 @@ private fun DrawScope.cwFace(x: Float, y: Float, k: Float, mood: Int, blink: Flo
             drawCircle(ink, er, Offset(ex + 0.01f * k, y + 0.005f))
             drawCircle(Color.White, er * 0.36f, Offset(ex + er * 0.35f, y - er * 0.4f))
         }
-        if (mood == 2) drawCircle(Color(0xFFFF8FA3).cwA(0.6f), 0.07f * k, Offset(ex + sg * 0.13f * k, y + 0.14f * k))
+        if (mood >= 2) drawCircle(Color(0xFFFF8FA3).cwA(0.6f), 0.07f * k, Offset(ex + sg * 0.13f * k, y + 0.14f * k))
     }
     when (mood) {
         0 -> drawArc(ink, 200f, 140f, false, Offset(sx - 0.1f * k, y + 0.2f * k), Size(0.2f * k, 0.14f * k), style = Stroke(0.04f * k, cap = StrokeCap.Round))
         1 -> drawLine(ink, Offset(sx - 0.07f * k, y + 0.2f * k), Offset(sx + 0.07f * k, y + 0.2f * k), 0.04f * k, StrokeCap.Round)
+        3 -> {
+            drawArc(ink, 0f, 180f, true, Offset(sx - 0.15f * k, y + 0.07f * k), Size(0.3f * k, 0.3f * k))
+            drawArc(Color(0xFFFF8FA3), 20f, 140f, true, Offset(sx - 0.09f * k, y + 0.2f * k), Size(0.18f * k, 0.14f * k))
+        }
         else -> drawArc(ink, 10f, 160f, false, Offset(sx - 0.14f * k, y + 0.1f * k), Size(0.28f * k, 0.2f * k), style = Stroke(0.045f * k, cap = StrokeCap.Round))
     }
 }
 
-private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake: Float, wheelRot: Float, clock: Float) {
+private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake: Float, wheelRot: Float, clock: Float, beat: Float = 0f, shadow: Boolean = true) {
     val body = cwBodyColor(type)
     val acc = cwAccent(type)
     val outline = Color(0xFF334155)
@@ -287,7 +341,7 @@ private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake:
         val glow = 0.55f + 0.2f * sin(clock * 4f)
         drawOval(Brush.radialGradient(listOf(Color(0xFF3CF0FF).cwA(glow), Color(0x003CF0FF)), Offset(0f, 0.75f), 1.3f), Offset(-1.3f, 0.45f), Size(2.6f, 0.7f))
     }
-    drawOval(Color(0x44000000), Offset(-1.05f, 0.62f), Size(2.1f, 0.3f))
+    if (shadow) drawOval(Color(0x44000000), Offset(-1.05f, 0.62f), Size(2.1f, 0.3f))
     val shape = CW_SHAPES[type] ?: return
     when (type) {
         TY_CAR -> {
@@ -299,6 +353,7 @@ private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake:
             drawArc(outline, 190f, 160f, false, Offset(-0.62f, -0.75f), Size(1.24f, 1.0f), style = Stroke(0.06f, cap = StrokeCap.Round))
             drawOval(Color.White.cwA(0.35f), Offset(-0.75f, -0.32f), Size(0.55f, 0.16f))
             drawCircle(Color(0xFFFFF3A0), 0.1f, Offset(0.88f, 0.08f))
+            if (beat > 0.02f) drawCircle(Color(0xFFFFF3A0).cwA(0.55f * beat), 0.28f, Offset(0.88f, 0.08f))
             drawCircle(Color(0xFFEF476F), 0.07f, Offset(-0.9f, 0.1f))
             drawCircle(Color.White.cwA(0.7f), 0.04f, Offset(0.86f, 0.05f))
             cwFace(0f, -0.28f, 1f, mood, blink, shake)
@@ -320,6 +375,7 @@ private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake:
             drawOval(outline, Offset(0.88f, -0.05f), Size(0.36f, 0.22f), style = Stroke(0.035f))
             cwFace(0.775f, -0.34f, 0.6f, mood, blink, shake)
             drawCircle(Color(0xFFFFF3A0), 0.07f, Offset(0.92f, 0.28f))
+            if (beat > 0.02f) drawCircle(Color(0xFFFFF3A0).cwA(0.55f * beat), 0.22f, Offset(0.92f, 0.28f))
             cwWheel(-0.6f, 0.5f, 0.25f, wheelRot, upg)
             cwWheel(0.6f, 0.5f, 0.25f, wheelRot, upg)
             if (upg >= 2) cwCrown(-0.2f, -0.7f, 0.3f)
@@ -332,6 +388,7 @@ private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake:
             drawRect(Color(0xFF334155), Offset(-0.8f, -0.6f), Size(0.3f, 0.25f))
             drawRect(Color(0xFFFFD166), Offset(-0.84f, -0.66f), Size(0.38f, 0.08f))
             drawCircle(Color(0xFFFFF3A0), 0.12f, Offset(-0.95f, 0.05f))
+            if (beat > 0.02f) drawCircle(Color(0xFFFFF3A0).cwA(0.55f * beat), 0.3f, Offset(-0.95f, 0.05f))
             drawRoundRect(Color(0xFFD6F0FF), Offset(0.3f, -0.62f), Size(0.55f, 0.4f), CornerRadius(0.07f))
             cwFace(0.575f, -0.4f, 0.6f, mood, blink, shake)
             drawRect(Color.White.cwA(0.3f), Offset(-0.9f, -0.28f), Size(1.0f, 0.1f))
@@ -339,6 +396,99 @@ private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake:
             cwWheel(-0.05f, 0.55f, 0.24f, wheelRot, upg)
             cwWheel(0.62f, 0.55f, 0.24f, wheelRot, upg)
             if (upg >= 2) cwCrown(0.6f, -0.82f, 0.3f)
+        }
+    }
+}
+
+/** Поза танца на доле bt (0..24): качание с боку на бок вокруг опорного колеса, прыжки, поворот, шаг «чух-чух». */
+private fun cwDancePose(m: CwModel, type: Int, bt: Float) {
+    val pv = CW_PIV[type]
+    val fr = bt - floor(bt)
+    val lift = sin(PI.toFloat() * bt)          // больше нуля — приподнят левый бок, меньше — правый
+    val heavy = if (type == 1) 0.8f else 1f    // автобус потяжелее
+    var amp = 0f
+    var hop = 0f
+    var sq = 1f
+    var flip = 1f
+    when {
+        bt < 4f -> amp = 9f                    // такт 1: плавно качается
+        bt < 8f -> amp = 14f                   // такт 2: качается сильнее
+        bt < 12f -> {                          // такт 3: прыгает на каждую долю
+            amp = 5f
+            hop = 0.17f * sin(PI.toFloat() * fr) * heavy
+            sq = 1f + 0.09f * cos(2f * PI.toFloat() * fr) * (if (type == 1) 1.4f else 1f)
+        }
+        bt < 14f -> amp = 12f
+        bt < 16f -> {                          // разворот вокруг себя
+            amp = 4f
+            flip = cos(PI.toFloat() * (bt - 14f))
+            hop = 0.1f * sin(PI.toFloat() * (bt - 14f) / 2f)
+        }
+        else -> {                              // танцуя уезжает
+            amp = 8f
+            hop = 0.03f * abs(lift)
+        }
+    }
+    m.dShift = if (type == 2) 0.06f * lift else 0f   // паровозик ещё и «чухает» вперёд-назад
+    if (type == 2) amp *= 0.6f
+    m.dAng = amp * lift
+    if (lift >= 0f) { m.dPivU = pv[2]; m.dPivV = pv[3] } else { m.dPivU = pv[0]; m.dPivV = pv[1] }
+    m.dHop = hop
+    m.dSq = sq
+    m.dFlip = flip
+    m.dBeat = (1f - fr) * (1f - fr)
+}
+
+private fun DrawScope.cwNote(c: Offset, r: Float, color: Color) {
+    drawOval(color, Offset(c.x - r * 0.55f, c.y - r * 0.35f), Size(r * 1.1f, r * 0.8f))
+    drawLine(color, Offset(c.x + r * 0.5f, c.y), Offset(c.x + r * 0.5f, c.y - r * 1.9f), r * 0.2f, StrokeCap.Round)
+    drawLine(color, Offset(c.x + r * 0.5f, c.y - r * 1.9f), Offset(c.x + r * 1.3f, c.y - r * 1.2f), r * 0.22f, StrokeCap.Round)
+}
+
+/** Музыка танца (MediaPlayer, как в «Колыбельной»): файлы длинные, SoundPool для них не годится. */
+private class CwMusic(private val ctx: Context) {
+    private var mp: MediaPlayer? = null
+    private var pausedByUs = false
+
+    val playing: Boolean
+        get() = try { mp?.isPlaying == true } catch (e: IllegalStateException) { false }
+
+    fun start(resId: Int, volume: Float) {
+        stop()
+        try {
+            val p = MediaPlayer.create(ctx, resId) ?: return
+            p.setVolume(volume, volume)
+            p.setOnCompletionListener { it.release(); if (mp === it) mp = null }
+            p.start()
+            mp = p
+        } catch (e: Exception) {
+            android.util.Log.w("CarWash", "dance music failed", e)
+        }
+    }
+
+    fun setVolume(v: Float) {
+        try { mp?.setVolume(v, v) } catch (e: IllegalStateException) { android.util.Log.w("CarWash", "music volume", e) }
+    }
+
+    fun pause() {
+        try {
+            val p = mp
+            if (p != null && p.isPlaying) { p.pause(); pausedByUs = true }
+        } catch (e: IllegalStateException) { android.util.Log.w("CarWash", "music pause", e) }
+    }
+
+    fun resume() {
+        if (!pausedByUs) return
+        pausedByUs = false
+        try { mp?.start() } catch (e: IllegalStateException) { android.util.Log.w("CarWash", "music resume", e) }
+    }
+
+    fun stop() {
+        val p = mp
+        mp = null
+        pausedByUs = false
+        if (p != null) {
+            try { p.release() } catch (e: IllegalStateException) { android.util.Log.w("CarWash", "music release", e) }
         }
     }
 }
@@ -451,7 +601,9 @@ private fun DrawScope.cwStickerArt(id: Int, c: Offset, r: Float) {
 @Composable
 fun CarWashRoomScreen(
     repository: GameRepository,
-    soundPlayer: SoundEffectPlayer
+    soundPlayer: SoundEffectPlayer,
+    bgMusicPlaying: () -> Boolean = { false },
+    setBgMusic: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val sm = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
@@ -485,6 +637,15 @@ fun CarWashRoomScreen(
     var showAlbum by remember { mutableStateOf(false) }
     var rewardSticker by remember { mutableStateOf<CwSticker?>(null) }
     var demoOn by remember { mutableStateOf(false) }
+    var bannerOn by remember { mutableStateOf(false) }
+    var bannerText by remember { mutableStateOf("") }
+    var bannerPhase by remember { mutableFloatStateOf(0f) }
+    var counterPulse by remember { mutableFloatStateOf(0f) }
+    var showSkip by remember { mutableStateOf(false) }
+    var musicOn by remember { mutableStateOf(prefs.getBoolean("dance_music", true)) }
+    val musicOnState = rememberUpdatedState(musicOn)
+    val music = remember { CwMusic(context.applicationContext) }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     fun W() = boxSize.width.toFloat()
     fun H() = boxSize.height.toFloat()
@@ -509,7 +670,23 @@ fun CarWashRoomScreen(
         }
     }
     DisposableEffect(Unit) {
-        onDispose { loopH.values.forEach { sm.stopLoop(it, 40) }; loopH.clear() }
+        onDispose {
+            loopH.values.forEach { sm.stopLoop(it, 40) }
+            loopH.clear()
+            music.stop()
+            if (m.bgPaused) { m.bgPaused = false; setBgMusic(true) }
+        }
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_PAUSE) music.pause()
+            else if (e == Lifecycle.Event.ON_RESUME) {
+                music.resume()
+                if (m.bgPaused) setBgMusic(false) // Activity на возврате включает фоновую музыку — на время танца держим её на паузе
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // ── геометрия ──
@@ -542,11 +719,15 @@ fun CarWashRoomScreen(
         m.phaseT = 0f
         m.offX = -W() * 1.3f
         m.toyReal = false
-        m.rewardChecked = false
         m.waitPopup = false
         m.hop = 0f
         m.barrier = 1f
         m.parts.clear()
+        m.musicStarted = false
+        m.skipped = false
+        m.lastBeat = -1
+        m.dAng = 0f; m.dHop = 0f; m.dSq = 1f; m.dFlip = 1f; m.dShift = 0f; m.dBeat = 0f
+        m.starT = 0f
     }
 
     fun burst(kind: Int, x: Float, y: Float, n: Int, color: Color, spd: Float, size: Float, up: Float = 0f, life: Float = 0.8f, gy: Float = 1e9f) {
@@ -561,6 +742,64 @@ fun CarWashRoomScreen(
                 )
             )
         }
+    }
+
+    // ── музыка и эффекты танца ──
+    fun releaseBg() {
+        if (m.bgPaused) { m.bgPaused = false; setBgMusic(true) }
+    }
+
+    fun startDanceMusic() {
+        if (!musicOnState.value || sm.isMuted || sm.masterVolume <= 0.001f) return
+        if (!m.bgPaused && bgMusicPlaying()) { setBgMusic(false); m.bgPaused = true }
+        m.musicVol = (0.85f * sm.masterVolume).coerceIn(0f, 1f)
+        m.musicGain = 1f
+        m.musicFading = false
+        music.start(CW_DANCE_RES[m.toyType], m.musicVol)
+    }
+
+    fun fadeOutMusic() {
+        if (m.bgPaused || music.playing) m.musicFading = true
+    }
+
+    fun danceBeatFx(bt: Float) {
+        val bi = floor(bt).toInt()
+        if (bi == m.lastBeat) return
+        m.lastBeat = bi
+        val s = toyS()
+        // нотки летят от игрушки
+        m.parts.add(
+            CwPart(
+                6, toyPx(Random.nextFloat() * 1.6f - 0.8f), toyPy(-0.75f),
+                (Random.nextFloat() - 0.5f) * W() * 0.12f, -H() * (0.12f + Random.nextFloat() * 0.06f),
+                1.8f, 1.8f, s * 0.14f, CW_NOTE_COLORS[bi % CW_NOTE_COLORS.size], Random.nextFloat() * 6f, 0f, 1e9f
+            )
+        )
+        if (bi % 4 == 0) { // начало такта — конфетти сверху
+            repeat(16) {
+                m.parts.add(
+                    CwPart(
+                        5, W() * Random.nextFloat(), -H() * 0.02f,
+                        (Random.nextFloat() - 0.5f) * W() * 0.1f, H() * (0.08f + Random.nextFloat() * 0.1f),
+                        3.2f, 3.2f, W() * 0.016f, CW_CONFETTI[Random.nextInt(CW_CONFETTI.size)],
+                        Random.nextFloat() * 6f, (Random.nextFloat() - 0.5f) * 10f, 1e9f
+                    )
+                )
+            }
+        }
+        if (m.toyType == TY_TRAIN) { // дым из трубы
+            m.parts.add(CwPart(7, toyPx(-0.65f), toyPy(-0.65f), W() * 0.01f, -H() * 0.08f, 1.4f, 1.4f, s * 0.12f, Color(0xFFF1F5F9), 0f, 0f, 1e9f))
+        }
+        if (bi in 8..11) burst(2, toyPx(0f), toyPy(0.6f), 4, Color(0xFFFFF3A0), s * 0.5f, s * 0.1f, life = 0.6f) // искры при приземлении
+    }
+
+    fun skipShow() {
+        if (m.phase != 2) return
+        m.skipped = true
+        m.phase = 3
+        m.phaseT = 0f
+        fadeOutMusic()
+        snd("cw2_arrive", 0.8f)
     }
 
     fun contactOffset(kind: Int): Offset = when (kind) {
@@ -707,6 +946,12 @@ fun CarWashRoomScreen(
     }
 
     fun toyTap() {
+        if (m.phase == 2 || m.phase == 3) { // пока игрушка танцует, на неё можно жать — она сигналит и сыплет звёздами
+            snd("cw2_honk", 0.7f, 0.9f + Random.nextFloat() * 0.4f)
+            burst(2, toyPx(0f), toyPy(-0.5f), 6, Color(0xFFFFF3A0), toyS() * 0.6f, toyS() * 0.1f, life = 0.7f)
+            haptics.vibratePop()
+            return
+        }
         if (m.phase != 1) return
         if (m.dirtF > 0.3f) {
             m.sadShake = 1f
@@ -761,21 +1006,30 @@ fun CarWashRoomScreen(
     fun finishToy() {
         m.phase = 2
         m.phaseT = 0f
-        m.rewardChecked = false
+        m.musicStarted = false
+        m.skipped = false
+        m.lastBeat = -1
         burst(2, toyPx(0f), toyPy(-0.3f), 18, Color(0xFFFFF3A0), toyS() * 1.4f, toyS() * 0.14f, up = toyS() * 0.4f, life = 1.0f)
         snd("cw2_sparkle", 0.9f)
         snd("cw2_honk", 0.8f)
         haptics.vibratePop()
+        bannerText = CW_CHEER.random()
+        bannerPhase = 0f
+        bannerOn = true
+        m.bannerT = 0.001f
         if (m.toyReal) {
             washed += 1
             prefs.edit().putInt("washed", washed).apply()
+            m.rewardPending = CW_STICKERS.firstOrNull { it.need == washed }
+            m.starT = 0.001f // звёздочка за работу летит в счётчик «Помыто»
         }
     }
 
     fun computeHint(): String {
         return when {
             m.phase == 0 -> "Грязнулька приехала!"
-            m.phase >= 2 -> "Ура! Какая чистая!"
+            m.phase == 2 -> "Ура! Какая чистая!"
+            m.phase >= 3 -> "Чистюля танцует и едет домой!"
             m.stage == 1 && m.foamF < 0.05f -> if (toddler) "Тапни по губке — она помоет!" else "Возьми губку и потри грязь"
             m.stage == 1 -> "Три ещё — грязь исчезает под пеной!"
             m.stage == 2 -> if (toddler) "Тапни по душу — смоем пену!" else "Смой пену душем"
@@ -823,7 +1077,7 @@ fun CarWashRoomScreen(
         tickLoops()
 
         // игрушка
-        m.brushSpin += dt * (if (m.using && m.carry == CW_SPONGE) 6f else 1.2f)
+        m.brushSpin += dt * (if (m.using && m.carry == CW_SPONGE) 6f else if (m.showK > 0.3f) 4f else 1.2f)
         m.sadShake = max(0f, m.sadShake - dt * 1.5f)
         m.hop = max(0f, m.hop - dt * 2.2f)
         m.nextBlink -= dt
@@ -848,29 +1102,64 @@ fun CarWashRoomScreen(
             2 -> {
                 m.offX = 0f
                 m.barrier = 0f
-                hopY = -abs(sin(m.phaseT * 9f)) * toyS() * 0.14f
-                if (Random.nextFloat() < 0.25f) burst(2, toyPx(Random.nextFloat() * 2f - 1f), toyPy(-0.7f + Random.nextFloat() * 0.8f), 1, Color(0xFFFFF3A0), toyS() * 0.2f, toyS() * 0.12f, life = 0.7f)
-                if (m.phaseT in 0.55f..0.6f && m.tSpark < 0f) { snd("cw2_honk", 0.8f); m.tSpark = 1f }
-                if (m.phaseT >= 2.3f && !m.rewardChecked) {
-                    m.rewardChecked = true
-                    val st = CW_STICKERS.firstOrNull { it.need == washed }
-                    if (m.toyReal && st != null) {
-                        rewardSticker = st
-                        snd("cw2_reward", 0.9f)
-                    }
+                val spb = 60f / CW_BPM[m.toyType]
+                val bt = (m.phaseT - CW_LEAD) / spb
+                if (!m.musicStarted && m.phaseT >= CW_LEAD) { m.musicStarted = true; startDanceMusic() }
+                if (bt >= 0f) {
+                    cwDancePose(m, m.toyType, bt)
+                    danceBeatFx(bt)
+                } else { // «ура»: радостный прыжок до начала музыки
+                    m.dAng = 0f; m.dFlip = 1f; m.dSq = 1f; m.dShift = 0f; m.dBeat = 0f
+                    m.dHop = abs(sin(m.phaseT / CW_LEAD * PI.toFloat())) * 0.18f
                 }
-                if (m.phaseT >= 2.3f && !overlay) { m.phase = 3; m.phaseT = 0f; snd("cw2_arrive", 0.8f) }
+                hopY = -m.dHop * toyS()
+                if (Random.nextFloat() < 0.12f) burst(2, toyPx(Random.nextFloat() * 2f - 1f), toyPy(-0.7f + Random.nextFloat() * 0.8f), 1, Color(0xFFFFF3A0), toyS() * 0.2f, toyS() * 0.12f, life = 0.7f)
+                if (m.phaseT >= CW_LEAD + CW_SHOW_BEATS * spb) { m.phase = 3; m.phaseT = 0f; snd("cw2_arrive", 0.8f) }
             }
             else -> {
-                val d = 1.3f
-                val k = cwEase(m.phaseT / d)
+                val spb = 60f / CW_BPM[m.toyType]
+                if (m.skipped) m.phaseT += dt * 1.6f
+                val d = CW_GO_BEATS * spb
+                val k = cwEase(m.phaseT / (d * 0.88f))
                 m.offX = cwLerp(0f, W() * 1.3f, k)
                 m.wheelRot += dt * 14f * (k + 0.2f)
                 m.barrier = if (m.phaseT > 0.1f) 1f else 0f
-                if (m.phaseT >= d) loadToy(m.toyIdx + 1)
+                val bt = CW_SHOW_BEATS + m.phaseT / spb
+                cwDancePose(m, m.toyType, bt)
+                if (bt < CW_SHOW_BEATS + CW_GO_BEATS) danceBeatFx(bt) // пока ждём награду, игрушка уже уехала — праздник не сыплем
+                hopY = -m.dHop * toyS()
+                if (m.phaseT >= d) {
+                    if (m.musicStarted) { m.musicStarted = false; fadeOutMusic() }
+                    val st = m.rewardPending
+                    if (st != null && rewardSticker == null && !overlay) {
+                        m.rewardPending = null
+                        rewardSticker = st
+                        snd("cw2_reward", 0.9f)
+                    } else if (st == null && !overlay) {
+                        loadToy(m.toyIdx + 1)
+                    }
+                }
             }
         }
         m.bounce = hopY
+        m.showK += ((if (m.phase == 2 || m.phase == 3) 1f else 0f) - m.showK) * min(1f, dt * 4f)
+        if (m.starT > 0f) {
+            m.starT += dt
+            if (m.starT >= 1.2f) { m.starT = 0f; counterPulse = 1f; snd("cw2_sparkle", 0.5f, 1.4f) }
+        }
+        if (counterPulse > 0f) counterPulse = max(0f, counterPulse - dt * 1.6f)
+        if (m.bannerT > 0f) {
+            m.bannerT += dt
+            bannerPhase = (m.bannerT / 2.6f).coerceAtMost(1f)
+            if (m.bannerT >= 2.6f) { m.bannerT = 0f; bannerOn = false }
+        }
+        val wantSkip = m.phase == 2 && m.phaseT > 2.5f
+        if (wantSkip != showSkip) showSkip = wantSkip
+        if (m.musicFading) {
+            m.musicGain = max(0f, m.musicGain - dt / 0.4f)
+            music.setVolume(m.musicVol * m.musicGain)
+            if (m.musicGain <= 0f) { music.stop(); m.musicFading = false; releaseBg() }
+        }
 
         // пересчёт прогресса
         if (m.gridDirty) {
@@ -971,6 +1260,14 @@ fun CarWashRoomScreen(
                     }
                 }
                 0 -> { p.y -= H() * 0.05f * dt; p.x += sin(clock * 5f + p.rot) * W() * 0.03f * dt; p.vy += 0f }
+                5 -> { // конфетти
+                    p.vy = min(p.vy + H() * 0.05f * dt, H() * 0.28f)
+                    p.x += (p.vx + sin(clock * 3f + p.rot) * W() * 0.05f) * dt
+                    p.y += p.vy * dt
+                    p.rot += p.vr * dt
+                }
+                6 -> { p.y += p.vy * dt; p.x += (p.vx + sin(clock * 4f + p.rot) * W() * 0.06f) * dt } // нотка
+                7 -> { p.y += p.vy * dt; p.x += p.vx * dt } // дым
                 else -> { p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt }
             }
         }
@@ -1115,16 +1412,52 @@ fun CarWashRoomScreen(
                 drawRect(if (i % 2 == 0) Color(0xFFFFC21A) else Color(0xFF2A2F3A), Offset(w * i / 16f, barY() - h * 0.014f), Size(w / 16f, h * 0.014f))
             }
 
+            // дискотека: лучи света и вспышки в такт (пока чистая игрушка танцует)
+            if (m.showK > 0.01f) {
+                val kk = m.showK
+                val srcX = floatArrayOf(0.28f, 0.5f, 0.72f)
+                val cols = listOf(Color(0xFFFF4DA6), Color(0xFFFFE066), Color(0xFF3FD0FF))
+                for (i in 0 until 3) {
+                    val sx0 = w * srcX[i]
+                    val sy0 = h * 0.245f
+                    val tx0 = toyPx(0f) + sin(t * 1.7f + i * 2.1f) * w * 0.3f
+                    val ty0 = floorY + h * 0.03f
+                    val half = w * 0.07f
+                    val ray = Path().apply {
+                        moveTo(sx0 - w * 0.012f, sy0); lineTo(sx0 + w * 0.012f, sy0)
+                        lineTo(tx0 + half, ty0); lineTo(tx0 - half, ty0); close()
+                    }
+                    drawPath(ray, cols[i].cwA((0.16f + 0.14f * m.dBeat) * kk))
+                    drawOval(cols[i].cwA((0.28f + 0.2f * m.dBeat) * kk), Offset(tx0 - half, ty0 - h * 0.012f), Size(half * 2f, h * 0.03f))
+                }
+                drawRect(Color.White.cwA(0.07f * m.dBeat * kk), Offset.Zero, Size(w, floorY))
+            }
+
             // игрушка
             val s = toyS()
             val upg = cwUpgrades(washed)
             val mood = when {
+                m.phase >= 2 -> 3
                 m.dirtF > 0.55f -> 0
                 m.dirtF > 0.08f -> 1
                 else -> 2
             }
-            withTransform({ translate(toyPx(0f), toyPy(0f)); scale(s, s, Offset.Zero) }) {
-                cwToy(m.toyType, upg, mood, if (m.blink > 0f) 1f else 0f, m.sadShake, m.wheelRot, t)
+            if (m.phase >= 2) { // на танце тень остаётся на земле и не наклоняется вместе с игрушкой
+                withTransform({ translate(toyPx(0f), toyCy()); scale(s, s, Offset.Zero) }) {
+                    val hu = m.dHop
+                    drawOval(Color(0x44000000).cwA((1f - hu * 2.2f).coerceIn(0.25f, 1f)), Offset(-1.05f + hu * 0.4f, 0.62f), Size(2.1f - hu * 0.8f, 0.3f))
+                }
+            }
+            withTransform({
+                translate(toyPx(0f), toyPy(0f))
+                scale(s, s, Offset.Zero)
+                if (m.phase >= 2) { // танец: наклон вокруг опорного колеса (другой бок приподнимается), приседание, поворот
+                    translate(m.dShift, 0f)
+                    rotate(m.dAng, Offset(m.dPivU, m.dPivV))
+                    scale(m.dFlip * m.dSq, 1f / m.dSq, Offset(0f, 0.75f))
+                }
+            }) {
+                cwToy(m.toyType, upg, mood, if (m.blink > 0f) 1f else 0f, m.sadShake, m.wheelRot, t, if (m.phase >= 2) m.dBeat else 0f, m.phase < 2)
                 val body = CW_SHAPES[m.toyType]
                 if (body != null) {
                     clipPath(body) {
@@ -1181,8 +1514,24 @@ fun CarWashRoomScreen(
                     1 -> drawOval(p.color.cwA(0.9f), Offset(p.x - p.size * 0.5f, p.y - p.size), Size(p.size, p.size * 2.2f))
                     2 -> cwStar(Offset(p.x, p.y), p.size * (0.4f + 0.6f * k), p.color.cwA(k), p.rot)
                     3 -> drawLine(Color.White.cwA(0.55f * k), Offset(p.x, p.y), Offset(p.x + p.size, p.y + p.size * 0.2f), w * 0.004f, StrokeCap.Round)
+                    5 -> withTransform({ rotate(p.rot * 57.2958f, Offset(p.x, p.y)) }) {
+                        drawRect(p.color.cwA(min(1f, k * 3f)), Offset(p.x - p.size / 2f, p.y - p.size * 0.3f), Size(p.size, p.size * 0.6f))
+                    }
+                    6 -> cwNote(Offset(p.x, p.y), p.size, p.color.cwA(min(1f, k * 2.5f)))
+                    7 -> drawCircle(Color(0xFFF1F5F9).cwA(0.55f * k), p.size * (1.2f + (1f - k) * 2.2f), Offset(p.x, p.y))
                     else -> drawCircle(p.color.cwA(k * 0.8f), p.size * (2f - k), Offset(p.x, p.y), style = Stroke(w * 0.003f))
                 }
+            }
+
+            // звёздочка за работу летит в счётчик «Помыто»
+            if (m.starT > 0f) {
+                val q = cwEase(m.starT / 1.2f)
+                val from = Offset(toyPx(0f), toyPy(-0.3f))
+                val to = Offset(w - 52.dp.toPx(), 86.dp.toPx())
+                val sc = Offset(cwLerp(from.x, to.x, q), cwLerp(from.y, to.y, q) - sin(q * PI.toFloat()) * h * 0.12f)
+                drawCircle(Color(0xFFFFF3A0).cwA(0.35f), s * 0.3f, sc)
+                cwStar(sc, s * 0.2f * (1f - 0.3f * q), Color(0xFFFFD54A), t * 6f)
+                cwStar(sc, s * 0.1f, Color.White, -t * 4f)
             }
 
             // нижняя полка с инструментами
@@ -1285,6 +1634,7 @@ fun CarWashRoomScreen(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 74.dp, end = 12.dp)
+                .graphicsLayer { val c = counterPulse; scaleX = 1f + 0.4f * c; scaleY = 1f + 0.4f * c }
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0xCCFFFFFF))
                 .padding(horizontal = 8.dp, vertical = 3.dp),
@@ -1292,6 +1642,78 @@ fun CarWashRoomScreen(
         ) {
             Text("Помыто:", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF1F5FA8))
             Text(" $washed", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF1F5FA8))
+        }
+
+        // кнопка музыки танца
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 106.dp, end = 22.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Brush.verticalGradient(listOf(Color(0xFFFF8FC0), Color(0xFFE0407E))))
+                .border(2.dp, Color.White, CircleShape)
+                .clickable {
+                    stopDemo(); m.lastTouch = m.clock
+                    musicOn = !musicOn
+                    prefs.edit().putBoolean("dance_music", musicOn).apply()
+                    if (!musicOn) fadeOutMusic()
+                    snd("wl_pin", 0.6f)
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(24.dp)) {
+                val s = size.width
+                val col = if (musicOn) Color.White else Color.White.copy(alpha = 0.5f)
+                drawCircle(col, s * 0.16f, Offset(s * 0.34f, s * 0.74f))
+                drawLine(col, Offset(s * 0.46f, s * 0.72f), Offset(s * 0.46f, s * 0.18f), s * 0.07f, StrokeCap.Round)
+                drawLine(col, Offset(s * 0.46f, s * 0.18f), Offset(s * 0.8f, s * 0.3f), s * 0.07f, StrokeCap.Round)
+                if (!musicOn) drawLine(Color(0xFF5B1A38), Offset(s * 0.1f, s * 0.9f), Offset(s * 0.9f, s * 0.1f), s * 0.09f, StrokeCap.Round)
+            }
+        }
+        // «дальше» — пропустить танец
+        if (showSkip) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 152.dp, end = 22.dp)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Brush.verticalGradient(listOf(Color(0xFF7FC8FF), Color(0xFF3B8EE8))))
+                    .border(2.dp, Color.White, CircleShape)
+                    .clickable { m.lastTouch = m.clock; skipShow() },
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(Modifier.size(22.dp)) {
+                    val s = size.width
+                    for (dx in listOf(0.08f, 0.46f)) {
+                        val tri = Path().apply {
+                            moveTo(s * dx, s * 0.2f); lineTo(s * (dx + 0.42f), s * 0.5f); lineTo(s * dx, s * 0.8f); close()
+                        }
+                        drawPath(tri, Color.White)
+                    }
+                }
+            }
+        }
+        // надпись-фейерверк: работа сделана!
+        if (bannerOn) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 130.dp)
+                    .graphicsLayer {
+                        val k = bannerPhase
+                        val pop = if (k < 0.15f) k / 0.15f else 1f
+                        scaleX = 0.6f + 0.5f * pop + 0.05f * sin(k * 18f)
+                        scaleY = scaleX
+                        rotationZ = sin(k * 12f) * 4f
+                        alpha = if (k > 0.8f) ((1f - k) / 0.2f).coerceIn(0f, 1f) else 1f
+                    }
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Brush.horizontalGradient(listOf(Color(0xFFFF4DA6), Color(0xFFFF8A3D))))
+                    .border(4.dp, Color.White, RoundedCornerShape(26.dp))
+                    .padding(horizontal = 26.dp, vertical = 8.dp)
+            ) { Text(bannerText, fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White) }
         }
 
         // альбом «Главный мойщик»

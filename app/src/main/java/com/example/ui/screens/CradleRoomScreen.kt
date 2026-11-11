@@ -74,7 +74,6 @@ private val CR_LAMP_COLORS = listOf(Color(0xFFFFD98A), Color(0xFF9DCFFF), Color(
 private val CR_CAPS = listOf(Color(0xFFFF8FB1), Color(0xFF7FC8FF), Color(0xFF8EDC9D), Color(0xFFB79CFF), Color(0xFFFFB36B))
 private val CR_STICKER_NEED = listOf(1, 2, 4, 7)
 private val CR_STICKER_NAMES = listOf("Первый сон", "Сладкие грёзы", "Лунный светлячок", "Сонный ангелочек")
-private val CR_CHAR_NAMES = listOf("Пельмешек", "Котёнок Мурчик", "Зайка Пушок")
 
 private const val IT_BLANKET = 0
 private const val IT_PACI = 1

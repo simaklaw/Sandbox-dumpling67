@@ -163,7 +163,6 @@ private class SbModel {
     var carryTravelTotal = 0f
     var pouring = false
     var shoveling = false
-    var onSand = false
     var auto: SbAuto? = null
 
     var tWater = 0f

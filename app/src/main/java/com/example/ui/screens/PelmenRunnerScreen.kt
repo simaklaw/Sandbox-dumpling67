@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
@@ -23,19 +22,18 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import com.example.BuildConfig
 import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
@@ -52,15 +50,10 @@ import com.example.audio.rememberRunnerSoundEffectsManager
 import com.example.audio.RunnerSoundEffectsManager
 import com.example.data.GameRepository
 import com.example.physics.runner.PelmenRunnerPhysicsEngine
-import com.example.physics.runner.PhysicsDebugContact
 import com.example.physics.runner.RunnerEntityType
-import com.example.physics.runner.RunnerObstacleSnapshot
 import com.example.physics.runner.RunnerUserData
 import org.jbox2d.collision.shapes.CircleShape
 import org.jbox2d.collision.shapes.PolygonShape
-import org.jbox2d.common.Vec2
-import org.jbox2d.dynamics.Body
-import org.jbox2d.dynamics.BodyType
 import org.jbox2d.dynamics.Fixture
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -71,11 +64,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.data.local.StickerEntity
 import com.example.physics.runner.RunnerBiome
 import com.example.shared.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.*
-
 
 data class RunnerParticle(
     var x: Float,
@@ -143,7 +134,7 @@ fun PelmenRunnerScreen(
     var isSpinning by remember { mutableStateOf(false) }
 
     // High Score from GameState
-    val gameState by repository.gameState.collectAsState()
+    val gameState by repository.gameState.collectAsStateWithLifecycle()
     val currentHighScore = gameState.runnerHighScore
 
     // 📖 Interactive Sticker Book & Biome States
@@ -1010,37 +1001,39 @@ fun PelmenRunnerScreen(
                             }
                         }
                     }
-                    // 🔬 JBox2D Physics Debug Overlay Toggle (72dp)
-                    Surface(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onTap = {
-                                        showPhysicsDebugOverlay = !showPhysicsDebugOverlay
-                                        runnerSoundManager.playUiTap()
-                                    }
-                                )
-                            }
-                            .testTag("runner_debug_toggle"),
-                        shape = CircleShape,
-                        color = if (showPhysicsDebugOverlay) Color(0xFF00E676) else ColorWhite,
-                        border = BorderStroke(3.dp, if (showPhysicsDebugOverlay) Color(0xFF00C853) else ColorInk),
-                        shadowElevation = 6.dp
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text(text = "🔬", fontSize = 24.sp)
-                                Text(
-                                    text = if (showPhysicsDebugOverlay) "СЕТКА" else "ТЕСТ",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (showPhysicsDebugOverlay) Color(0xFF1B5E20) else ColorInk
-                                )
+                    // 🔬 Отладочная сетка JBox2D: только в debug-сборках (малышам не показываем)
+                    if (BuildConfig.DEBUG) {
+                        Surface(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            showPhysicsDebugOverlay = !showPhysicsDebugOverlay
+                                            runnerSoundManager.playUiTap()
+                                        }
+                                    )
+                                }
+                                .testTag("runner_debug_toggle"),
+                            shape = CircleShape,
+                            color = if (showPhysicsDebugOverlay) Color(0xFF00E676) else ColorWhite,
+                            border = BorderStroke(3.dp, if (showPhysicsDebugOverlay) Color(0xFF00C853) else ColorInk),
+                            shadowElevation = 6.dp
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(text = "🔬", fontSize = 24.sp)
+                                    Text(
+                                        text = if (showPhysicsDebugOverlay) "СЕТКА" else "ТЕСТ",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (showPhysicsDebugOverlay) Color(0xFF1B5E20) else ColorInk
+                                    )
+                                }
                             }
                         }
                     }
@@ -3229,59 +3222,4 @@ private fun DebugColorBadge(color: Color, label: String) {
         Spacer(modifier = Modifier.width(3.dp))
         Text(text = label, color = Color(0xFFCFD8DC), fontSize = 9.sp)
     }
-}
-
-/**
- * RunnerGame composable alias for JBox2D runner mode.
- */
-@Composable
-fun RunnerGame(
-    repository: GameRepository,
-    soundPlayer: SoundEffectPlayer,
-    modifier: Modifier = Modifier,
-    soundEffectsManager: RunnerSoundEffectsManager? = null
-) {
-    PelmenRunnerScreen(
-        repository = repository,
-        soundPlayer = soundPlayer,
-        modifier = modifier,
-        customSoundManager = soundEffectsManager
-    )
-}
-
-/**
- * RunnerGame composable alias supporting direct RunnerSoundEffectsManager.
- */
-@Composable
-fun RunnerGame(
-    repository: GameRepository,
-    soundEffectsManager: RunnerSoundEffectsManager,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val soundPlayer = remember { SoundEffectPlayer(context) }
-    PelmenRunnerScreen(
-        repository = repository,
-        soundPlayer = soundPlayer,
-        modifier = modifier,
-        customSoundManager = soundEffectsManager
-    )
-}
-
-/**
- * RunnerGameScreen composable alias for JBox2D runner mode.
- */
-@Composable
-fun RunnerGameScreen(
-    repository: GameRepository,
-    soundPlayer: SoundEffectPlayer,
-    modifier: Modifier = Modifier,
-    soundEffectsManager: RunnerSoundEffectsManager? = null
-) {
-    PelmenRunnerScreen(
-        repository = repository,
-        soundPlayer = soundPlayer,
-        modifier = modifier,
-        customSoundManager = soundEffectsManager
-    )
 }

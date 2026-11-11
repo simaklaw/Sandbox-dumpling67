@@ -128,33 +128,4 @@ data class GameState(
     val totalFeedCount: Int = 0,
     val totalPlayTimeSeconds: Long = 0L
 ) {
-    val totalHeroLevel: Int
-        get() = heroSpeedLevel + heroJumpLevel + heroBoostLevel + heroMagnetLevel
-
-    fun isDailyRewardReady(): Boolean {
-        val now = System.currentTimeMillis()
-        // Available if at least 12 hours passed or never claimed
-        return (now - lastDailyRewardTimestamp) > 12 * 60 * 60 * 1000L
-    }
-
-    fun millisUntilNextDailyReward(): Long {
-        val now = System.currentTimeMillis()
-        val cooldown = 12 * 60 * 60 * 1000L
-        val diff = (lastDailyRewardTimestamp + cooldown) - now
-        return diff.coerceAtLeast(0L)
-    }
 }
-
-data class DailyMissionItem(
-    val id: String,
-    val title: String,
-    val emoji: String,
-    val currentProgress: Int,
-    val maxProgress: Int,
-    val rewardCoins: Int,
-    val isClaimed: Boolean
-) {
-    val isCompleted: Boolean
-        get() = currentProgress >= maxProgress
-}
-

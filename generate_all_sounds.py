@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# ВНИМАНИЕ (ноябрь 2026): скрипт исторический. Его заготовки хуже нынешних файлов в res/raw:
+# голоса здесь — робот espeak-ng, "whoosh"/"whoosh_soft" — белый шум («помехи телевизора»).
+# Актуальные версии этих звуков, а также лопания шариков (bp_pop*) и «ням» мишки (kc_munch*)
+# делает generate_polish_sounds.py. Не копируйте результат этого скрипта в res/raw поверх них.
 import math
 import os
 import random
@@ -335,20 +339,14 @@ sfx_recipes = {
     "open": lambda: gen_pop(dur_s=0.1, start_f=400, end_f=700, amp=0.5),
     # Busyboard
     "lever_clack": lambda: gen_pop(dur_s=0.1, start_f=900, end_f=200, amp=0.8),
-    "lever_hum_loop": lambda: gen_tone(110, 1.0, amp=0.2, fade_in=0.0, fade_out=0.0),
     "confetti_rain": lambda: gen_chime([(659, 0.0), (784, 0.1), (880, 0.2), (1046, 0.3), (1318, 0.4)], dur_s=1.2),
     "train_toot": lambda: gen_whistle(dur_s=0.8, f_start=440, f_end=580),
     "star_burst": lambda: gen_chime([(880, 0.0), (1046, 0.08), (1318, 0.16), (1760, 0.24)], dur_s=1.0),
-    "quack_1": lambda: gen_animal_sound("duck"),
-    "quack_2": lambda: gen_animal_sound("duck"),
-    "quack_3": lambda: gen_animal_sound("duck"),
     "frog_boing": lambda: gen_boing(dur_s=0.4, f0=150, f1=400),
     "bubble": lambda: gen_pop(dur_s=0.12, start_f=400, end_f=850, amp=0.6),
     "firework": lambda: gen_chime([(587, 0.0), (740, 0.1), (880, 0.2), (1174, 0.3)], dur_s=1.2),
     "switch_on": lambda: gen_pop(dur_s=0.05, start_f=900, end_f=500, amp=0.6),
     "switch_off": lambda: gen_pop(dur_s=0.05, start_f=500, end_f=250, amp=0.6),
-    "jingle_lights": lambda: gen_chime([(523, 0.0), (587, 0.15), (659, 0.3), (784, 0.45)], dur_s=1.2),
-    "knob_tick": lambda: gen_pop(dur_s=0.03, start_f=1200, end_f=600, amp=0.4),
     "door_creak": lambda: gen_squish(dur_s=0.4, base_f=180),
     "door_close": lambda: gen_pop(dur_s=0.12, start_f=350, end_f=150, amp=0.7),
     "bell_ding": lambda: gen_chime([(1046, 0.0)], dur_s=0.9, amp=0.6),

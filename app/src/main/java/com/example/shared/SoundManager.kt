@@ -2,24 +2,19 @@ package com.example.shared
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.content.res.AssetFileDescriptor
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
 import android.util.Log
 import com.example.audio.SoundCategory
 import com.example.audio.SoundCatalog
-import com.example.audio.SoundEntry
 import com.example.audio.SoundEffectPlayer
 import com.example.audio.SoundResourceResolver
 import kotlinx.coroutines.*
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.random.Random
 
 /**
@@ -60,6 +55,9 @@ class SoundManager(
         private const val KEY_ANIMAL_ENABLED = "pref_sound_animal_enabled"
         private const val KEY_MASTER_VOLUME = "pref_sound_master_volume"
         private const val KEY_MUTED = "pref_sound_muted"
+        private const val STREAM_ACTIVE_MS = 2500L // поток моложе этого считается звучащим (для maxConcurrent)
+        private const val STREAM_FORGET_MS = 6000L // записи старше выбрасываются
+        private const val FOCUS_REQUEST_GAP_MS = 5000L
 
         @Volatile
         private var instance: SoundManager? = null
@@ -143,15 +141,6 @@ class SoundManager(
         private set
     private var _isMuted: Boolean = prefs.getBoolean(KEY_MUTED, false)
     val isMuted: Boolean get() = _isMuted
-
-    fun setMuted(muted: Boolean) {
-        _isMuted = muted
-        prefs.edit().putBoolean(KEY_MUTED, muted).apply()
-        applyMuteState()
-        if (muted) {
-            stopAll()
-        }
-    }
 
     data class StreamInfo(
         val name: String,
@@ -261,15 +250,32 @@ class SoundManager(
      * Играет готовый OGG (res/raw/<name>.ogg) без каталога и без процедурного запасного звука.
      * Возвращает false, если файла нет или он ещё не загрузился — тогда вызывающий код играет синтез.
      */
-    fun playFxRaw(name: String, volume: Float = 1.0f, rate: Float = 1.0f): Boolean {
-        if (isMuted || masterVolume <= 0.001f) return false
-        if (!isCategoryEnabled(SoundCategory.SFX)) return false
-        val id = soundIdMap[name] ?: loadRawSoundFile(name) ?: return false
-        if (!loadedSoundIds.contains(id)) return false
+    fun playFxRaw(name: String, volume: Float = 1.0f, rate: Float = 1.0f): Boolean =
+        playFxRawStream(name, volume, rate) > 0
+
+    /**
+     * Как [playFxRaw], но возвращает номер потока SoundPool (0 — звук не сыгран).
+     * Номер нужен, чтобы оборвать звук через [stopStream], когда экран закрывается или
+     * ребёнок отпустил деталь («Бизиборд» не оставляет звучащих хвостов).
+     */
+    fun playFxRawStream(name: String, volume: Float = 1.0f, rate: Float = 1.0f): Int {
+        if (isMuted || masterVolume <= 0.001f) return 0
+        if (!isCategoryEnabled(SoundCategory.SFX)) return 0
+        val id = soundIdMap[name] ?: loadRawSoundFile(name) ?: return 0
+        if (!loadedSoundIds.contains(id)) return 0
         requestAudioFocus()
         val v = (volume * masterVolume).coerceIn(0f, 1f)
-        val sid = soundPool?.play(id, v, v, 1, 0, rate.coerceIn(0.5f, 2.0f)) ?: 0
-        return sid > 0
+        return soundPool?.play(id, v, v, 1, 0, rate.coerceIn(0.5f, 2.0f)) ?: 0
+    }
+
+    /** Обрывает один поток, полученный из [playFxRawStream]. Безопасно вызывать с любым номером. */
+    fun stopStream(streamId: Int) {
+        if (streamId <= 0) return
+        try {
+            soundPool?.stop(streamId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping stream $streamId", e)
+        }
     }
 
     private val noEnglishVariant: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -288,6 +294,44 @@ class SoundManager(
             "phone_hi_horse", "phone_hi_sheep", "phone_hi_chick", "phone_hi_rooster", "phone_hi_bunny"
         )
         preloadRaw(if (com.example.shared.i18n.I18n.isEnglish) base.map { it + "_en" } + base else base)
+    }
+
+    private val customSoundIds = ConcurrentHashMap<String, Int>()
+
+    /**
+     * Id записи родителя для файла озвучки [key] (см. [CustomVoices]) или null, если записи нет
+     * или она ещё грузится: тогда играет встроенный звук, а запись подхватится со следующего раза.
+     */
+    private fun customSoundId(key: String): Int? {
+        if (!isSoundPoolSupported) return null
+        val f = CustomVoices.file(appContext, key)
+        if (!f.isFile) {
+            customSoundIds.remove(key)
+            return null
+        }
+        val cached = customSoundIds[key]
+        if (cached != null) return cached.takeIf { loadedSoundIds.contains(it) }
+        return try {
+            val pool = soundPool ?: return null
+            customSoundIds[key] = pool.load(f.absolutePath, 1)
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error loading custom voice $key", e)
+            null
+        }
+    }
+
+    /** Вызывать после новой записи или удаления: сбрасывает старый звук и грузит новый. */
+    fun reloadCustomVoice(key: String) {
+        customSoundIds.remove(key)?.let { id ->
+            loadedSoundIds.remove(id)
+            try {
+                soundPool?.unload(id)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error unloading custom voice $key", e)
+            }
+        }
+        customSoundId(key)
     }
 
     private fun loadRawSoundFile(fileName: String): Int? {
@@ -351,7 +395,11 @@ class SoundManager(
 
         // 3. Check concurrent stream limits
         if (entry != null && entry.maxConcurrent > 0) {
-            val count = activeStreams.values.count { it.name == entry.name }
+            // SoundPool не сообщает об окончании потока, поэтому «звучащим» считаем поток не старше
+            // STREAM_ACTIVE_MS, а совсем старые записи выбрасываем. Раньше записи жили до stopAll():
+            // «Молодец!» (лимит 1) играл один раз за сессию, звери (лимит 2) — два раза.
+            activeStreams.entries.removeIf { now - it.value.startTime > STREAM_FORGET_MS }
+            val count = activeStreams.values.count { it.name == entry.name && now - it.startTime < STREAM_ACTIVE_MS }
             if (count >= entry.maxConcurrent) {
                 return false
             }
@@ -402,7 +450,8 @@ class SoundManager(
             val en = fileName + "_en"
             if (soundIdMap[en] != null || loadRawSoundFile(en) != null) playFile = en else noEnglishVariant.add(fileName)
         }
-        var soundId = soundIdMap[playFile]
+        // Запись родителя («Свои голоса») перекрывает встроенный звук с тем же именем.
+        var soundId = customSoundId(fileName) ?: soundIdMap[playFile]
         if (soundId == null) {
             soundId = loadRawSoundFile(playFile)
         }
@@ -500,8 +549,6 @@ class SoundManager(
                 "clink" -> player.playJarGlassClink()
                 "confetti_rain", "firework" -> player.playLegendaryFanfare()
                 "train_toot" -> player.playBicycleBell()
-                "jingle_lights" -> player.playSparkleChime()
-                "knob_tick" -> player.playArcadeButton()
                 "door_creak", "door_close" -> player.playDoorOpen()
                 "stretch" -> player.playCatapultStretch()
                 "wear", "gift" -> player.playSquishElastic()
@@ -543,7 +590,7 @@ class SoundManager(
     // ==========================================
 
     /**
-     * Starts an audio loop (e.g., bow_pull, grain_pour, draw_loop, lever_hum).
+     * Starts an audio loop (e.g., bow_pull, grain_pour, draw_loop).
      */
     fun startLoop(name: String): LoopHandle? {
         if (isMuted || !isSfxEnabled || masterVolume <= 0.001f) return null
@@ -726,7 +773,6 @@ class SoundManager(
 
     // Backward-compatible volume wrappers
     fun setVolume(vol: Float) = setMasterVolume(vol)
-    fun getVolume(): Float = masterVolume
 
     @Volatile
     private var isSyncingSoundEnabled = false
@@ -758,40 +804,50 @@ class SoundManager(
     // 📻 AUDIO FOCUS & LIFECYCLE
     // ==========================================
 
+    private var focusRequest: AudioFocusRequest? = null
+    @Volatile
+    private var lastFocusRequestMs = 0L
+
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        if (focusChange == AudioManager.AUDIOFOCUS_LOSS || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            lastFocusRequestMs = 0L // при следующем звуке запросить фокус заново
+            stopAll()
+        }
+    }
+
+    /**
+     * Фокус запрашивается не чаще раза в [FOCUS_REQUEST_GAP_MS] и одним и тем же объектом: раньше на КАЖДЫЙ звук
+     * строился новый запрос с новым слушателем (до десятков в секунду в «Бизиборде») — лишний вызов системы
+     * на главном потоке и рост списка слушателей фокуса.
+     */
     private fun requestAudioFocus() {
+        val now = System.currentTimeMillis()
+        if (now - lastFocusRequestMs < FOCUS_REQUEST_GAP_MS) return
+        lastFocusRequestMs = now
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                val request = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                     .setAudioAttributes(
                         AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_GAME)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
                     )
-                    .setOnAudioFocusChangeListener { focusChange ->
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-                            focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
-                        ) {
-                            stopAll()
-                        }
-                    }
+                    .setOnAudioFocusChangeListener(focusListener)
                     .build()
+                    .also { focusRequest = it }
                 audioManager?.requestAudioFocus(request)
             } else {
                 @Suppress("DEPRECATION")
                 audioManager?.requestAudioFocus(
-                    { focusChange ->
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-                            focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
-                        ) {
-                            stopAll()
-                        }
-                    },
+                    focusListener,
                     AudioManager.STREAM_MUSIC,
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
                 )
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w(TAG, "Audio focus request failed", e)
+        }
     }
 
     fun onAppPause() {

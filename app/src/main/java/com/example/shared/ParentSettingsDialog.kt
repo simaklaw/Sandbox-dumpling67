@@ -53,6 +53,7 @@ fun ParentSettingsDialog(
 
     var showResetConfirm by remember { mutableStateOf(false) }
     var showSoundAuditDialog by remember { mutableStateOf(false) }
+    var showVoiceStudio by remember { mutableStateOf(false) }
 
     // Gear long-press 6-second timer state
     var gearPressStartTime by remember { mutableLongStateOf(0L) }
@@ -290,6 +291,19 @@ fun ParentSettingsDialog(
 
                 Divider(color = ColorInk.copy(alpha = 0.2f), thickness = 2.dp)
 
+                // 🎤 Свои голоса: родитель записывает фразы сам
+                Button(
+                    onClick = { showVoiceStudio = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = ColorOrange),
+                    border = BorderStroke(2.dp, ColorInk),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("🎤 Свои голоса (записать «Молодец!»)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ColorInk)
+                }
+
+                Divider(color = ColorInk.copy(alpha = 0.2f), thickness = 2.dp)
+
                 // 📦 Legacy Sections Toggle ("Старые разделы")
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -497,6 +511,10 @@ fun ParentSettingsDialog(
                 }
             }
         )
+    }
+
+    if (showVoiceStudio) {
+        VoiceStudioDialog(soundManager = soundManager, onDismiss = { showVoiceStudio = false })
     }
 
     // 🔍 Secret Debug Sound Audit Dialog

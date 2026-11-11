@@ -483,15 +483,6 @@ class RunnerSoundEffectsManager(
     }
 
     /**
-     * Plays game over sound.
-     */
-    fun playGameOver() {
-        playRaw("dizzy", baseVolume = 0.9f, rate = 0.95f)
-        playRaw("soft_no", baseVolume = 0.85f, rate = 1.0f)
-        vibrateObstacleHit()
-    }
-
-    /**
      * Plays milestone celebration when reaching high distances (e.g. 500m, 1000m).
      */
     fun playMilestone(distanceMeters: Int) {
@@ -666,12 +657,6 @@ class RunnerSoundEffectsManager(
         }
     }
 }
-
-/**
- * Convenient aliases requested for seamless developer experience.
- */
-typealias RunnerGameSoundManager = RunnerSoundEffectsManager
-typealias RunnerSoundManager = RunnerSoundEffectsManager
 
 /**
  * Composable helper to remember and automatically lifecycle-manage RunnerSoundEffectsManager.

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -219,13 +220,19 @@ fun PinballMarbleRunScreen(
         }
     }
 
-    fun pressPad(left: Boolean, down: Boolean) {
-        if (down) {
-            if (firstHint) { firstHint = false; prefs.edit().putBoolean("hint_v2", false).apply() }
-            doLaunch()
-        }
-        if (left) { leftPressed = down; engine.holdLeft(down) } else { rightPressed = down; engine.holdRight(down) }
+    // Лапки управляются ОДНИМ обработчиком по всем пальцам сразу: левая держится, пока на левой половине есть палец,
+    // правая — пока на правой. Палец можно вести куда угодно, лапка не «залипнет» и не отпустится от соседнего касания.
+    fun setSides(left: Boolean, right: Boolean) {
+        if (left != leftPressed) { leftPressed = left; engine.holdLeft(left) }
+        if (right != rightPressed) { rightPressed = right; engine.holdRight(right) }
     }
+    fun anyFingerDown() {
+        if (firstHint) { firstHint = false; prefs.edit().putBoolean("hint_v2", false).apply() }
+        doLaunch()
+    }
+    // меню, конец игры или уход с экрана — отпустить обе лапки
+    LaunchedEffect(menuOpen, gameOver) { if (menuOpen || gameOver) setSides(false, false) }
+    DisposableEffect(Unit) { onDispose { engine.holdLeft(false); engine.holdRight(false) } }
 
     Box(
         modifier = Modifier
@@ -247,6 +254,32 @@ fun PinballMarbleRunScreen(
             )
             Spacer(Modifier.height(6.dp))
 
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                val w = size.width.toFloat(); val h = size.height.toFloat()
+                                val rowTop = h - 86.dp.toPx(); val launchHalf = 48.dp.toPx()
+                                var l = false; var r = false
+                                var fresh = false
+                                for (c in ev.changes) {
+                                    if (!c.pressed) continue
+                                    val p = c.position
+                                    // кнопка пуска в центре нижнего ряда — не лапка
+                                    if (p.y >= rowTop && abs(p.x - w / 2f) < launchHalf) continue
+                                    if (!c.previousPressed) fresh = true
+                                    if (p.x < w / 2f) l = true else r = true
+                                }
+                                if (fresh) anyFingerDown()
+                                setSides(l, r)
+                            }
+                        }
+                    }
+            ) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 PinballCanvas(
                     engine = engine, flashes = flashes, sparks = sparks, popups = popups,
@@ -255,24 +288,6 @@ fun PinballMarbleRunScreen(
                     launcherReady = launcherReady, launchPower = launchPower,
                     modifier = Modifier.fillMaxSize()
                 )
-
-                // зоны лапок: левая и правая половина поля, мультитач
-                Row(Modifier.fillMaxSize()) {
-                    for (isLeft in listOf(true, false)) {
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .pointerInput(isLeft) {
-                                    detectTapGestures(onPress = {
-                                        pressPad(isLeft, true)
-                                        tryAwaitRelease()
-                                        pressPad(isLeft, false)
-                                    })
-                                }
-                        )
-                    }
-                }
 
                 if (firstHint) {
                     Text(
@@ -304,9 +319,10 @@ fun PinballMarbleRunScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                PinFlipperPad(left = true, pressed = leftPressed, modifier = Modifier.weight(1f).fillMaxHeight()) { pressPad(true, it) }
+                PinFlipperPad(left = true, pressed = leftPressed, modifier = Modifier.weight(1f).fillMaxHeight())
                 PinLaunchButton(ready = launcherReady, power = launchPower) { doLaunch() }
-                PinFlipperPad(left = false, pressed = rightPressed, modifier = Modifier.weight(1f).fillMaxHeight()) { pressPad(false, it) }
+                PinFlipperPad(left = false, pressed = rightPressed, modifier = Modifier.weight(1f).fillMaxHeight())
+            }
             }
         }
 
@@ -448,7 +464,7 @@ private fun PinHud(
 }
 
 @Composable
-private fun PinFlipperPad(left: Boolean, pressed: Boolean, modifier: Modifier, onPress: (Boolean) -> Unit) {
+private fun PinFlipperPad(left: Boolean, pressed: Boolean, modifier: Modifier) {
     val base = if (left) PbNeonPink else PbNeonCyan
     val shape = RoundedCornerShape(26.dp)
     Box(
@@ -459,9 +475,6 @@ private fun PinFlipperPad(left: Boolean, pressed: Boolean, modifier: Modifier, o
                 ), shape
             )
             .border(3.dp, base, shape)
-            .pointerInput(left) {
-                detectTapGestures(onPress = { onPress(true); tryAwaitRelease(); onPress(false) })
-            }
             .testTag(if (left) "pinball_left_flipper_btn" else "pinball_right_flipper_btn"),
         contentAlignment = Alignment.Center
     ) {

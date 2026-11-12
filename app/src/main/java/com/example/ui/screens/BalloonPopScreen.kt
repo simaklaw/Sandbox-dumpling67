@@ -25,11 +25,13 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.changedToDown
@@ -97,7 +99,23 @@ private class Balloon(
     var alive = true
     var respawnIn = 0f
     var wobble = 0f
+    /** Угол «качелей» шарика на ниточке (рад) и его скорость: ниточка и корпус запаздывают за движением. */
+    var sw = 0f
+    var swV = 0f
 }
+
+/** Обрывок лопнувшей резины: крутится и падает, гаснет. */
+private class BalloonShard(
+    var x: Float,
+    var y: Float,
+    var vx: Float,
+    var vy: Float,
+    var rot: Float,
+    val vrot: Float,
+    val color: Color,
+    var life: Float,
+    val len: Float
+)
 
 private class Confetti(
     var x: Float,
@@ -132,16 +150,17 @@ private class BalloonWorld(
     val balloons = ArrayList<Balloon>()
     val confetti = ArrayList<Confetti>()
     val rings = ArrayList<Ring>()
+    val shards = ArrayList<BalloonShard>()
 
     var onPop: (Int) -> Unit = {}
     var onBounce: () -> Unit = {}
 
     private fun newBalloon(spawnAtBottom: Boolean): Balloon {
-        val r = (Random.nextFloat() * 16f + (if (toddler) 36f else 30f)) * dp
+        val r = (Random.nextFloat() * 14f + (if (toddler) 40f else 36f)) * dp
         val x = r + Random.nextFloat() * (w - 2 * r).coerceAtLeast(1f)
         val y = if (spawnAtBottom) h + r * 1.4f else Random.nextFloat() * h
         // Мелкие шарики поднимаются быстрее, крупные — медленнее (сопротивление ~ площади).
-        val terminal = (150f - r / dp * 0.9f).coerceIn(70f, 125f) * dp
+        val terminal = (140f - r / dp * 0.9f).coerceIn(60f, 100f) * dp
         return Balloon(
             x = x, y = y, vx = 0f, vy = -terminal * 0.4f, r = r,
             colorIdx = pickColor(), phase = Random.nextFloat() * 6.28f, terminal = terminal
@@ -155,7 +174,12 @@ private class BalloonWorld(
         w = width
         h = height
         balloons.clear()
-        repeat(count) { balloons.add(newBalloon(spawnAtBottom = false)) }
+        // Шарики входят в кадр не разом, а по очереди снизу: на экране всегда просторно.
+        repeat(count) { i ->
+            val b = newBalloon(spawnAtBottom = false)
+            b.y = h * (0.15f + 0.8f * i / count.coerceAtLeast(1)) + Random.nextFloat() * b.r
+            balloons.add(b)
+        }
         ensureTargets()
     }
 
@@ -178,6 +202,23 @@ private class BalloonWorld(
         while (n == targetIdx) n = Random.nextInt(BALLOON_COLORS.size)
         targetIdx = n
         ensureTargets()
+    }
+
+    /** Обрывки шарика: 7–9 кусочков резины своего цвета разлетаются и кружатся. */
+    fun shatter(b: Balloon) {
+        val c = BALLOON_COLORS[b.colorIdx].base
+        repeat(8) {
+            val a = Random.nextFloat() * 6.28f
+            val s = (Random.nextFloat() * 220f + 120f) * dp
+            shards.add(
+                BalloonShard(
+                    b.x + cos(a) * b.r * 0.5f, b.y + sin(a) * b.r * 0.6f,
+                    cos(a) * s, sin(a) * s - 90f * dp,
+                    Random.nextFloat() * 6.28f, (Random.nextFloat() - 0.5f) * 14f,
+                    c, 1f, (Random.nextFloat() * 8f + 8f) * dp
+                )
+            )
+        }
     }
 
     fun burst(x: Float, y: Float, color: Color, n: Int) {
@@ -232,8 +273,9 @@ private class BalloonWorld(
         val correct = freeMode || hit.colorIdx == targetIdx
         if (correct) {
             hit.alive = false
-            hit.respawnIn = 0.6f + Random.nextFloat() * 0.9f
-            burst(hit.x, hit.y, BALLOON_COLORS[hit.colorIdx].base, 20)
+            hit.respawnIn = 1.4f + Random.nextFloat() * 1.6f
+            burst(hit.x, hit.y, BALLOON_COLORS[hit.colorIdx].base, 9)
+            shatter(hit)
             shockwave(hit)
             onPop(hit.colorIdx)
         } else {
@@ -277,6 +319,10 @@ private class BalloonWorld(
             b.x += b.vx * dt
             b.y += b.vy * dt
             b.wobble = (b.wobble - dt * 1.4f).coerceAtLeast(0f)
+            // Качели на ниточке: пружина тянет к «против движения», с затуханием.
+            val swTarget = (-b.vx / (70f * dp)).coerceIn(-1f, 1f) * 0.55f
+            b.swV += ((swTarget - b.sw) * 38f - b.swV * 4.5f) * dt
+            b.sw += b.swV * dt
 
             // Стены.
             if (b.x < b.r) { b.x = b.r; b.vx = abs(b.vx) * 0.6f }
@@ -339,12 +385,144 @@ private class BalloonWorld(
             if (p.life <= 0f || p.y > h + 40f) it.remove()
         }
 
+        val shIt = shards.iterator()
+        while (shIt.hasNext()) {
+            val p = shIt.next()
+            p.vy += 640f * dp * dt
+            p.vx *= (1f - 1.2f * dt)
+            p.x += p.vx * dt
+            p.y += p.vy * dt
+            p.rot += p.vrot * dt
+            p.life -= dt * 0.8f
+            if (p.life <= 0f || p.y > h + 40f) shIt.remove()
+        }
+
         val ringIt = rings.iterator()
         while (ringIt.hasNext()) {
             val ring = ringIt.next()
             ring.life -= dt * 3.2f
             if (ring.life <= 0f) ringIt.remove()
         }
+    }
+}
+
+// ───────────────────────── рисование ─────────────────────────
+
+private fun lighten(c: Color, k: Float) = Color(
+    (c.red + (1f - c.red) * k).coerceIn(0f, 1f),
+    (c.green + (1f - c.green) * k).coerceIn(0f, 1f),
+    (c.blue + (1f - c.blue) * k).coerceIn(0f, 1f),
+    1f
+)
+
+private fun darken(c: Color, k: Float) = Color(c.red * (1f - k), c.green * (1f - k), c.blue * (1f - k), 1f)
+
+/** Пушистое облачко из трёх кругов и «донышка». */
+private fun DrawScope.drawCloud(cx: Float, cy: Float, s: Float, alpha: Float) {
+    val c = Color.White.copy(alpha = alpha)
+    drawCircle(c, 22f * s, Offset(cx - 34f * s, cy + 6f * s))
+    drawCircle(c, 30f * s, Offset(cx - 6f * s, cy - 6f * s))
+    drawCircle(c, 24f * s, Offset(cx + 26f * s, cy + 2f * s))
+    drawRoundRect(c, Offset(cx - 56f * s, cy + 4f * s), Size(112f * s, 24f * s), CornerRadius(12f * s))
+}
+
+/** Два слоя мягких зелёных холмов внизу: шарики «вылетают» из-за них. */
+private fun DrawScope.drawHills(w: Float, h: Float) {
+    val far = Path().apply {
+        moveTo(0f, h)
+        lineTo(0f, h * 0.9f)
+        cubicTo(w * 0.2f, h * 0.84f, w * 0.5f, h * 0.93f, w * 0.75f, h * 0.87f)
+        cubicTo(w * 0.88f, h * 0.84f, w * 0.96f, h * 0.88f, w, h * 0.86f)
+        lineTo(w, h)
+        close()
+    }
+    drawPath(far, Color(0xFFAED581))
+    val near = Path().apply {
+        moveTo(0f, h)
+        lineTo(0f, h * 0.95f)
+        cubicTo(w * 0.3f, h * 0.9f, w * 0.55f, h * 0.99f, w * 0.8f, h * 0.93f)
+        cubicTo(w * 0.9f, h * 0.91f, w * 0.97f, h * 0.94f, w, h * 0.93f)
+        lineTo(w, h)
+        close()
+    }
+    drawPath(
+        near,
+        Brush.verticalGradient(listOf(Color(0xFF8BC34A), Color(0xFF689F38)), startY = h * 0.9f, endY = h)
+    )
+}
+
+/** Контур воздушного шарика: яйцо, сужающееся книзу к узелку. (cx, cy) — центр, rx/ry — полуоси. */
+private fun balloonPath(cx: Float, cy: Float, rx: Float, ry: Float): Path = Path().apply {
+    val top = cy - ry
+    val bottom = cy + ry
+    moveTo(cx, bottom)
+    cubicTo(cx - rx * 0.18f, bottom - ry * 0.10f, cx - rx, cy + ry * 0.55f, cx - rx, cy - ry * 0.10f)
+    cubicTo(cx - rx, cy - ry * 0.78f, cx - rx * 0.55f, top, cx, top)
+    cubicTo(cx + rx * 0.55f, top, cx + rx, cy - ry * 0.78f, cx + rx, cy - ry * 0.10f)
+    cubicTo(cx + rx, cy + ry * 0.55f, cx + rx * 0.18f, bottom - ry * 0.10f, cx, bottom)
+    close()
+}
+
+/**
+ * Шарик: объёмная заливка (свет сверху-слева, тёмный край), мягкий блик «окошком», отражённый
+ * свет снизу, узелок и ниточка, которая запаздывает за движением (угол [sw] — от физики).
+ */
+private fun DrawScope.drawBalloon(
+    x: Float, y: Float, r: Float, base: Color,
+    sw: Float, phase: Float, wobble: Float, time: Float, dp: Float
+) {
+    val wob = 1f + 0.06f * wobble * sin(time * 18f + phase)
+    val rx = r * 0.9f * wob
+    val ry = r * 1.1f / wob
+    val dark = darken(base, 0.30f)
+    val light = lighten(base, 0.55f)
+
+    rotate(degrees = sw * 20f, pivot = Offset(x, y)) {
+        val kx = x
+        val ky = y + ry
+        // Ниточка: плавная кривая с лёгким «змейкой» колебанием.
+        val len = r * 1.9f
+        val curl = sin(time * 2.4f + phase) * r * 0.22f
+        val string = Path().apply {
+            moveTo(kx, ky + 3f * dp)
+            cubicTo(kx + curl, ky + len * 0.35f, kx - curl, ky + len * 0.7f, kx + curl * 0.3f, ky + len)
+        }
+        drawPath(string, Color(0x99455A64), style = Stroke(width = 1.8f * dp))
+
+        // Тело.
+        val body = balloonPath(x, y, rx, ry)
+        drawPath(
+            body,
+            Brush.radialGradient(
+                colors = listOf(light, base, dark),
+                center = Offset(x - rx * 0.3f, y - ry * 0.35f),
+                radius = ry * 1.55f
+            )
+        )
+        drawPath(body, dark.copy(alpha = 0.35f), style = Stroke(width = 1.4f * dp))
+
+        // Узелок.
+        val knot = Path().apply {
+            moveTo(kx, ky - 1f * dp)
+            lineTo(kx - 5.5f * dp, ky + 6f * dp)
+            lineTo(kx + 5.5f * dp, ky + 6f * dp)
+            close()
+        }
+        drawPath(knot, dark)
+
+        // Отражённый свет снизу-справа.
+        drawCircle(Color.White.copy(alpha = 0.16f), rx * 0.2f, Offset(x + rx * 0.5f, y + ry * 0.5f))
+        // Главный блик «окошком» и маленькая точка рядом.
+        val hx = x - rx * 0.42f
+        val hy = y - ry * 0.52f
+        rotate(degrees = -28f, pivot = Offset(hx, hy)) {
+            drawOval(
+                Color.White.copy(alpha = 0.62f),
+                Offset(hx - rx * 0.17f, hy - ry * 0.3f),
+                Size(rx * 0.34f, ry * 0.6f)
+            )
+        }
+        drawCircle(Color.White.copy(alpha = 0.55f), rx * 0.06f, Offset(x - rx * 0.12f, y - ry * 0.78f))
     }
 }
 
@@ -360,7 +538,7 @@ fun BalloonPopScreen(
 
     val goal = if (ageProfile.isToddler2) 10 else 6
     val world = remember(ageProfile.isToddler2) {
-        BalloonWorld(dp = dp, count = if (ageProfile.isToddler2) 11 else 15, freeMode = true, toddler = ageProfile.isToddler2)
+        BalloonWorld(dp = dp, count = if (ageProfile.isToddler2) 6 else 8, freeMode = true, toddler = ageProfile.isToddler2)
     }
     var score by remember { mutableIntStateOf(0) }
     var targetIdx by remember { mutableIntStateOf(0) }
@@ -444,71 +622,44 @@ fun BalloonPopScreen(
             }
             @Suppress("UNUSED_VARIABLE") val redraw = tick
 
-            // Облака на заднем плане.
-            for (i in 0 until 4) {
-                val cx = ((i * 0.27f + 0.1f + world.time * 0.004f * (i + 1)) % 1.2f - 0.1f) * size.width
-                val cy = size.height * (0.12f + i * 0.2f)
-                drawOval(Color.White.copy(alpha = 0.55f), Offset(cx - 70f * dp, cy), Size(140f * dp, 46f * dp))
-                drawOval(Color.White.copy(alpha = 0.55f), Offset(cx - 40f * dp, cy - 22f * dp), Size(90f * dp, 50f * dp))
+            // Небо: плывущие пушистые облака (ближние крупнее и быстрее) и холмы внизу.
+            for (i in 0 until 5) {
+                val speed = 0.003f * (1f + i * 0.6f)
+                val cx = ((i * 0.23f + 0.08f + world.time * speed) % 1.3f - 0.15f) * size.width
+                val cy = size.height * (0.10f + (i * 37 % 5) * 0.14f)
+                drawCloud(cx, cy, dp * (0.7f + 0.18f * (i % 3)), 0.5f + 0.1f * (i % 3))
             }
+            drawHills(size.width, size.height)
 
             for (b in world.balloons) {
                 if (!b.alive) continue
-                val base = BALLOON_COLORS[b.colorIdx].base
-                val wob = 1f + 0.07f * b.wobble * sin(world.time * 16f)
-                val rx = b.r * 0.92f * wob
-                val ry = b.r * 1.08f / wob
-                val tilt = (b.vx / (40f * dp)).coerceIn(-1f, 1f) * 10f
-
-                rotate(degrees = tilt, pivot = Offset(b.x, b.y)) {
-                    // Ниточка.
-                    val sway = sin(world.time * 2.2f + b.phase) * b.r * 0.25f
-                    val sy = b.y + ry
-                    val string = Path().apply {
-                        moveTo(b.x, sy)
-                        quadraticTo(b.x + sway, sy + b.r * 0.6f, b.x - sway * 0.4f, sy + b.r * 1.3f)
-                    }
-                    drawPath(string, Color(0x88455A64), style = Stroke(width = 2f * dp))
-                    // Узелок.
-                    val knot = Path().apply {
-                        moveTo(b.x, sy - 2f * dp)
-                        lineTo(b.x - 6f * dp, sy + 7f * dp)
-                        lineTo(b.x + 6f * dp, sy + 7f * dp)
-                        close()
-                    }
-                    drawPath(knot, base)
-                    // Тело.
-                    drawOval(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.9f),
-                                base,
-                                base.copy(red = base.red * 0.75f, green = base.green * 0.75f, blue = base.blue * 0.75f)
-                            ),
-                            center = Offset(b.x - rx * 0.35f, b.y - ry * 0.4f),
-                            radius = b.r * 1.5f
-                        ),
-                        topLeft = Offset(b.x - rx, b.y - ry),
-                        size = Size(rx * 2f, ry * 2f)
-                    )
-                    // Блик.
-                    drawOval(
-                        Color.White.copy(alpha = 0.55f),
-                        Offset(b.x - rx * 0.55f, b.y - ry * 0.65f),
-                        Size(rx * 0.35f, ry * 0.28f)
-                    )
-                }
+                drawBalloon(b.x, b.y, b.r, BALLOON_COLORS[b.colorIdx].base, b.sw, b.phase, b.wobble, world.time, dp)
             }
 
             for (ring in world.rings) {
-                val p = 1f - ring.life.coerceIn(0f, 1f)
+                val l = ring.life.coerceIn(0f, 1f)
+                val p = 1f - l
                 val eased = 1f - (1f - p) * (1f - p)
+                val rad = ring.r0 + (ring.r1 - ring.r0) * eased
+                drawCircle(ring.color.copy(alpha = 0.16f * l), rad, Offset(ring.x, ring.y))
                 drawCircle(
-                    color = ring.color.copy(alpha = 0.65f * ring.life.coerceIn(0f, 1f)),
-                    radius = ring.r0 + (ring.r1 - ring.r0) * eased,
+                    color = Color.White.copy(alpha = 0.7f * l),
+                    radius = rad,
                     center = Offset(ring.x, ring.y),
-                    style = Stroke(width = (2f + 4f * ring.life.coerceIn(0f, 1f)) * dp)
+                    style = Stroke(width = (1.5f + 3f * l) * dp)
                 )
+            }
+
+            for (p in world.shards) {
+                val l = p.life.coerceIn(0f, 1f)
+                rotate(degrees = p.rot * 57.3f, pivot = Offset(p.x, p.y)) {
+                    drawRoundRect(
+                        color = p.color.copy(alpha = l),
+                        topLeft = Offset(p.x - p.len / 2f, p.y - p.len * 0.2f),
+                        size = Size(p.len, p.len * 0.4f),
+                        cornerRadius = CornerRadius(p.len * 0.2f)
+                    )
+                }
             }
 
             for (p in world.confetti) {

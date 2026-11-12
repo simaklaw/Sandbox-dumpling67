@@ -127,7 +127,7 @@ fun JetBotScreen(
         sm.preloadRaw(listOf("fx_bd_hit", "fx_bd_pickup", "fx_bd_drop", "fx_bd_star", "fx_bd_reward", "fx_bd_whoosh"))
     }
 
-    fun snd(n: String, v: Float = 1f, r: Float = 1f) { sm.play(n, volume = v, rate = r) }
+    fun snd(n: String, v: Float = 1f, r: Float = 1f) { sm.playFxRaw(n, v, r) }
 
     fun logicalH(): Float = if (boxSize.width > 0) boxSize.height * JET_LW / boxSize.width else 780f
 

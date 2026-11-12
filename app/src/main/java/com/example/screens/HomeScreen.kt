@@ -34,24 +34,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Игры главного экрана для режима «2 года». Первые 6 — первая страница, остальные листаются стрелками/свайпом. */
-private val TODDLER_HOME_GAMES = listOf(
-    FolderItem("Зверята", "🐮", 0, ColorPurple),
-    FolderItem("Кормление", "🍎", 1, ColorPink),
-    FolderItem("Шарики", "🎈", 7, ColorBlue),
-    FolderItem("Рисование", "🎨", 9, ColorGreen),
-    FolderItem("Бизиборд", "🎛️", 10, ColorOrange),
-    FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
-    FolderItem("Дождик", "🌧️", 24, ColorBlue),
-    FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
-    FolderItem("Комната Зелика", "👽", 27, ColorGreen),
-    FolderItem("Аквариум", "🐠", 30, ColorBlue),
-    FolderItem("Лук", "🏹", 4, ColorPink),
-    FolderItem("Тир", "🦆", 31, ColorOrange),
-    FolderItem("Монстрики", "👾", 32, ColorOrange),
-    FolderItem("Забег монстрика", "🏃", 33, ColorGreen)
-)
-
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
@@ -111,7 +93,7 @@ fun HomeScreen(
                 // Large child-friendly app logo / text (5s hold opens touch target audit)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.pointerInput(Unit) {
+                    modifier = if (com.example.BuildConfig.DEBUG) Modifier.pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
                                 isLogoPressed = true
@@ -119,7 +101,7 @@ fun HomeScreen(
                                 isLogoPressed = false
                             }
                         )
-                    }
+                    } else Modifier
                 ) {
                     Text(
                         text = "🧸",
@@ -181,26 +163,6 @@ fun HomeScreen(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (ageProfile.isToddler2) {
-                    // ==========================================
-                    // 👶 2 YEARS OLD LAYOUT (прямые игры без папок, страницы по 6 — PagedGrid)
-                    // ==========================================
-                    PagedGrid(
-                        items = TODDLER_HOME_GAMES,
-                        soundManager = soundManager,
-                        haptics = haptics
-                    ) { game, index ->
-                        HomeScreenCard(
-                            title = game.title,
-                            icon = game.icon,
-                            cardColor = game.color,
-                            phaseOffset = (index % 6) * 300,
-                            soundManager = soundManager,
-                            haptics = haptics,
-                            onClick = { onNavigateToGame(game.pageIndex, game.title) }
-                        )
-                    }
-                } else {
                     // ==========================================
                     // 🧸 3-5 YEARS OLD LAYOUT (With Folders)
                     // ==========================================
@@ -280,7 +242,6 @@ fun HomeScreen(
                             onClick = { onNavigateToFolder("Кухня", FolderType.KITCHEN) }
                         )
                     }
-                }
             }
 
             // Bottom quick launch row for "Смешинки 😜" and "Телефончик 📱"
@@ -355,7 +316,7 @@ fun HomeScreen(
         }
 
         // Animated Guide Hand over "Кормление" for first launch or idle
-        if (isFirstLaunch && !ageProfile.isToddler2) {
+        if (isFirstLaunch) {
             HintHand(
                 from = Offset(60f, 180f),
                 mode = "tap",
@@ -372,6 +333,11 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Шестерёнка «Родителям»: вход в настройки двумя нажатиями, а не зажимом.
+ * 1-е нажатие показывает подсказку «Нажмите ещё раз, чтобы открыть настройки» на 5 секунд,
+ * 2-е нажатие (не раньше чем через 0,5 с, чтобы малыш не открыл случайной «дрожащей» двойной тапкой) открывает настройки.
+ */
 @Composable
 fun ParentGearButton(
     modifier: Modifier = Modifier,
@@ -379,76 +345,84 @@ fun ParentGearButton(
     soundManager: SoundManager,
     haptics: Haptics
 ) {
-    var isHolding by remember { mutableStateOf(false) }
-    var holdProgress by remember { mutableStateOf(0f) }
-    val coroutineScope = rememberCoroutineScope()
-    var holdJob by remember { mutableStateOf<Job?>(null) }
+    var armedAt by remember { mutableLongStateOf(0L) }
+    var armed by remember { mutableStateOf(false) }
 
-    val progressAnim by animateFloatAsState(
-        targetValue = holdProgress,
-        animationSpec = tween(100, easing = LinearEasing),
-        label = "holdProgress"
-    )
+    LaunchedEffect(armed, armedAt) {
+        if (armed) {
+            delay(GEAR_ARM_WINDOW_MS)
+            armed = false
+        }
+    }
 
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .size(56.dp)
-            .border(BorderStroke(3.dp, ColorInk), CircleShape)
-            .background(ColorBgSoft, CircleShape)
-            .clip(CircleShape)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isHolding = true
-                        holdProgress = 0f
+    Box {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = modifier
+                .size(56.dp)
+                .border(BorderStroke(3.dp, if (armed) ColorYellow else ColorInk), CircleShape)
+                .background(if (armed) ColorYellow else ColorBgSoft, CircleShape)
+                .clip(CircleShape)
+                .clickable {
+                    val now = System.currentTimeMillis()
+                    if (!armed) {
+                        armed = true
+                        armedAt = now
                         haptics.vibrateShort()
                         soundManager.play("tap")
-
-                        holdJob = coroutineScope.launch {
-                            val duration = 3000L
-                            val steps = 30
-                            for (i in 1..steps) {
-                                delay(duration / steps)
-                                holdProgress = i.toFloat() / steps
-                                haptics.vibrate(10)
-                            }
-                            // Successful parent hold of 3 full seconds!
-                            onTrigger()
-                            isHolding = false
-                            holdProgress = 0f
-                        }
-
-                        tryAwaitRelease()
-                        isHolding = false
-                        holdJob?.cancel()
-                        holdProgress = 0f
+                    } else if (now - armedAt >= GEAR_MIN_GAP_MS) {
+                        armed = false
+                        onTrigger()
                     }
-                )
-            }
-            .testTag("parent_settings_gear_btn")
-    ) {
-        // Glowing progress circle around the gear
-        if (isHolding && progressAnim > 0f) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawArc(
-                    color = ColorYellow,
-                    startAngle = -90f,
-                    sweepAngle = progressAnim * 360f,
-                    useCenter = false,
-                    style = Stroke(width = 6.dp.toPx())
-                )
-            }
+                }
+                .testTag("parent_settings_gear_btn")
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Родителям",
+                tint = ColorInk,
+                modifier = Modifier.size(32.dp)
+            )
         }
 
-        Icon(
-            imageVector = Icons.Default.Settings,
-            contentDescription = "Родителям",
-            tint = ColorInk,
-            modifier = Modifier.size(32.dp)
-        )
+        if (armed) {
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.BottomEnd,
+                offset = androidx.compose.ui.unit.IntOffset(0, 150)
+            ) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    color = ColorYellow,
+                    border = BorderStroke(3.dp, ColorInk),
+                    shadowElevation = 6.dp,
+                    modifier = Modifier.testTag("parent_settings_hint")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .widthIn(max = 230.dp)
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = "Для родителей",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ColorInk.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "Нажмите ещё раз, чтобы открыть настройки",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            color = ColorInk
+                        )
+                    }
+                }
+            }
+        }
     }
 }
+
+private const val GEAR_ARM_WINDOW_MS = 5000L
+private const val GEAR_MIN_GAP_MS = 500L
 
 @Composable
 fun HomeScreenCard(

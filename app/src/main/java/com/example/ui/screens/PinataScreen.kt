@@ -421,7 +421,7 @@ fun PinataScreen(
         Box(
             Modifier
                 .statusBarsPadding()
-                .padding(start = 84.dp, top = 8.dp)
+                .padding(start = 12.dp, top = 8.dp)
                 .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp, vertical = 5.dp)
         ) {

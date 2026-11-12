@@ -8,9 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
@@ -28,7 +26,6 @@ import com.example.screens.folderTypeForPage
 import com.example.screens.HomeScreen
 import com.example.sensor.TiltSensorManager
 import com.example.shared.*
-import com.example.ui.components.FirstLaunchAgeDialog
 import com.example.ui.components.RestTimerOverlay
 import com.example.ui.components.ToddlerExitProtectionDialog
 import com.example.ui.screens.*
@@ -68,10 +65,9 @@ val AppScreenStateSaver: Saver<AppScreenState, String> = Saver(
 
 /**
  * Куда вернуться из игры по «Назад» или кнопке «Домой».
- * Папка определяется по единому списку [FOLDER_ITEMS]; для режима «2 года» папок нет — сразу на главный экран.
+ * Папка определяется по единому списку [FOLDER_ITEMS]; игра с главного экрана возвращает на главный.
  */
-fun parentStateForGame(pageIndex: Int, isToddler2: Boolean): AppScreenState {
-    if (isToddler2) return AppScreenState.Home
+fun parentStateForGame(pageIndex: Int): AppScreenState {
     return when (folderTypeForPage(pageIndex)) {
         FolderType.GAMES -> AppScreenState.Folder("Игры", FolderType.GAMES)
         FolderType.KITCHEN -> AppScreenState.Folder("Кухня", FolderType.KITCHEN)
@@ -222,17 +218,6 @@ fun MainAppScreen(
     val haptics = rememberHaptics()
     val prefs = remember { context.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE) }
 
-    // Age profile state
-    var currentAgeGroup by remember {
-        mutableStateOf(prefs.getString("pref_age_group", "3-5") ?: "3-5")
-    }
-    val activeAgeProfile = remember(currentAgeGroup) { getAgeProfileById(currentAgeGroup) }
-
-    // First launch age dialog
-    var showFirstLaunchAgeDialog by remember {
-        mutableStateOf(!prefs.getBoolean("pref_first_launch_age_selected", false))
-    }
-
     // Текущий экран переживает пересоздание Activity и смерть процесса (например, ребёнок свернул игру)
     var activeScreenState by rememberSaveable(stateSaver = AppScreenStateSaver) {
         mutableStateOf<AppScreenState>(AppScreenState.Home)
@@ -271,10 +256,10 @@ fun MainAppScreen(
     // Общий выход из игры (кнопка «Назад» внутри экранов со своей верхней панелью)
     val leaveGame: (Int) -> Unit = { pageIndex ->
         soundManager.play("transition")
-        activeScreenState = parentStateForGame(pageIndex, activeAgeProfile.isToddler2)
+        activeScreenState = parentStateForGame(pageIndex)
     }
 
-    CompositionLocalProvider(LocalAgeProfile provides activeAgeProfile) {
+    CompositionLocalProvider(LocalAgeProfile provides UNIVERSAL_PROFILE) {
         // Multi-touch & Back Button Toddler Protection
         BackHandler {
             soundManager.play("tap")
@@ -287,8 +272,7 @@ fun MainAppScreen(
                 }
                 is AppScreenState.Game -> {
                     activeScreenState = parentStateForGame(
-                        (activeScreenState as AppScreenState.Game).pageIndex,
-                        activeAgeProfile.isToddler2
+                        (activeScreenState as AppScreenState.Game).pageIndex
                     )
                 }
             }
@@ -349,7 +333,16 @@ fun MainAppScreen(
                             )
                         }
                         is AppScreenState.Game -> {
-                            Box(modifier = Modifier.fillMaxSize()) {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                GameTopBar(
+                                    title = screenState.title,
+                                    haptics = haptics,
+                                    onHome = {
+                                        soundManager.play("transition")
+                                        activeScreenState = parentStateForGame(screenState.pageIndex)
+                                    }
+                                )
+                                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                                 when (screenState.pageIndex) {
                                     0 -> AnimalRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     1 -> AnimalFeedingScreen(repository = repository, soundPlayer = soundPlayer)
@@ -402,18 +395,7 @@ fun MainAppScreen(
                                         onBackClick = { leaveGame(23) }
                                     )
                                 }
-
-                                // Home button at top left to exit the game cleanly
-                                HomeButton(
-                                    modifier = Modifier
-                                        .align(Alignment.TopStart)
-                                        .padding(8.dp),
-                                    haptics = haptics,
-                                    onClick = {
-                                        soundManager.play("transition")
-                                        activeScreenState = parentStateForGame(screenState.pageIndex, activeAgeProfile.isToddler2)
-                                    }
-                                )
+                                }
                             }
                         }
                     }
@@ -435,8 +417,6 @@ fun MainAppScreen(
                 },
                 onDismiss = {
                     showParentSettings = false
-                    // Update active age profile if changed
-                    currentAgeGroup = prefs.getString("pref_age_group", "3-5") ?: "3-5"
                 }
             )
         }
@@ -451,21 +431,6 @@ fun MainAppScreen(
                 onParentUnlock = {
                     showExitProtectionDialog = false
                     showParentSettings = true
-                }
-            )
-        }
-
-        // First Launch Age Selector Dialog
-        if (showFirstLaunchAgeDialog) {
-            FirstLaunchAgeDialog(
-                onSelectAge = { selectedAge ->
-                    currentAgeGroup = selectedAge
-                    prefs.edit()
-                        .putString("pref_age_group", selectedAge)
-                        .putBoolean("pref_first_launch_age_selected", true)
-                        .apply()
-                    showFirstLaunchAgeDialog = false
-                    soundManager.play("chime")
                 }
             )
         }

@@ -56,13 +56,16 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
             FolderItem("Комната Зелика", "👽", 27, ColorGreen),
             FolderItem("Забег монстрика", "🏃", 33, ColorOrange),
             FolderItem("Бешеный Дамплинг 67", "🥟", 5, ColorYellow, DUMPLING_ICON),
-            FolderItem("Жадная акула", "🦈", 35, ColorBlue)
+            FolderItem("Жадная акула", "🦈", 35, ColorBlue),
+            FolderItem("Птичка-летунья", "🐦", 44, ColorGreen)
         )),
         FolderSection("Меткость и аркады", "🎯", ColorOrange, listOf(
             FolderItem("Тир", "🦆", 31, ColorOrange),
             FolderItem("Лук", "🏹", 4, ColorPink),
             FolderItem("Пинбол", "🔮", 12, ColorYellow),
-            FolderItem("Пиньята с Конфетами", "🪅", 17, ColorPink)
+            FolderItem("Пиньята с Конфетами", "🪅", 17, ColorPink),
+            FolderItem("Блок-пазл", "🧱", 48, ColorBlue),
+            FolderItem("Хваталка", "🕹️", 49, ColorPurple)
         )),
         FolderSection("Кнопочки, поп-иты, бизиборд", "🔴", ColorPink, listOf(
             FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
@@ -74,13 +77,23 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
         FolderSection("Зверята и природа", "🐾", ColorBlue, listOf(
             FolderItem("Зверята", "🐮", 0, ColorPurple),
             FolderItem("Аквариум", "🐠", 30, ColorBlue),
-            FolderItem("Дождик", "🌧️", 24, ColorBlue)
+            FolderItem("Дождик", "🌧️", 24, ColorBlue),
+            FolderItem("Погодная комната", "🌦️", 43, ColorBlue),
+            FolderItem("Пушистики", "🐹", 47, ColorPink)
         )),
         FolderSection("Творчество и забавы", "🎨", ColorPurple, listOf(
             FolderItem("Монстрики", "👾", 32, ColorOrange),
             FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
             FolderItem("Кинетический песок", "🏖️", 22, ColorOrange),
-            FolderItem("Смешинки", "😜", 21, ColorYellow)
+            FolderItem("Смешинки", "😜", 21, ColorYellow),
+            FolderItem("Песочница с формочками", "🏖️", 40, ColorYellow),
+            FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange)
+        )),
+        FolderSection("Хозяйство и магазин", "🧺", ColorBlue, listOf(
+            FolderItem("Пузырьковая стиралка", "🫧", 38, ColorBlue),
+            FolderItem("Автомойка для игрушек", "🚗", 41, ColorOrange),
+            FolderItem("Магазин пельменей", "🛒", 42, ColorPink),
+            FolderItem("Музыкальная колыбелька", "🌙", 39, ColorPurple)
         ))
     ),
     FolderType.KITCHEN to listOf(
@@ -88,19 +101,6 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
             FolderItem("Кастрюля чудес", "🍲", 37, ColorOrange),
             FolderItem("Нарезка овощей", "🔪", 36, ColorGreen),
             FolderItem("Сыпучести", "🌾", 6, ColorYellow)
-        )),
-        FolderSection("Дом", "🏠", ColorBlue, listOf(
-            FolderItem("Пузырьковая стиралка", "🫧", 38, ColorBlue),
-            FolderItem("Музыкальная колыбелька", "🌙", 39, ColorPurple),
-            FolderItem("Песочница с формочками", "🏖️", 40, ColorYellow),
-            FolderItem("Автомойка для игрушек", "🚗", 41, ColorOrange),
-            FolderItem("Магазин пельменей", "🛒", 42, ColorPink),
-            FolderItem("Погодная комната", "🌦️", 43, ColorBlue),
-            FolderItem("Птичка-летунья", "🐦", 44, ColorGreen),
-            FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange),
-            FolderItem("Пушистики", "🐹", 47, ColorPink),
-            FolderItem("Блок-пазл", "🧱", 48, ColorBlue),
-            FolderItem("Хваталка", "🕹️", 49, ColorPurple)
         ))
     )
 )

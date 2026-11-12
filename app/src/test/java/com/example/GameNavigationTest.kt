@@ -27,14 +27,14 @@ class GameNavigationTest {
     @Test
     fun kitchenGamesReturnToKitchen() {
         listOf(6).forEach { assertEquals(FolderType.KITCHEN, folderTypeForPage(it)) }
-        assertEquals(AppScreenState.Folder("Кухня", FolderType.KITCHEN), parentStateForGame(6, isToddler2 = false))
+        assertEquals(AppScreenState.Folder("Кухня", FolderType.KITCHEN), parentStateForGame(6))
     }
 
     @Test
     fun homeLevelGamesReturnHome() {
         listOf(1, 7, 9).forEach {
             assertNull(folderTypeForPage(it))
-            assertEquals(AppScreenState.Home, parentStateForGame(it, isToddler2 = false))
+            assertEquals(AppScreenState.Home, parentStateForGame(it))
         }
     }
 
@@ -46,10 +46,13 @@ class GameNavigationTest {
     }
 
     @Test
-    fun toddlerModeHasNoFolders() {
-        listOf(0, 6, 24, 26).forEach {
-            assertEquals(AppScreenState.Home, parentStateForGame(it, isToddler2 = true))
+    fun formerHomeSectionGamesMovedToGames() {
+        // Раздел «Кухня → Дом» упразднён: все его игры живут в «Играх», в кухне остаются только кухонные.
+        listOf(38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49).forEach {
+            assertEquals("Игра $it должна быть в «Играх»", FolderType.GAMES, folderTypeForPage(it))
         }
+        assertEquals(listOf(37, 36, 6), FOLDER_ITEMS[FolderType.KITCHEN]!!.map { it.pageIndex })
+        assertEquals(AppScreenState.Folder("Игры", FolderType.GAMES), parentStateForGame(38))
     }
 
     @Test

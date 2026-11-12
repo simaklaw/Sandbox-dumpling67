@@ -546,7 +546,7 @@ fun MonsterFactoryScreen(
             }
             // ---- верхняя полоса: подписанные кнопки действий ----
             Row(
-                Modifier.align(Alignment.TopStart).statusBarsPadding().padding(top = 10.dp, start = 88.dp)
+                Modifier.align(Alignment.TopStart).statusBarsPadding().padding(top = 10.dp, start = 12.dp)
                     .fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -851,14 +851,14 @@ private fun MonShop(wallet: Int, unlocked: Set<String>, onBuy: (ShopItem) -> Uni
     val shopList = remember { shopItems() }
     Box(Modifier.fillMaxSize().background(Color(0xFFFCE4EC)).pointerInput(Unit) { detectTapGestures { } }) {
         Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 8.dp)) {
-            Row(Modifier.padding(start = 88.dp, end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = 12.dp, end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("🛒 Магазин", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF6A1B4D))
                 Spacer(Modifier.width(12.dp))
                 Text("🪙 $wallet", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFFEF6C00))
             }
             Text(
                 "Монетки зарабатываются в «Забеге монстрика». Нажми на часть, чтобы купить.",
-                modifier = Modifier.padding(start = 88.dp, end = 12.dp, top = 2.dp, bottom = 6.dp),
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 6.dp),
                 fontSize = 12.sp, color = Color(0xFF6A1B4D)
             )
             androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
@@ -1058,7 +1058,7 @@ private fun MonsterPartyView(
         }
         // шкала веселья
         Row(
-            Modifier.statusBarsPadding().padding(top = 14.dp, start = 88.dp, end = 70.dp),
+            Modifier.statusBarsPadding().padding(top = 14.dp, start = 12.dp, end = 70.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("🎪${level}", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)

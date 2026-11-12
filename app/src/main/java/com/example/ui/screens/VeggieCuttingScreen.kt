@@ -234,7 +234,7 @@ fun VeggieCuttingScreen(
             val f = frame
             if (size.width > 0f && m.inited) drawKitchen(m.type, cx() - m.slideIn, m.a0, m.thick, m.total, m.len, m.knifeY, m.knifeDown, m.clock, cy(), slices, drops, bowl)
         }
-        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 88.dp, end = 12.dp, top = 10.dp)) {
+        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 12.dp, top = 10.dp)) {
             Text("Нарезка овощей", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF4E342E))
             Text("$vegName · кусочков: $cuts · салатов: $salads", fontSize = 13.sp, color = Color(0xFF6D4C41))
         }

@@ -47,7 +47,6 @@ fun ParentSettingsDialog(
 
     // Parent preferences
     var vibrationEnabled by remember { mutableStateOf(prefs.getBoolean("pref_vibration", true)) }
-    var selectedAgeGroup by remember { mutableStateOf(prefs.getString("pref_age_group", "3-5") ?: "3-5") }
     var selectedRestTimer by remember { mutableStateOf(prefs.getString("pref_rest_timer", "off") ?: "off") }
     var showOldSections by remember { mutableStateOf(prefs.getBoolean("pref_old_sections", false)) }
 
@@ -88,21 +87,23 @@ fun ParentSettingsDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Header with secret 6-second long-press on gear
+                // Заголовок (в debug-сборке 6-секундное удержание открывает аудит звуков)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    isGearPressed = true
-                                    gearPressStartTime = System.currentTimeMillis()
-                                    tryAwaitRelease()
-                                    isGearPressed = false
-                                }
-                            )
-                        }
+                        .then(
+                            if (com.example.BuildConfig.DEBUG) Modifier.pointerInput(Unit) {
+                                detectTapGestures(
+                                    onPress = {
+                                        isGearPressed = true
+                                        gearPressStartTime = System.currentTimeMillis()
+                                        tryAwaitRelease()
+                                        isGearPressed = false
+                                    }
+                                )
+                            } else Modifier
+                        )
                         .padding(bottom = 4.dp)
                 ) {
                     Text(
@@ -374,41 +375,6 @@ fun ParentSettingsDialog(
                 }
 
                 Divider(color = ColorInk.copy(alpha = 0.2f), thickness = 2.dp)
-
-                // 👶 Age selection: "2 years" / "3-5 years"
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Возраст ребенка:",
-                        style = PlayTypography.bodyLarge,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ColorInk,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        AgeGroupButton(
-                            text = "👶 2 года",
-                            selected = selectedAgeGroup == "2",
-                            onClick = {
-                                selectedAgeGroup = "2"
-                                prefs.edit().putString("pref_age_group", "2").apply()
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        AgeGroupButton(
-                            text = "🧸 3-5 лет",
-                            selected = selectedAgeGroup == "3-5",
-                            onClick = {
-                                selectedAgeGroup = "3-5"
-                                prefs.edit().putString("pref_age_group", "3-5").apply()
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
 
                 // ⏱️ Rest Timer: "Off / 10 / 20 / 30 mins"
                 Column(modifier = Modifier.fillMaxWidth()) {

@@ -654,7 +654,7 @@ fun MonsterRunnerScreen(
 
         if (screen == RunScreen.PLAY) {
             Row(
-                Modifier.statusBarsPadding().padding(top = 8.dp, start = 88.dp),
+                Modifier.statusBarsPadding().padding(top = 8.dp, start = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

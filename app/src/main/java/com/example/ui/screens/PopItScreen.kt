@@ -178,7 +178,7 @@ fun PopItScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 88.dp, end = 12.dp, top = 10.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {

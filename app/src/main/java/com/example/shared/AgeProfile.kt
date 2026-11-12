@@ -5,8 +5,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Age Profile settings for "Детская площадка" (Step 10).
- * Dynamically customizes interaction tolerances, speeds, simplifications and UI layouts.
+ * Единый универсальный профиль приложения «Детская площадка».
+ * Возрастных режимов («2 года» / «3-5 лет») больше нет: все игры работают одинаково, с крупными
+ * кнопками и мягкой «прощающей» зоной касания, подходящими малышам от 2 лет.
  */
 data class AgeProfile(
     val id: String,
@@ -24,45 +25,28 @@ data class AgeProfile(
     val allowRefusal: Boolean,
     val hasFoldersOnHome: Boolean
 ) {
-    val isToddler2: Boolean get() = id == "2"
+    /**
+     * Устарело: режима «2 года» больше нет, всегда false.
+     * Оставлено, чтобы ветки в играх не правились вслепую без компиляции; их можно вычищать по одной.
+     */
+    val isToddler2: Boolean get() = false
 }
 
-val TODDLER_2 = AgeProfile(
-    id = "2",
-    title = "👶 2 года",
-    minMainButtonDp = 120.dp,
-    minSecondaryButtonDp = 88.dp,
-    hitSlopMultiplier = 1.30f,
-    tapDuplicateDrag = true,
-    movingSpeedMultiplier = 0.6f,
-    maxParticles = 10,
-    allowScreenShakeAndFlash = false,
-    hintIdleDelaySeconds = 4,
-    hintRepeatCount = 3,
-    autoDemoIdleDelaySeconds = 10,
-    allowRefusal = false,
-    hasFoldersOnHome = false
-)
-
-val KIDS_3_5 = AgeProfile(
-    id = "3-5",
-    title = "🧸 3-5 лет",
-    minMainButtonDp = 96.dp,
-    minSecondaryButtonDp = 72.dp,
-    hitSlopMultiplier = 1.10f,
+val UNIVERSAL_PROFILE = AgeProfile(
+    id = "universal",
+    title = "Для всех",
+    minMainButtonDp = 112.dp,
+    minSecondaryButtonDp = 80.dp,
+    hitSlopMultiplier = 1.20f,
     tapDuplicateDrag = false,
-    movingSpeedMultiplier = 1.0f,
-    maxParticles = 25,
-    allowScreenShakeAndFlash = true,
-    hintIdleDelaySeconds = 6,
+    movingSpeedMultiplier = 0.85f,
+    maxParticles = 20,
+    allowScreenShakeAndFlash = false,
+    hintIdleDelaySeconds = 5,
     hintRepeatCount = 2,
-    autoDemoIdleDelaySeconds = 0, // Disabled for 3-5 years
+    autoDemoIdleDelaySeconds = 0,
     allowRefusal = true,
     hasFoldersOnHome = true
 )
 
-val LocalAgeProfile = staticCompositionLocalOf { KIDS_3_5 }
-
-fun getAgeProfileById(id: String?): AgeProfile {
-    return if (id == "2") TODDLER_2 else KIDS_3_5
-}
+val LocalAgeProfile = staticCompositionLocalOf { UNIVERSAL_PROFILE }

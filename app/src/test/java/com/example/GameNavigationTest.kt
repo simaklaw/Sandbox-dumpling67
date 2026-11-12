@@ -48,7 +48,7 @@ class GameNavigationTest {
     @Test
     fun formerHomeSectionGamesMovedToGames() {
         // Раздел «Кухня → Дом» упразднён: все его игры живут в «Играх», в кухне остаются только кухонные.
-        listOf(38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49).forEach {
+        listOf(38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50).forEach {
             assertEquals("Игра $it должна быть в «Играх»", FolderType.GAMES, folderTypeForPage(it))
         }
         assertEquals(listOf(37, 36, 6), FOLDER_ITEMS[FolderType.KITCHEN]!!.map { it.pageIndex })

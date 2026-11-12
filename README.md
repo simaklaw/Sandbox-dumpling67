@@ -3,6 +3,7 @@
 Офлайн-приложение для Android с мини-играми для малышей: один универсальный профиль без возрастных режимов (папки с играми: кухня, «Игры» с разделами по жанрам, хозяйство и магазин и др.). Полностью без интернета: разрешения `INTERNET` в манифесте нет, прогресс хранится на устройстве.
 
 - Kotlin + Jetpack Compose (Material 3), Room, JBox2D (физика), Lottie (конфетти)
+- «Ракетный робот» (индекс 50, `ui/screens/JetBotScreen.kt` + правила `JetBotRules.kt` с тестами): идея из веб-игры Supersonic-bot, переписана на Compose Canvas — палец держит тягу, три сердечка, без микрофона и интернета, все картинки нарисованы кодом
 - «Хваталка» (игра с когтем) — three.js внутри WebView, ассеты в `app/src/main/assets/claw`, всё грузится локально
 - `applicationId`: `com.aistudio.kidsplayground.play`, код живёт в пакете `com.example`
 - minSdk 24, targetSdk/compileSdk 36, JDK 21, Gradle 9.3.1

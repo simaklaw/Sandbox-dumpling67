@@ -14,21 +14,31 @@ class RainSoundHelper(
     private val soundManager: SoundManager
 ) {
     private var lastDropTimestamp: Long = 0L
-    private val minDropIntervalMs = 80L // max 12 drops/sec
+    private var lastSplashTimestamp: Long = 0L
+    private var dropNote = 0
 
+    init {
+        // Грузим заранее: первый тап не должен упасть в запасной «поп».
+        soundManager.preloadRaw((1..4).map { "rain_drop$it" } + "rain_splash")
+    }
+
+    /**
+     * Капелька при поливе: редкая (≈3 в секунду) и тихая, ноты идут по кругу вверх-вниз
+     * в одной тональности — дождь звучит как тихая музыкальная шкатулка, а не как пулемёт.
+     */
     fun playDropPlip() {
         val now = System.currentTimeMillis()
-        if (now - lastDropTimestamp < minDropIntervalMs) return
+        if (now - lastDropTimestamp < 300L) return
         lastDropTimestamp = now
-
-        val pitchVariation = 0.95f + Random.nextFloat() * 0.10f
-        val played = soundManager.play("drop_plip", volume = 0.8f, rate = pitchVariation)
-        if (!played) soundEffectPlayer.playPop(pitchVariation)
+        dropNote = (dropNote + 1 + Random.nextInt(2)) % 4
+        soundManager.playFxRaw("rain_drop${dropNote + 1}", volume = 0.32f, rate = 0.98f + Random.nextFloat() * 0.04f)
     }
 
     fun playSplashSoft() {
-        val played = soundManager.play("splash_soft")
-        if (!played) soundEffectPlayer.playSplash()
+        val now = System.currentTimeMillis()
+        if (now - lastSplashTimestamp < 420L) return
+        lastSplashTimestamp = now
+        soundManager.playFxRaw("rain_splash", volume = 0.4f, rate = 0.96f + Random.nextFloat() * 0.08f)
     }
 
     fun playRainbowChime() {

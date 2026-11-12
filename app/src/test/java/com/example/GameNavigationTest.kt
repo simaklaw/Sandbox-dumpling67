@@ -51,7 +51,7 @@ class GameNavigationTest {
         listOf(38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50).forEach {
             assertEquals("Игра $it должна быть в «Играх»", FolderType.GAMES, folderTypeForPage(it))
         }
-        assertEquals(listOf(37, 36, 6), FOLDER_ITEMS[FolderType.KITCHEN]!!.map { it.pageIndex })
+        assertEquals(listOf(37, 36, 6, 51), FOLDER_ITEMS[FolderType.KITCHEN]!!.map { it.pageIndex })
         assertEquals(AppScreenState.Folder("Игры", FolderType.GAMES), parentStateForGame(38))
     }
 

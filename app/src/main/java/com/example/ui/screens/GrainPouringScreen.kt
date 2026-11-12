@@ -220,6 +220,36 @@ private fun isNightNow(): Boolean {
     return hour >= 19 || hour < 7
 }
 
+/**
+ * Одно зёрнышко своей формы: рис и чечевица вытянутые, гречка угловатая, песок и горох круглые.
+ * Без поворотов и кистей (сотни зёрен на кадр): ориентация берётся из [k] (горизонтально/вертикально).
+ */
+private fun DrawScope.grainBlob(type: GrainType, c: Offset, r: Float, k: Int, col: Color, alpha: Float) {
+    val vertical = (k and 1) == 1
+    when (type.name) {
+        "Рис" -> {
+            val a = r * 1.5f; val b = r * 0.62f
+            if (vertical) drawOval(col, Offset(c.x - b, c.y - a), Size(b * 2f, a * 2f), alpha = alpha)
+            else drawOval(col, Offset(c.x - a, c.y - b), Size(a * 2f, b * 2f), alpha = alpha)
+        }
+        "Чечевица" -> {
+            val a = r * 1.15f; val b = r * 0.8f
+            if (vertical) drawOval(col, Offset(c.x - b, c.y - a), Size(b * 2f, a * 2f), alpha = alpha)
+            else drawOval(col, Offset(c.x - a, c.y - b), Size(a * 2f, b * 2f), alpha = alpha)
+        }
+        "Гречка" -> {
+            val p = Path().apply {
+                moveTo(c.x, c.y - r)
+                lineTo(c.x + r * 0.85f, c.y + r * 0.55f)
+                lineTo(c.x - r * 0.85f, c.y + r * 0.55f)
+                close()
+            }
+            drawPath(p, col, alpha = alpha)
+        }
+        else -> drawCircle(col, r, c, alpha = alpha)
+    }
+}
+
 /** Падающее зерно в полёте. */
 private class FallingGrain(
     var x: Float, var y: Float, var vx: Float, var vy: Float,
@@ -231,7 +261,7 @@ private class FallingGrain(
 
 /** Конфетти (салют при вехах и завершении).
  *  [shape]: 0 — кружок, 1 — звезда, 2 — сердечко (награды не повторяются). */
-private class Confetti(
+private class GrainConfetti(
     var x: Float, var y: Float, var vx: Float, var vy: Float,
     var life: Float, val color: Color, val r: Float, val shape: Int = 0
 )
@@ -298,7 +328,7 @@ private class PourWorld(val dp: Float) {
     var nightMix = 0f
 
     val grains = ArrayList<FallingGrain>()
-    val confetti = ArrayList<Confetti>()
+    val confetti = ArrayList<GrainConfetti>()
     val puffs = ArrayList<Puff>()
 
     var emitAcc = 0f
@@ -756,7 +786,7 @@ private class PourWorld(val dp: Float) {
             val a = Random.nextFloat() * 2f * PI.toFloat()
             val sp = (140f + Random.nextFloat() * 260f) * dp
             confetti.add(
-                Confetti(
+                GrainConfetti(
                     x = cx + (Random.nextFloat() - 0.5f) * jw * 0.6f,
                     y = topY,
                     vx = cos(a) * sp,
@@ -781,7 +811,7 @@ private class PourWorld(val dp: Float) {
             val a = Random.nextFloat() * 2f * PI.toFloat()
             val sp = (60f + Random.nextFloat() * 160f) * dp
             confetti.add(
-                Confetti(
+                GrainConfetti(
                     x = x, y = y,
                     vx = cos(a) * sp,
                     vy = -abs(sin(a)) * sp - 60f * dp,
@@ -1207,17 +1237,50 @@ private fun DrawScope.drawFireflies(world: PourWorld, mix: Float) {
 /** Деревянный стол: доски, кромка. */
 private fun DrawScope.drawTable(w: Float, h: Float, floorY: Float, dp: Float) {
     drawRect(
-        Brush.verticalGradient(listOf(Color(0xFFBC8D5F), Color(0xFF8D5E3C)), startY = floorY, endY = h),
+        Brush.verticalGradient(
+            0f to Color(0xFFC79566), 0.12f to Color(0xFFB88455), 0.6f to Color(0xFF9A6A42), 1f to Color(0xFF734A2B),
+            startY = floorY, endY = h
+        ),
         Offset(0f, floorY), Size(w, h - floorY)
     )
-    drawRect(Color(0xFFD7B089), Offset(0f, floorY), Size(w, 4f * dp))
-    drawRect(Color(0xFF6D4A2F).copy(alpha = 0.6f), Offset(0f, floorY + 4f * dp), Size(w, 3f * dp))
-    val step = w / 5f
-    var x = step
-    while (x < w) {
-        drawRect(Color.Black.copy(alpha = 0.08f), Offset(x, floorY + 4f * dp), Size(2f * dp, h - floorY))
-        x += step
+    // доски: тёмные швы со светлой фаской и лёгкий разброс тона
+    val plankH = 46f * dp
+    var y = floorY + plankH
+    var pi = 0
+    while (y < h + plankH) {
+        val tone = ((pi * 37) % 5 - 2) * 0.018f
+        drawRect(
+            if (tone > 0f) Color.White.copy(alpha = tone) else Color.Black.copy(alpha = -tone),
+            Offset(0f, y - plankH), Size(w, plankH)
+        )
+        drawLine(Color(0xFF4A2E1A).copy(alpha = 0.8f), Offset(0f, y), Offset(w, y), 1.6f * dp)
+        drawLine(Color.White.copy(alpha = 0.18f), Offset(0f, y + 2f * dp), Offset(w, y + 2f * dp), 0.9f * dp)
+        y += plankH; pi++
     }
+    // волокна дерева
+    for (s in 0 until 60) {
+        val yy = floorY + 10f * dp + s * 7f * dp + sin(s * 1.3f) * 3f * dp
+        if (yy > h) break
+        val x0 = ((s * 137) % 200) / 200f * w
+        val x1 = min(w, x0 + (40 + (s * 71) % 220) * dp)
+        drawLine(Color.Black.copy(alpha = 0.08f), Offset(x0, yy), Offset(x1, yy + sin(s * 2.1f) * 2f * dp), 0.8f * dp)
+    }
+    // сучки
+    for (k in 0 until 4) {
+        val kx = (w * (0.15f + k * 0.23f)) % w
+        val ky = floorY + (70f + k * 52f) * dp
+        if (ky < h) {
+            drawOval(Color(0xFF3D2412).copy(alpha = 0.38f), Offset(kx - 13f * dp, ky - 5.5f * dp), Size(26f * dp, 11f * dp))
+            drawOval(Color(0xFF6A4528).copy(alpha = 0.65f), Offset(kx - 6.5f * dp, ky - 2.8f * dp), Size(13f * dp, 5.5f * dp))
+        }
+    }
+    // передняя кромка стола и мягкая тень от неё
+    drawRect(Color(0xFFDDB68A), Offset(0f, floorY), Size(w, 4f * dp))
+    drawRect(Color.White.copy(alpha = 0.3f), Offset(0f, floorY), Size(w, 1f * dp))
+    drawRect(
+        Brush.verticalGradient(0f to Color(0x55000000), 1f to Color.Transparent, startY = floorY + 4f * dp, endY = floorY + 50f * dp),
+        Offset(0f, floorY + 4f * dp), Size(w, 46f * dp)
+    )
 }
 
 /** Кучки рассыпанной на стол крупы — настоящие горки с углом откоса.
@@ -1250,7 +1313,7 @@ private fun DrawScope.drawHeap(world: PourWorld, type: GrainType) {
             val jy = hash1(c * 61 + r * 83)
             val px = colW * (c + jx)
             val py = floorY - 2f * dp - maxH * hh * shiver * ((r + 0.3f + jy) / (n + 0.5f))
-            drawCircle(lerp(type.dark, type.base, jy), type.grainR * dp * (0.6f + 0.4f * jx), Offset(px, py), alpha = 0.55f)
+            grainBlob(type, Offset(px, py), type.grainR * dp * (0.6f + 0.4f * jx), c * 5 + r, lerp(type.dark, type.base, jy), 0.55f)
         }
     }
     // гребень с «блюмом»: широкий тёплый штрих под тонким белым
@@ -1366,11 +1429,9 @@ private fun DrawScope.drawJar(world: PourWorld, i: Int, type: GrainType) {
                         for (k in 0 until n) {
                             val jx = hash1(k * 127 + i * 7)
                             val jy = hash1(k * 311 + i * 13)
-                            drawCircle(
-                                color = lerp(type.dark, type.base, jy),
-                                radius = type.grainR * dp * (0.55f + 0.55f * jx),
-                                center = Offset(bc.x - halfB + jx * jw, sy + jy * (lowest - surface)),
-                                alpha = 0.55f
+                            grainBlob(
+                                type, Offset(bc.x - halfB + jx * jw, sy + jy * (lowest - surface)),
+                                type.grainR * dp * (0.55f + 0.55f * jx), k, lerp(type.dark, type.base, jy), 0.55f
                             )
                         }
                         // блик по поверхности
@@ -1411,11 +1472,9 @@ private fun DrawScope.drawJar(world: PourWorld, i: Int, type: GrainType) {
                             val jy = hash1(c * 57 + r * 91 + i * 313)
                             val px = left + innerW * (c + jx) / COLS
                             val py = bottom - 2f * dp - innerH * hc * ((r + 0.2f + jy * 0.8f) / (n + 0.4f))
-                            drawCircle(
-                                color = lerp(type.dark, type.base, jx),
-                                radius = type.grainR * dp * (0.6f + 0.5f * jy),
-                                center = Offset(px, py),
-                                alpha = 0.5f
+                            grainBlob(
+                                type, Offset(px, py), type.grainR * dp * (0.6f + 0.5f * jy),
+                                c * 7 + r, lerp(type.dark, type.base, jx), 0.5f
                             )
                         }
                     }
@@ -1570,7 +1629,8 @@ private fun DrawScope.drawGrains(world: PourWorld, type: GrainType) {
             else -> lerp(type.base, type.dark, g.shade)
         }
         val r = if (g.golden) g.r * 1.5f else g.r
-        drawCircle(col, r, Offset(g.x, g.y))
+        if (g.golden || rainbow) drawCircle(col, r, Offset(g.x, g.y))
+        else grainBlob(type, Offset(g.x, g.y), r, (g.shade * 100f).toInt(), col, 1f)
         drawCircle(Color.White.copy(alpha = if (g.golden) 0.8f else 0.35f), r * 0.38f, Offset(g.x - r * 0.28f, g.y - r * 0.34f))
         if (g.golden) {
             val s = r * 1.8f

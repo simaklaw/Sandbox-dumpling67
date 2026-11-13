@@ -54,7 +54,6 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
         FolderSection("Бегалки и приключения", "🏃", ColorGreen, listOf(
             FolderItem("Зелик: Приключение", "🔫", 28, ColorGreen),
             FolderItem("Комната Зелика", "👽", 27, ColorGreen),
-            FolderItem("Забег монстрика", "🏃", 33, ColorOrange),
             FolderItem("Бешеный Дамплинг 67", "🥟", 5, ColorYellow, DUMPLING_ICON),
             FolderItem("Жадная акула", "🦈", 35, ColorBlue),
             FolderItem("Птичка-летунья", "🐦", 44, ColorGreen),
@@ -83,7 +82,7 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
             FolderItem("Пушистики", "🐹", 47, ColorPink)
         )),
         FolderSection("Творчество и забавы", "🎨", ColorPurple, listOf(
-            FolderItem("Монстрики", "👾", 32, ColorOrange),
+            FolderItem("Монстрики и забег", "👾", 32, ColorOrange),
             FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
             FolderItem("Кинетический песок", "🏖️", 22, ColorOrange),
             FolderItem("Смешинки", "😜", 21, ColorYellow),

@@ -90,7 +90,7 @@ private const val MON_ARMS = 5
 private const val MON_LEGS = 5
 private const val MON_DETAIL = 8   // 0 — нет, 1..7 — виды
 private const val MON_NOSES = 5    // 0 — нет, 1..4 — виды
-private const val MON_MAX_HOUSE = 8
+internal const val MON_MAX_HOUSE = 8
 
 internal data class MonSpec(
     val body: Int = 0, val color: Int = 2, val arm: Int = 1, val leg: Int = 1,
@@ -357,15 +357,18 @@ private fun MonPill(text: String, color: Color, onClick: () -> Unit) {
 }
 
 @Composable
-fun MonsterFactoryScreen(
+internal fun MonsterFactoryScreen(
     repository: GameRepository,
-    soundPlayer: SoundEffectPlayer
+    soundPlayer: SoundEffectPlayer,
+    initialSpec: MonSpec? = null,
+    /** Если задан, вверху появляется кнопка «В забег!»: уйти бежать этим монстриком (единая комната). */
+    onRun: ((MonSpec) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
     val density = LocalDensity.current.density
 
-    var spec by remember { mutableStateOf(MonSpec()) }
+    var spec by remember { mutableStateOf(initialSpec ?: MonSpec()) }
     val imgs = rememberMonImgs(spec)
     val anim = remember { MonAnim() }
     var size by remember { mutableStateOf(IntSize.Zero) }
@@ -551,6 +554,9 @@ fun MonsterFactoryScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (onRun != null) {
+                    MonPill("🏃 В ЗАБЕГ!", Color(0xFF2E7D32)) { soundPlayer.playFanfare(); onRun(spec) }
+                }
                 MonPill("🪙 $wallet  🛒 Магазин", Color(0xFFEF6C00)) { showShop = true; soundPlayer.playPop(1.2f) }
                 MonPill("🎲 Случайный", Color(0xFFD81B60)) {
                     spec = randomFree(unlocked); anim.squash = 0.8f; anim.jump(560f); soundPlayer.playMagicSparkle()
@@ -799,7 +805,7 @@ internal fun addWallet(ctx: Context, n: Int) {
     } catch (e: Exception) { }
 }
 
-private fun loadUnlocked(ctx: Context): Set<String> =
+internal fun loadUnlocked(ctx: Context): Set<String> =
     try { (ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE).getString("mb_unlocked", "") ?: "").split(",").filter { it.isNotBlank() }.toSet() } catch (e: Exception) { emptySet() }
 
 private fun saveUnlocked(ctx: Context, set: Set<String>) {
@@ -820,7 +826,7 @@ private fun partCost(kind: String, idx: Int): Int = when (kind) {
 
 private fun isFree(kind: String, idx: Int, un: Set<String>) = partCost(kind, idx) == 0 || "$kind:$idx" in un
 
-private fun randomFree(un: Set<String>): MonSpec {
+internal fun randomFree(un: Set<String>): MonSpec {
     fun pick(kind: String, count: Int) = (0 until count).filter { isFree(kind, it, un) }.random()
     return MonSpec(
         pick("body", MON_BODIES), pick("color", 6), pick("arm", MON_ARMS), pick("leg", MON_LEGS),

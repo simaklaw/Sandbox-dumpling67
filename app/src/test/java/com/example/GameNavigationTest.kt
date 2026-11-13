@@ -21,7 +21,7 @@ class GameNavigationTest {
 
     @Test
     fun newStep14GamesAreInGamesFolder() {
-        listOf(24, 26, 27, 28, 30, 31, 32, 33, 34, 35).forEach { assertEquals(FolderType.GAMES, folderTypeForPage(it)) }
+        listOf(24, 26, 27, 28, 30, 31, 32, 34, 35).forEach { assertEquals(FolderType.GAMES, folderTypeForPage(it)) }
     }
 
     @Test
@@ -40,9 +40,9 @@ class GameNavigationTest {
 
     @Test
     fun retiredPageIndexesAreNotInFolders() {
-        // 25 — «Кто в коробке?», 45 — «Гардероб героев»: комнаты убраны, индексы не переиспользуем.
+        // 25 — «Кто в коробке?», 45 — «Гардероб героев», 33 — «Забег монстрика» (влит в «Монстрики и забег», 32): индексы не переиспользуем.
         val inFolders = FOLDER_ITEMS.values.flatten().map { it.pageIndex }.toSet()
-        listOf(25, 45).forEach { assertTrue("Индекс $it выведен из использования", it !in inFolders) }
+        listOf(25, 33, 45).forEach { assertTrue("Индекс $it выведен из использования", it !in inFolders) }
     }
 
     @Test

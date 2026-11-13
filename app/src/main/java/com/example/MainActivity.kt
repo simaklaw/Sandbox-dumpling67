@@ -368,8 +368,8 @@ fun MainAppScreen(
                                     28 -> ZelikAdventureScreen(repository = repository, soundPlayer = soundPlayer)
                                     30 -> AquariumScreen(repository = repository, soundPlayer = soundPlayer)
                                     31 -> ShootingGalleryScreen(repository = repository, soundPlayer = soundPlayer)
-                                    32 -> MonsterFactoryScreen(repository = repository, soundPlayer = soundPlayer)
-                                    33 -> MonsterRunnerScreen(repository = repository, soundPlayer = soundPlayer)
+                                    32 -> MonsterWorldScreen(repository = repository, soundPlayer = soundPlayer)
+                                    33 -> MonsterWorldScreen(repository = repository, soundPlayer = soundPlayer, startInRun = true) // индекс 33 выведен: ведёт в единую комнату
                                     34 -> ButtonJoyScreen(repository = repository, soundPlayer = soundPlayer)
                                     35 -> SharkChaseScreen(repository = repository, soundPlayer = soundPlayer)
                                     36 -> VeggieCuttingScreen(repository = repository, soundPlayer = soundPlayer)

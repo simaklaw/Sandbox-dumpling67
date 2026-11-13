@@ -52,6 +52,9 @@ fun VoiceStudioDialog(soundManager: SoundManager, onDismiss: () -> Unit) {
     var pendingKey by remember { mutableStateOf<String?>(null) }
     var version by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
+    // Мастер: идём по списку фраз по одной, крупно, без прокрутки.
+    var wizard by remember { mutableStateOf<List<String>?>(null) }
+    var wizardIdx by remember { mutableIntStateOf(0) }
 
     DisposableEffect(Unit) {
         onDispose { recorder.stopQuietly() }
@@ -128,6 +131,94 @@ fun VoiceStudioDialog(soundManager: SoundManager, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(8.dp))
 
+                val queue = wizard
+                if (queue != null && wizardIdx in queue.indices) {
+                    val key = queue[wizardIdx]
+                    val has = remember(version, key) { CustomVoices.has(context, key) }
+                    val recordingThis = recordingKey == key
+                    Column(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text("Фраза ${wizardIdx + 1} из ${queue.size}", fontSize = 14.sp, color = ColorInk.copy(alpha = 0.7f))
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "«${CustomVoices.textOf(key)}»",
+                            fontSize = 30.sp, fontWeight = FontWeight.Black, color = ColorInk,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Text(
+                            if (recordingThis) "Говорите… (до ${CustomVoices.MAX_MS / 1000} секунд), потом нажмите ■"
+                            else if (has) "✓ Записано. Можно послушать или перезаписать."
+                            else "Нажмите ● и скажите фразу тёплым голосом",
+                            fontSize = 14.sp, color = ColorInk.copy(alpha = 0.8f),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.padding(top = 10.dp, bottom = 16.dp)
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SmallButton("▶", enabled = has && recordingKey == null) { soundManager.play(key) }
+                            SmallButton(if (recordingThis) "■" else "●", color = if (recordingThis) ColorPink else ColorGreen, enabled = recordingKey == null || recordingThis) {
+                                onRecordClick(key)
+                            }
+                        }
+                        Spacer(Modifier.height(18.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(
+                                onClick = {
+                                    message = null
+                                    if (wizardIdx + 1 < queue.size) wizardIdx++ else { wizard = null; message = "Все выбранные фразы пройдены. Спасибо!" }
+                                },
+                                enabled = recordingKey == null,
+                                colors = ButtonDefaults.buttonColors(containerColor = if (has) ColorGreen else ColorBgSoft),
+                                border = BorderStroke(2.dp, ColorInk),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text(if (has) "Дальше →" else "Пропустить →", fontWeight = FontWeight.Bold, color = ColorInk) }
+                            Button(
+                                onClick = { wizard = null; message = null },
+                                enabled = recordingKey == null,
+                                colors = ButtonDefaults.buttonColors(containerColor = ColorBgSoft),
+                                border = BorderStroke(2.dp, ColorInk),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("К списку", fontWeight = FontWeight.Bold, color = ColorInk) }
+                        }
+                    }
+                } else {
+                val total = CustomVoices.allPhrases.size
+                val done = remember(version) { CustomVoices.allPhrases.count { CustomVoices.has(context, it.key) } }
+                val essentialLeft = remember(version) { CustomVoices.essentialKeys.filter { !CustomVoices.has(context, it) } }
+                Text(
+                    "Записано: $done из $total. Достаточно записать 8 главных фраз — их малыш слышит чаще всего; остальное можно не трогать.",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ColorInk, modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 6.dp)) {
+                    Button(
+                        onClick = {
+                            wizard = CustomVoices.essentialKeys
+                            wizardIdx = CustomVoices.essentialKeys.indexOfFirst { it in essentialLeft }.coerceAtLeast(0)
+                            message = null
+                        },
+                        enabled = recordingKey == null,
+                        colors = ButtonDefaults.buttonColors(containerColor = ColorGreen),
+                        border = BorderStroke(2.dp, ColorInk),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) { Text(if (essentialLeft.isEmpty()) "Главные: готово ✓" else "Записать главные (${essentialLeft.size})", fontWeight = FontWeight.Bold, color = ColorInk, fontSize = 13.sp) }
+                    Button(
+                        onClick = {
+                            val keys = CustomVoices.allPhrases.map { it.key }
+                            wizard = keys
+                            wizardIdx = keys.indexOfFirst { !CustomVoices.has(context, it) }.coerceAtLeast(0)
+                            message = null
+                        },
+                        enabled = recordingKey == null,
+                        colors = ButtonDefaults.buttonColors(containerColor = ColorBgSoft),
+                        border = BorderStroke(2.dp, ColorInk),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Записать все по порядку", fontWeight = FontWeight.Bold, color = ColorInk, fontSize = 13.sp) }
+                }
+
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (group in CustomVoices.groups) {
                         item(key = "h_" + group.title) {
@@ -154,6 +245,7 @@ fun VoiceStudioDialog(soundManager: SoundManager, onDismiss: () -> Unit) {
                             }
                         }
                     }
+                }
                 }
 
                 Spacer(Modifier.height(8.dp))

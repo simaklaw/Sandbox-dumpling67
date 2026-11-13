@@ -382,7 +382,11 @@ private fun RunChip(text: String) {
 @Composable
 fun MonsterRunnerScreen(
     repository: GameRepository,
-    soundPlayer: SoundEffectPlayer
+    soundPlayer: SoundEffectPlayer,
+    /** Монстрик, с которым открыт забег (из общей комнаты); иначе берётся из «Моего дома». */
+    initialSpec: MonSpec? = null,
+    /** «Изменить монстрика»: вернуться в фабрику с текущим героем. */
+    onEdit: ((MonSpec) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
@@ -394,7 +398,8 @@ fun MonsterRunnerScreen(
         mutableIntStateOf(try { runPrefs(context).getInt("mr_hero", 0) } catch (e: Exception) { 0 })
     }
     if (heroIdx >= houseList.size) heroIdx = 0
-    val heroSpec = houseList.getOrNull(heroIdx) ?: MonSpec()
+    var heroSpecState by remember { mutableStateOf(initialSpec ?: houseList.getOrNull(heroIdx) ?: MonSpec()) }
+    val heroSpec = heroSpecState
     val heroImgs = rememberMonImgs(heroSpec)
     val heroAnim = remember { MonAnim().also { it.danceUntil = 1e9f } }
     val boomFrames = remember { loadBoomFrames(context) }
@@ -721,16 +726,32 @@ fun MonsterRunnerScreen(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                KitLongButton(
-                    R.drawable.ui_btn_long_blue,
-                    if (houseList.isEmpty()) "Нужен монстрик 👾" else "Другой монстрик (${heroIdx + 1}/${houseList.size})",
-                    230.dp, 12.sp
-                ) {
-                    if (houseList.isNotEmpty()) {
-                        heroIdx = (heroIdx + 1) % houseList.size
-                        heroAnim.squash = 0.5f
-                        soundPlayer.playPop(1.3f)
-                        try { runPrefs(context).edit().putInt("mr_hero", heroIdx).apply() } catch (e: Exception) { }
+                if (onEdit != null) {
+                    KitLongButton(R.drawable.ui_btn_long_red, "🛠 Изменить монстрика", 230.dp, 13.sp) {
+                        soundPlayer.playPop(1.3f); onEdit(heroSpecState)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    KitLongButton(
+                        R.drawable.ui_btn_long_blue,
+                        if (houseList.isEmpty()) "Дом пуст" else "Из дома ${heroIdx + 1}/${houseList.size}",
+                        113.dp, 11.sp
+                    ) {
+                        if (houseList.isNotEmpty()) {
+                            heroIdx = (heroIdx + 1) % houseList.size
+                            heroSpecState = houseList[heroIdx]
+                            heroAnim.squash = 0.5f
+                            soundPlayer.playPop(1.3f)
+                            try { runPrefs(context).edit().putInt("mr_hero", heroIdx).apply() } catch (e: Exception) { }
+                            try { runPrefs(context).edit().putString("mw_last", heroSpecState.encode()).apply() } catch (e: Exception) { }
+                        }
+                    }
+                    KitLongButton(R.drawable.ui_btn_long_blue, "🎲 Случайный", 113.dp, 11.sp) {
+                        heroSpecState = randomFree(loadUnlocked(context))
+                        heroAnim.squash = 0.8f
+                        soundPlayer.playMagicSparkle()
+                        try { runPrefs(context).edit().putString("mw_last", heroSpecState.encode()).apply() } catch (e: Exception) { }
                     }
                 }
                 Spacer(Modifier.height(6.dp))

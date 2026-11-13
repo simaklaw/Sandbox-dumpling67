@@ -5,8 +5,11 @@
   * whoosh, whoosh_soft, fx_zone_transition — были белым шумом («помехи телевизора») на переходах между
     меню и играми. Теперь это мягкая «капелька» с колокольчиком, без единого шумового звука.
   * bp_pop1..7 — лопание шариков. Раньше шесть разных по характеру звуков (часть — шумовые, один тянулся
-    полсекунды). Теперь один тембр: короткий мягкий «поп» + нота пентатоники своего цвета, так что серия
-    лопнувших шариков складывается в мелодию.
+    полсекунды). Теперь это настоящий «хлоп»: короткий треск + глухой «бум» резины + выдох воздуха
+    (0,24 с), у каждого цвета тембр чуть свой. Мелодии нот больше нет — лопание должно звучать как лопание.
+  * rain_drop1..4, rain_splash — «Дождик»: мягкие водяные капельки и «плюх» вместо частого `drop_plip`/`splash_soft`
+    (их играли до 12 раз в секунду, это раздражало). Теперь редкие, тихие, в одной тональности.
+  * lw2_kiss — «Стирка», финал: воздушный поцелуй пельмешка (тон вверх + мягкий чмок).
   * kc_munch1, kc_munch2 — жевание мишки. Были острыми шумовыми щелчками (центр спектра 7 кГц), которые
     4 раза подряд в одном ритме звучали как автоматная очередь. Теперь это округлое «ням» без верхов.
   * все «говорящие» файлы (praise_*, peekaboo_*, yum_voice, voice_hint_*, voice_arrow_*, voice_name_*,
@@ -108,17 +111,67 @@ BALLOON_NOTES = (72, 74, 76, 79, 81, 84, 86)  # до-ре-ми-соль-ля-д�
 
 
 def s_balloon_pop(midi):
-    """Один мягкий «поп» (капелька вниз + микроскопический щелчок) и нота цвета. Больше ничего."""
-    n = int(0.34 * SR)
+    """Настоящее «хлоп!» лопнувшего шарика: короткий треск (3–6 кГц, ~8 мс), глухой «бум» резины
+    (≈190→80 Гц) и быстрый воздушный выдох. Всё в 0,24 с. Высота «бума» и треска чуть своя у каждого
+    цвета (midi задаёт сдвиг), чтобы очередь не звучала одинаково; верхи срезаны, чтобы не резало ухо."""
+    sec = 0.24
+    n = int(sec * SR)
     t = np.arange(n) / SR
-    f = 900 - 660 * np.minimum(1.0, t / 0.05)
+    k = 2.0 ** ((midi - 72) / 36.0)  # ±1 октава по всему ряду нот → ±~1/3 тона разброса тембра
+    crack = g.lowpass(g.bandpass(noise(sec), 2200 * k, 6200 * k), 6500)
+    crack = crack * np.exp(-t * 420) * np.minimum(1.0, t / 0.0004)
+    f = (210 - 130 * np.minimum(1.0, t / 0.035)) * k
     ph = 2 * np.pi * np.cumsum(f) / SR
-    body = np.sin(ph) * np.exp(-t * 55) * np.minimum(1.0, t / 0.0015)
-    snap = g.lowpass(g.bandpass(noise(0.34), 1500, 5000), 5000) * np.exp(-t * 700)
-    buf = body * 0.9 + snap * 0.30
-    place(buf, mallet(mtof(midi), 0.30, 9.0), 0.012, 0.55)
-    place(buf, glass(mtof(midi + 12), 0.20, 14.0), 0.012, 0.10)
-    return finish(reverb(buf, 0.06), 0.7, 12.0, 0.5)
+    boom = (np.sin(ph) + 0.35 * np.sin(2 * ph)) * np.exp(-t * 38) * np.minimum(1.0, t / 0.001)
+    puff = g.lowpass(g.bandpass(noise(sec), 700, 2600), 2800)
+    puff = puff * np.minimum(1.0, t / 0.006) * np.exp(-t * 26) * 0.25
+    buf = crack * 1.1 + boom * 0.95 + puff
+    return finish(reverb(buf, 0.04), 0.78, 40.0, 0.3)
+
+
+# ───────────────────────── дождик ─────────────────────────
+
+RAIN_DROP_HZ = (784, 880, 1047, 1175)  # соль-ля-до-ре: капельки ложатся в одну тональность
+
+
+def s_rain_drop(f_end):
+    """Мягкая капелька воды: тон слегка взлетает (как «блюп» в луже), без шума и острых краёв."""
+    sec = 0.17
+    t = tt(sec)
+    f = f_end * (0.62 + 0.38 * np.minimum(1.0, t / 0.05))
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    env = np.minimum(1.0, t / 0.005) * np.exp(-t * 30)
+    buf = (np.sin(ph) + 0.18 * np.sin(2 * ph)) * env
+    return finish(reverb(buf, 0.08), 0.42, 30.0, 4.0)
+
+
+def s_rain_splash():
+    """Тихий «плюх» в лужу: округлый низкий тон 320→170 Гц и мягкий всплеск, верхов нет."""
+    sec = 0.22
+    t = tt(sec)
+    f = 320 - 150 * np.minimum(1.0, t / 0.09)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    body = (np.sin(ph) + 0.4 * np.sin(2 * ph)) * np.minimum(1.0, t / 0.006) * np.exp(-t * 20)
+    sprinkle = g.lowpass(g.bandpass(noise(sec), 500, 1800), 2000)
+    sprinkle = sprinkle * np.minimum(1.0, t / 0.01) * np.exp(-t * 22) * 0.22
+    return finish(reverb(body + sprinkle, 0.08), 0.5, 40.0, 5.0)
+
+
+# ───────────────────────── финал стирки ─────────────────────────
+
+def s_kiss():
+    """Воздушный поцелуй «мва»: короткий тон вверх и мягкий чмок губ (шум только 0,1 с и срезан сверху)."""
+    sec = 0.28
+    t = tt(sec)
+    f = 360 + 560 * np.minimum(1.0, t / 0.08)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    body = (np.sin(ph) + 0.2 * np.sin(2 * ph)) * (1 - np.exp(-t / 0.015)) * np.exp(-t * 15)
+    buf = body * 0.8
+    sm = int(0.12 * SR)
+    ts = np.arange(sm) / SR
+    smack = g.lowpass(g.bandpass(noise(0.12), 700, 2400), 2600) * np.exp(-ts * 55) * np.minimum(1.0, ts / 0.003)
+    place(buf, smack, 0.08, 0.55)
+    return finish(reverb(buf, 0.06), 0.62, 40.0, 4.0)
 
 
 # ───────────────────────── кастрюля чудес ─────────────────────────
@@ -309,6 +362,10 @@ def jobs():
         "kc_munch1": lambda: s_munch(1.0, 0.0),
         "kc_munch2": lambda: s_munch(1.13, 1.7),
     }
+    for i, hz in enumerate(RAIN_DROP_HZ):
+        j[f"rain_drop{i + 1}"] = (lambda hz=hz: s_rain_drop(hz))
+    j["rain_splash"] = s_rain_splash
+    j["lw2_kiss"] = s_kiss
     for i, m in enumerate(BALLOON_NOTES):
         j[f"bp_pop{i + 1}"] = (lambda m=m: s_balloon_pop(m))
     voices = {

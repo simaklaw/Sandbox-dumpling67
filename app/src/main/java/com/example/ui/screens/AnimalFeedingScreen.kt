@@ -19,7 +19,11 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -344,32 +348,15 @@ fun AnimalFeedingScreen(
         }
     }
 
-    val farmDecors = remember {
-        listOf(
-            DecorSpec(DecorKind.SUN, 0.88f, 0.08f, 76f),
-            DecorSpec(DecorKind.CLOUD, 0.20f, 0.10f, 84f),
-            DecorSpec(DecorKind.CLOUD, 0.62f, 0.14f, 76f),
-            DecorSpec(DecorKind.BUTTERFLY, 0.12f, 0.28f, 64f),
-            DecorSpec(DecorKind.BIRD, 0.86f, 0.32f, 64f),
-            DecorSpec(DecorKind.TREE, 0.08f, 0.48f, 84f),
-            DecorSpec(DecorKind.BEE, 0.90f, 0.48f, 60f),
-            DecorSpec(DecorKind.FLOWER, 0.14f, 0.70f, 60f),
-            DecorSpec(DecorKind.FLOWER, 0.86f, 0.70f, 60f),
-            DecorSpec(DecorKind.MUSHROOM, 0.92f, 0.60f, 56f)
-        )
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        // 1. Vector 3-Layer Scene Background: FARM
-        SceneBackground(theme = SceneTheme.FARM)
-
-        // 2. Interactive harmless decorations layer
-        DecorLayer(items = farmDecors)
+        // Спокойный фон двора: одно небо, холмы и забор. Без разбросанных декораций:
+        // раньше солнце рисовалось дважды, а вверху всё громоздилось друг на друга.
+        FeedingBackdrop()
 
         Column(
             modifier = Modifier
@@ -524,9 +511,8 @@ fun AnimalFeedingScreen(
                         label = "heartScale"
                     )
 
-                    Text(
-                        text = if (isFilled) "💖" else "🩶",
-                        fontSize = 38.sp,
+                    FeedHeart(
+                        filled = isFilled,
                         modifier = Modifier
                             .scale(heartScale)
                             .padding(horizontal = 6.dp)
@@ -537,7 +523,8 @@ fun AnimalFeedingScreen(
             // Food tray panel (static, 120dp, bgSoft, always in place)
             Surface(
                 shape = ShapeCard,
-                color = ColorBgSoft,
+                color = Color(0xFFFFEBCB),
+                shadowElevation = 6.dp,
                 border = BorderStroke(3.dp, ColorInk),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -849,5 +836,81 @@ fun PetPortrait(
                 }
             }
         }
+    }
+}
+
+/** Фон двора: небо, лёгкие облака, дальний и ближний холмы, деревянный забор, трава. */
+@Composable
+private fun FeedingBackdrop() {
+    Canvas(Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        val dp1 = 1.dp.toPx()
+        drawRect(
+            Brush.verticalGradient(listOf(Color(0xFF9ED9FA), Color(0xFFE6F6FF)), startY = 0f, endY = h * 0.55f),
+            size = size
+        )
+        val cloud = Color.White.copy(alpha = 0.55f)
+        for ((fx, fy, sc) in listOf(Triple(0.22f, 0.20f, 1.0f), Triple(0.74f, 0.27f, 0.8f))) {
+            val cx = w * fx
+            val cy = h * fy
+            val s = dp1 * sc
+            drawCircle(cloud, 20f * s, Offset(cx - 28f * s, cy + 6f * s))
+            drawCircle(cloud, 28f * s, Offset(cx, cy - 4f * s))
+            drawCircle(cloud, 22f * s, Offset(cx + 28f * s, cy + 4f * s))
+            drawRoundRect(cloud, Offset(cx - 50f * s, cy + 2f * s), Size(100f * s, 22f * s), androidx.compose.ui.geometry.CornerRadius(11f * s))
+        }
+        val far = Path().apply {
+            moveTo(0f, h); lineTo(0f, h * 0.50f)
+            cubicTo(w * 0.25f, h * 0.43f, w * 0.55f, h * 0.55f, w * 0.8f, h * 0.47f)
+            cubicTo(w * 0.9f, h * 0.44f, w * 0.97f, h * 0.48f, w, h * 0.46f)
+            lineTo(w, h); close()
+        }
+        drawPath(far, Color(0xFFBFE48F))
+        // Забор вдали
+        val fenceY = h * 0.545f
+        drawRect(Color(0xFFE7B96A), Offset(0f, fenceY - 22f * dp1), Size(w, 5f * dp1))
+        drawRect(Color(0xFFE7B96A), Offset(0f, fenceY - 10f * dp1), Size(w, 5f * dp1))
+        val posts = 9
+        for (i in 0..posts) {
+            val px = i * (w / posts)
+            drawRoundRect(
+                Color(0xFFD9A24F), Offset(px - 5f * dp1, fenceY - 34f * dp1), Size(10f * dp1, 40f * dp1),
+                androidx.compose.ui.geometry.CornerRadius(4f * dp1)
+            )
+        }
+        val near = Path().apply {
+            moveTo(0f, h); lineTo(0f, h * 0.58f)
+            cubicTo(w * 0.3f, h * 0.54f, w * 0.65f, h * 0.62f, w, h * 0.56f)
+            lineTo(w, h); close()
+        }
+        drawPath(near, Brush.verticalGradient(listOf(Color(0xFF9AD66B), Color(0xFF6DB84A)), startY = h * 0.55f, endY = h))
+        val blade = Color(0xFF4E9A35)
+        for (i in 0 until 30) {
+            val bx = (i + ((i * 37) % 10) / 10f) * (w / 30f)
+            val by = h * (0.66f + ((i * 53) % 17) / 17f * 0.3f)
+            drawLine(blade, Offset(bx, by), Offset(bx + 2f * dp1, by - 9f * dp1), strokeWidth = 2.2f * dp1, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+    }
+}
+
+/** Сердечко сытости, нарисованное: сытое — розовое с бликом, пустое — серое. */
+@Composable
+private fun FeedHeart(filled: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(40.dp)) {
+        val w = size.width
+        val h = size.height
+        val heart = Path().apply {
+            moveTo(w * 0.5f, h * 0.92f)
+            cubicTo(w * 0.05f, h * 0.58f, w * 0.0f, h * 0.22f, w * 0.27f, h * 0.12f)
+            cubicTo(w * 0.42f, h * 0.07f, w * 0.5f, h * 0.2f, w * 0.5f, h * 0.28f)
+            cubicTo(w * 0.5f, h * 0.2f, w * 0.58f, h * 0.07f, w * 0.73f, h * 0.12f)
+            cubicTo(w * 1.0f, h * 0.22f, w * 0.95f, h * 0.58f, w * 0.5f, h * 0.92f)
+            close()
+        }
+        val fill: Brush = if (filled) Brush.verticalGradient(listOf(Color(0xFFFF8FB1), Color(0xFFE5426E))) else SolidColor(Color(0xFFD5DADF))
+        drawPath(heart, fill)
+        drawPath(heart, ColorInk.copy(alpha = 0.85f), style = Stroke(width = 2.5.dp.toPx(), join = StrokeJoin.Round))
+        if (filled) drawOval(Color.White.copy(alpha = 0.65f), Offset(w * 0.17f, h * 0.2f), Size(w * 0.17f, h * 0.1f))
     }
 }

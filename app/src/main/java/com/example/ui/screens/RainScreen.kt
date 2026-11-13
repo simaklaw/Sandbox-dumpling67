@@ -8,9 +8,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -34,8 +40,6 @@ import com.example.shared.Haptics
 import com.example.shared.LocalAgeProfile
 import com.example.shared.SoundManager
 import com.example.shared.rememberHaptics
-import com.example.shared.scene.SceneBackground
-import com.example.shared.scene.SceneTheme
 import kotlinx.coroutines.isActive
 import kotlin.math.PI
 import kotlin.math.abs
@@ -64,6 +68,9 @@ private const val RAINBOW_SECONDS = 6f
 private const val NIGHT_SECONDS = 9f
 private const val MAX_FLOWERS = 14
 
+/** Круги на земле/в луже от упавшей капли (life 1 → 0). */
+private class RainRipple(val x: Float, val y: Float, val big: Boolean, var life: Float = 1f)
+
 /** Весь изменяемый мир игры. Живёт только в главном потоке (кадровый цикл + жесты). */
 private class RainWorld {
     val drops = ArrayList<RainDrop>()
@@ -71,6 +78,11 @@ private class RainWorld {
     val flowers = ArrayList<GrowingFlower>()
     val animals = ArrayList<MeadowAnimal>()
     val splashes = ArrayList<RainSplashParticle>()
+    val ripples = ArrayList<RainRipple>()
+
+    /** Время сцены и «мокрость» (0 — ясно, 1 — идёт дождь): от неё темнеют небо и тучка. */
+    var t = 0f
+    var wet = 0f
 
     var cloudX = 0f
     var cloudY = 90f
@@ -138,6 +150,16 @@ private class RainWorld {
         val groundY = h * 0.84f
         cloudY = h * 0.13f
         cloudX += (targetX - cloudX) * min(1f, dt * 7f)
+        t += dt
+        val rainingNow = touching || demoTimer > 0f || drops.isNotEmpty()
+        val wetTarget = if (rainingNow) 1f else 0f
+        wet += (wetTarget - wet) * min(1f, dt * (if (wetTarget > wet) 2.2f else 0.7f))
+        val rpIt = ripples.iterator()
+        while (rpIt.hasNext()) {
+            val r = rpIt.next()
+            r.life -= dt * 1.6f
+            if (r.life <= 0f) rpIt.remove()
+        }
 
         // Авто-демо (2 года): если 10 с ничего не трогали — тучка сама покачивается и поливает 3 с
         if (demoDelaySec > 0 && !touching) {
@@ -249,6 +271,7 @@ private class RainWorld {
     ) {
         val puddle = puddles.firstOrNull { abs(it.centerXDp - d.x) < it.widthDp / 2f }
         val cap = maxParticles * 2
+        if (puddle == null && ripples.size < 24) ripples.add(RainRipple(d.x, groundY + Random.nextFloat() * 14f, false))
         if (puddle != null) {
             puddle.dropCount++
             if (puddle.ripplePhase < 0.4f) sounds.playSplashSoft() // не заваливаем звуком
@@ -352,8 +375,6 @@ fun RainScreen(
             .fillMaxSize()
             .onSizeChanged { sizeDp = Size(it.width / dens, it.height / dens) }
     ) {
-        SceneBackground(theme = SceneTheme.MEADOW)
-
         // Слой рисования: радуга, лужи, капли, брызги, тучка
         Canvas(
             modifier = Modifier
@@ -392,30 +413,15 @@ fun RainScreen(
             val w = size.width
             val h = size.height
 
-            // 🌙 Ночь: плавно темнеет небо, мерцают звёзды, летают светлячки
-            if (world.nightTimer > 0f) {
-                val fade = min(1f, min(world.nightTimer, NIGHT_SECONDS - world.nightTimer)).coerceIn(0f, 1f)
-                val maxDark = if (age.isToddler2) 0.35f else 0.5f // для малышей — мягче
-                drawRect(Color(0xFF1E2A6B).copy(alpha = fade * maxDark), size = Size(w, h))
-                for (i in 0 until 16) {
-                    val sx = ((i * 7919) % 1000) / 1000f * w
-                    val sy = ((i * 3571) % 1000) / 1000f * h * 0.5f
-                    val tw = 0.5f + 0.5f * sin(frame * 0.06f + i)
-                    drawCircle(Color.White.copy(alpha = fade * tw), radius = (2f + (i % 3)) * d, center = Offset(sx, sy))
-                }
-                for (i in 0 until 8) {
-                    val fx = w * (0.1f + 0.1f * i) + sin(frame * 0.02f + i * 1.7f) * 30f * d
-                    val fy = h * (0.62f + 0.04f * (i % 4)) + sin(frame * 0.03f + i) * 20f * d
-                    drawCircle(Color(0xFFFFF176).copy(alpha = fade * 0.25f), radius = 14f * d, center = Offset(fx, fy))
-                    drawCircle(Color(0xFFFFF176).copy(alpha = fade), radius = 4f * d, center = Offset(fx, fy))
-                }
-            }
+            val t = world.t
+            val wet = world.wet
+            drawRainSky(w, h, d, t, wet)
 
-            // 🌈 Радуга
+            // 🌈 Радуга (за холмами)
             if (world.rainbowTimer > 0f) {
-                val a = (min(world.rainbowTimer, RAINBOW_SECONDS - world.rainbowTimer) * 2f).coerceIn(0f, 1f) * 0.9f
+                val a = (min(world.rainbowTimer, RAINBOW_SECONDS - world.rainbowTimer) * 2f).coerceIn(0f, 1f) * 0.85f
                 val cx = w / 2f
-                val cy = h * 0.58f
+                val cy = h * 0.62f
                 RAINBOW_COLORS.forEachIndexed { i, col ->
                     val r = w * 0.46f - i * 13f * d
                     drawArc(
@@ -430,36 +436,114 @@ fun RainScreen(
                 }
             }
 
+            drawRainMeadow(w, h, d, t, wet)
+
+            // 🌙 Ночь: плавно темнеет небо, мерцают звёзды, летают светлячки
+            if (world.nightTimer > 0f) {
+                val fade = min(1f, min(world.nightTimer, NIGHT_SECONDS - world.nightTimer)).coerceIn(0f, 1f)
+                val maxDark = if (age.isToddler2) 0.35f else 0.5f // для малышей — мягче
+                drawRect(Color(0xFF1E2A6B).copy(alpha = fade * maxDark), size = Size(w, h))
+                for (i in 0 until 16) {
+                    val sx = ((i * 7919) % 1000) / 1000f * w
+                    val sy = ((i * 3571) % 1000) / 1000f * h * 0.5f
+                    val tw = 0.5f + 0.5f * sin(t * 3.6f + i)
+                    drawCircle(Color.White.copy(alpha = fade * tw), radius = (2f + (i % 3)) * d, center = Offset(sx, sy))
+                }
+                for (i in 0 until 8) {
+                    val fx = w * (0.1f + 0.1f * i) + sin(t * 1.2f + i * 1.7f) * 30f * d
+                    val fy = h * (0.62f + 0.04f * (i % 4)) + sin(t * 1.8f + i) * 20f * d
+                    drawCircle(Color(0xFFFFF176).copy(alpha = fade * 0.25f), radius = 14f * d, center = Offset(fx, fy))
+                    drawCircle(Color(0xFFFFF176).copy(alpha = fade), radius = 4f * d, center = Offset(fx, fy))
+                }
+            }
+
+            // Далёкий дождь: косые штрихи по всему небу, пока идёт полив
+            if (wet > 0.02f) {
+                val fall = h * 0.84f
+                for (i in 0 until 36) {
+                    val sx = ((i * 97) % 100) / 100f * w
+                    val sy = (t * (520f + (i % 5) * 60f) * d + i * 173f) % fall
+                    drawLine(
+                        Color.White.copy(alpha = 0.22f * wet), Offset(sx, sy), Offset(sx - 5f * d, sy + 20f * d),
+                        strokeWidth = 1.6f * d, cap = StrokeCap.Round
+                    )
+                }
+            }
+
             // 💧 Лужи
             for (p in world.puddles) {
                 val cx = p.centerXDp * d
                 val cy = h * 0.865f
                 val pw = p.widthDp * d
                 val ph = p.heightDp * d * (1f + 0.25f * (p.dropCount.coerceAtMost(14) / 14f))
-                drawOval(Color(0xFF4FA8E8), Offset(cx - pw / 2f, cy - ph / 2f), Size(pw, ph))
+                drawOval(Color(0x33264D2B), Offset(cx - pw / 2f - 3f * d, cy - ph / 2f + 3f * d), Size(pw + 6f * d, ph + 3f * d))
                 drawOval(
-                    Color(0xFFBFE6FF), Offset(cx - pw / 2f + 6f * d, cy - ph / 2f + 3f * d),
-                    Size(pw * 0.45f, ph * 0.3f)
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF8AD0F7), Color(0xFF3F93DB)),
+                        startY = cy - ph / 2f, endY = cy + ph / 2f
+                    ),
+                    Offset(cx - pw / 2f, cy - ph / 2f), Size(pw, ph)
+                )
+                drawOval(
+                    Color(0xFF2F7EC4).copy(alpha = 0.55f), Offset(cx - pw / 2f, cy - ph / 2f), Size(pw, ph),
+                    style = Stroke(width = 2f * d)
+                )
+                drawOval(
+                    Color.White.copy(alpha = 0.55f), Offset(cx - pw * 0.34f, cy - ph * 0.30f),
+                    Size(pw * 0.34f, ph * 0.18f)
                 )
                 if (p.ripplePhase > 0f) {
-                    val rr = (1f - p.ripplePhase) * pw * 0.5f
-                    drawOval(
-                        Color.White.copy(alpha = p.ripplePhase * 0.8f),
-                        Offset(cx - rr, cy - rr * 0.35f), Size(rr * 2f, rr * 0.7f),
-                        style = Stroke(width = 2.5f * d)
-                    )
+                    for (k in 0..1) {
+                        val rp = (p.ripplePhase - k * 0.25f).coerceIn(0f, 1f)
+                        if (rp <= 0f) continue
+                        val rr = (1f - rp) * pw * 0.48f
+                        drawOval(
+                            Color.White.copy(alpha = rp * 0.8f),
+                            Offset(cx - rr, cy - rr * 0.32f), Size(rr * 2f, rr * 0.64f),
+                            style = Stroke(width = 2.2f * d)
+                        )
+                    }
                 }
             }
 
-            // 💦 Капли
+            // Круги на траве
+            for (r in world.ripples) {
+                val rr = (1f - r.life) * 26f * d
+                drawOval(
+                    Color.White.copy(alpha = 0.5f * r.life),
+                    Offset(r.x * d - rr, r.y * d - rr * 0.3f), Size(rr * 2f, rr * 0.6f),
+                    style = Stroke(width = 1.8f * d)
+                )
+            }
+
+            // 🌸 Цветы (нарисованы, а не эмодзи: стебель, листья, лепестки покачиваются)
+            for (f in world.flowers) {
+                drawFlower(f.xDp * d, f.yDp * d, d, f.progress, f.color, (f.id % 97L).toInt(), t)
+            }
+            // Тени зверушек
+            for (a in world.animals) {
+                drawOval(Color(0x33000000), Offset((a.xDp - 20f) * d, (a.yDp - 5f) * d), Size(40f * d, 10f * d))
+            }
+
+            // 💦 Капли: капелька с блеском и хвостом
             for (dr in world.drops) {
                 val cx = dr.x * d
                 val cy = dr.y * d
                 drawLine(
-                    Color(0xFF5AB4FF), Offset(cx, cy - 16f * d), Offset(cx, cy),
-                    strokeWidth = 5f * d, cap = StrokeCap.Round
+                    Brush.verticalGradient(
+                        listOf(Color(0x005AB4FF), Color(0xAA5AB4FF)), startY = cy - 22f * d, endY = cy
+                    ),
+                    Offset(cx, cy - 22f * d), Offset(cx, cy), strokeWidth = 4f * d, cap = StrokeCap.Round
                 )
-                drawCircle(Color(0xFF3D9BF0), radius = dr.size * 0.5f * d, center = Offset(cx, cy))
+                val drop = Path().apply {
+                    moveTo(cx, cy - 9f * d)
+                    cubicTo(cx + 2f * d, cy - 4f * d, cx + 6f * d, cy - 1f * d, cx + 6f * d, cy + 3f * d)
+                    cubicTo(cx + 6f * d, cy + 8f * d, cx - 6f * d, cy + 8f * d, cx - 6f * d, cy + 3f * d)
+                    cubicTo(cx - 6f * d, cy - 1f * d, cx - 2f * d, cy - 4f * d, cx, cy - 9f * d)
+                    close()
+                }
+                drawPath(drop, Brush.verticalGradient(listOf(Color(0xFF8CCBFF), Color(0xFF2F8BE6)), startY = cy - 9f * d, endY = cy + 8f * d))
+                drawCircle(Color.White.copy(alpha = 0.8f), 1.6f * d, Offset(cx - 2.2f * d, cy + 1f * d))
             }
 
             // ✨ Брызги
@@ -470,43 +554,14 @@ fun RainScreen(
                 )
             }
 
-            // ☁️ Тучка
-            val ccx = world.cloudX * d
-            val ccy = world.cloudY * d
-            val cloudCol = Color(0xFF9BB0C8)
-            val bob = sin(frame * 0.05f) * 3f * d
-            drawCircle(cloudCol, 34f * d, Offset(ccx - 42f * d, ccy + 10f * d + bob))
-            drawCircle(cloudCol, 44f * d, Offset(ccx, ccy - 6f * d + bob))
-            drawCircle(cloudCol, 36f * d, Offset(ccx + 44f * d, ccy + 8f * d + bob))
-            drawRoundRectCloudBase(ccx, ccy + 22f * d + bob, 130f * d, 32f * d, cloudCol)
-            // мордочка
-            val eyeCol = Color(0xFF3F4A5C)
-            drawCircle(eyeCol, 4.5f * d, Offset(ccx - 14f * d, ccy + 6f * d + bob))
-            drawCircle(eyeCol, 4.5f * d, Offset(ccx + 14f * d, ccy + 6f * d + bob))
-            drawArc(
-                eyeCol, 20f, 140f, false,
-                Offset(ccx - 10f * d, ccy + 8f * d + bob), Size(20f * d, 12f * d),
-                style = Stroke(width = 3f * d, cap = StrokeCap.Round)
-            )
+            // ☁️ Тучка: объёмная, темнеет и «сердится» под дождём
+            drawStormCloud(world.cloudX * d, world.cloudY * d, d, t, wet)
         }
 
-        // 🌸 Цветы и 🐸🦆 зверушки. Список читаем в композиции, а кадр `frame`
+        // 🐸🦆 Зверушки. Список читаем в композиции, а кадр `frame`
         // перекомпонует блок каждый кадр — значения прогресса всегда свежие.
         @Suppress("UNUSED_VARIABLE")
         val composeTick = frame
-        for (f in world.flowers) {
-            val growth = 0.2f + 0.8f * f.progress
-            Text(
-                text = f.iconEmoji,
-                fontSize = 40.sp,
-                modifier = Modifier
-                    .offset { IntOffset(((f.xDp - 22f) * dens).toInt(), ((f.yDp - 44f * f.progress) * dens).toInt()) }
-                    .graphicsLayer {
-                        scaleX = growth
-                        scaleY = growth
-                    }
-            )
-        }
         for (a in world.animals) {
             val jump = if (a.isJumping) sin(a.jumpProgress * PI.toFloat()) * 50f else 0f
             val tilt = a.rotation
@@ -530,14 +585,150 @@ fun RainScreen(
     }
 }
 
-/** Плоское основание тучки, чтобы низ не был «дырявым» между кругами. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRoundRectCloudBase(
-    cx: Float, cy: Float, width: Float, height: Float, color: Color
-) {
-    drawRoundRect(
-        color = color,
-        topLeft = Offset(cx - width / 2f, cy - height / 2f),
-        size = Size(width, height),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(height / 2f, height / 2f)
+// ───────────────────────── рисование сцены ─────────────────────────
+
+/** Небо: ясное голубое ↔ пасмурное серо-синее (wet), одно солнце, которое прячется под дождём. */
+private fun DrawScope.drawRainSky(w: Float, h: Float, d: Float, t: Float, wet: Float) {
+    val top = lerp(Color(0xFF6FC3F5), Color(0xFF7E92AB), wet)
+    val bottom = lerp(Color(0xFFDDF3FF), Color(0xFFB7C6D6), wet)
+    drawRect(Brush.verticalGradient(listOf(top, bottom), startY = 0f, endY = h * 0.8f), size = Size(w, h))
+
+    val sunA = (1f - wet * 1.25f).coerceIn(0f, 1f)
+    if (sunA > 0.01f) {
+        val c = Offset(w * 0.84f, h * 0.15f)
+        drawCircle(Color(0xFFFFF3B0).copy(alpha = 0.35f * sunA), 74f * d, c)
+        drawCircle(Color(0xFFFFE680).copy(alpha = 0.45f * sunA), 54f * d, c)
+        drawCircle(Color(0xFFFFD23F).copy(alpha = sunA), 38f * d, c)
+        for (i in 0 until 10) {
+            rotate(degrees = i * 36f + t * 6f, pivot = c) {
+                drawLine(
+                    Color(0xFFFFD23F).copy(alpha = 0.8f * sunA),
+                    Offset(c.x, c.y - 47f * d), Offset(c.x, c.y - 60f * d),
+                    strokeWidth = 4f * d, cap = StrokeCap.Round
+                )
+            }
+        }
+    }
+
+    // Дальние облачка
+    for (i in 0 until 3) {
+        val cx = ((i * 0.37f + 0.1f + t * 0.006f * (i + 1)) % 1.3f - 0.15f) * w
+        val cy = h * (0.08f + i * 0.1f)
+        val col = lerp(Color.White, Color(0xFFC3CFDC), wet).copy(alpha = 0.7f)
+        drawCircle(col, 20f * d, Offset(cx - 28f * d, cy + 6f * d))
+        drawCircle(col, 28f * d, Offset(cx, cy - 4f * d))
+        drawCircle(col, 22f * d, Offset(cx + 28f * d, cy + 4f * d))
+        drawRoundRect(col, Offset(cx - 50f * d, cy + 2f * d), Size(100f * d, 22f * d), CornerRadius(11f * d))
+    }
+}
+
+/** Холмы, земля и травинки; зелень сочнее, когда земля мокрая. */
+private fun DrawScope.drawRainMeadow(w: Float, h: Float, d: Float, t: Float, wet: Float) {
+    val far = Path().apply {
+        moveTo(0f, h)
+        lineTo(0f, h * 0.70f)
+        cubicTo(w * 0.22f, h * 0.62f, w * 0.5f, h * 0.76f, w * 0.78f, h * 0.66f)
+        cubicTo(w * 0.9f, h * 0.62f, w * 0.97f, h * 0.67f, w, h * 0.65f)
+        lineTo(w, h)
+        close()
+    }
+    drawPath(far, lerp(Color(0xFFA5D86E), Color(0xFF7FB06A), wet))
+
+    val near = Path().apply {
+        moveTo(0f, h)
+        lineTo(0f, h * 0.79f)
+        cubicTo(w * 0.28f, h * 0.72f, w * 0.6f, h * 0.84f, w, h * 0.76f)
+        lineTo(w, h)
+        close()
+    }
+    drawPath(
+        near,
+        Brush.verticalGradient(
+            listOf(lerp(Color(0xFF8CCB52), Color(0xFF5E9E4C), wet), lerp(Color(0xFF5FA23A), Color(0xFF3F7F3A), wet)),
+            startY = h * 0.72f, endY = h
+        )
+    )
+
+    // Травинки покачиваются
+    val blade = lerp(Color(0xFF4F9A34), Color(0xFF356F34), wet)
+    for (i in 0 until 46) {
+        val bx = (i + ((i * 37) % 10) / 10f) * (w / 46f)
+        val by = h * (0.80f + ((i * 53) % 17) / 17f * 0.19f)
+        val sway = sin(t * 1.8f + i * 0.9f) * 3f * d
+        val bh = (10f + (i % 4) * 3f) * d
+        drawLine(blade, Offset(bx, by), Offset(bx + sway, by - bh), strokeWidth = 2.4f * d, cap = StrokeCap.Round)
+        drawLine(blade, Offset(bx + 4f * d, by), Offset(bx + 4f * d + sway * 0.8f, by - bh * 0.7f), strokeWidth = 2f * d, cap = StrokeCap.Round)
+    }
+}
+
+/** Цветок: стебель дугой, два листика, лепестки по кругу и серединка. progress 0..1 — рост и раскрытие. */
+private fun DrawScope.drawFlower(x: Float, y: Float, d: Float, progress: Float, color: Color, seed: Int, t: Float) {
+    val p = progress.coerceIn(0f, 1f)
+    val sway = sin(t * 1.6f + seed) * 3.5f * d * p
+    val stemH = 50f * d * min(1f, p * 1.5f)
+    val tipX = x + sway
+    val tipY = y - stemH
+    val stem = Path().apply {
+        moveTo(x, y)
+        quadraticTo(x + sway * 0.2f, y - stemH * 0.55f, tipX, tipY)
+    }
+    drawPath(stem, Color(0xFF3F8F3A), style = Stroke(width = 3.2f * d, cap = StrokeCap.Round))
+    if (p > 0.3f) {
+        val lp = ((p - 0.3f) / 0.4f).coerceIn(0f, 1f)
+        val ly = y - stemH * 0.4f
+        rotate(degrees = -35f, pivot = Offset(x, ly)) {
+            drawOval(Color(0xFF5DB04B), Offset(x - 13f * d * lp, ly - 3.5f * d * lp), Size(13f * d * lp, 7f * d * lp))
+        }
+        rotate(degrees = 35f, pivot = Offset(x, ly - 8f * d)) {
+            drawOval(Color(0xFF4FA043), Offset(x, ly - 11.5f * d * lp), Size(13f * d * lp, 7f * d * lp))
+        }
+    }
+    val bp = ((p - 0.55f) / 0.45f).coerceIn(0f, 1f)
+    if (bp <= 0f) {
+        if (p > 0.25f) drawCircle(color, 4.5f * d * p, Offset(tipX, tipY))
+        return
+    }
+    val petals = 5 + seed % 3
+    val petal = lerp(color, Color.White, 0.18f)
+    for (k in 0 until petals) {
+        rotate(degrees = k * 360f / petals + sway, pivot = Offset(tipX, tipY)) {
+            drawOval(petal, Offset(tipX - 5.5f * d * bp, tipY - 19f * d * bp), Size(11f * d * bp, 15f * d * bp))
+            drawOval(color.copy(alpha = 0.35f), Offset(tipX - 5.5f * d * bp, tipY - 19f * d * bp), Size(11f * d * bp, 15f * d * bp), style = Stroke(width = 1f * d))
+        }
+    }
+    drawCircle(Color(0xFFFFD84D), 6.5f * d * bp, Offset(tipX, tipY))
+    drawCircle(Color(0xFFFFF2A8), 2.6f * d * bp, Offset(tipX - 1.8f * d, tipY - 1.8f * d))
+}
+
+/** Тучка: пухлые круги с градиентом (светлый верх, тёмное брюшко), лицо с бликами и румянцем. */
+private fun DrawScope.drawStormCloud(cx: Float, cy: Float, d: Float, t: Float, wet: Float) {
+    val bob = sin(t * 3f) * 3f * d
+    val top = lerp(Color(0xFFF7FAFD), Color(0xFFC3D0DE), wet)
+    val bottom = lerp(Color(0xFFDDE8F2), Color(0xFF7D90A6), wet)
+    val y0 = cy + bob
+    val brush = Brush.verticalGradient(listOf(top, bottom), startY = y0 - 52f * d, endY = y0 + 40f * d)
+    drawCircle(brush, 34f * d, Offset(cx - 44f * d, y0 + 10f * d))
+    drawCircle(brush, 46f * d, Offset(cx - 2f * d, y0 - 8f * d))
+    drawCircle(brush, 37f * d, Offset(cx + 46f * d, y0 + 8f * d))
+    drawRoundRect(brush, Offset(cx - 70f * d, y0 + 6f * d), Size(140f * d, 40f * d), CornerRadius(20f * d))
+    // верхний блик
+    drawArc(
+        Color.White.copy(alpha = 0.5f), 200f, 70f, false,
+        Offset(cx - 34f * d, y0 - 44f * d), Size(60f * d, 56f * d),
+        style = Stroke(width = 4f * d, cap = StrokeCap.Round)
+    )
+    // лицо
+    val eye = Color(0xFF3F4A5C)
+    val ey = y0 + 8f * d
+    drawCircle(eye, 5f * d, Offset(cx - 15f * d, ey))
+    drawCircle(eye, 5f * d, Offset(cx + 15f * d, ey))
+    drawCircle(Color.White, 1.8f * d, Offset(cx - 16.5f * d, ey - 1.8f * d))
+    drawCircle(Color.White, 1.8f * d, Offset(cx + 13.5f * d, ey - 1.8f * d))
+    drawCircle(Color(0xFFFF9AA2).copy(alpha = 0.55f), 5.5f * d, Offset(cx - 27f * d, ey + 8f * d))
+    drawCircle(Color(0xFFFF9AA2).copy(alpha = 0.55f), 5.5f * d, Offset(cx + 27f * d, ey + 8f * d))
+    drawArc(
+        eye, 15f, 150f, false,
+        Offset(cx - 9f * d, ey + 5f * d), Size(18f * d, 12f * d),
+        style = Stroke(width = 2.8f * d, cap = StrokeCap.Round)
     )
 }

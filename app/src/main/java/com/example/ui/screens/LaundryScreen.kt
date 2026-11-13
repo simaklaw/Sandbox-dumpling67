@@ -179,6 +179,13 @@ private class LwModel {
     var afterT = 0f
     var bubT = 0f
 
+    // финал: пельмешек танцует и целует
+    var nextKissT = 0f
+    var nextSparkT = 0f
+    var smackDone = false
+    var smackT = 0f
+    var pendingSticker: LwSticker? = null
+
     var cupX = 0f
     var cupY = 0f
     var cupTilt = 0f
@@ -238,7 +245,7 @@ fun LaundryScreen(
     LaunchedEffect(Unit) {
         sm.preloadRaw(
             listOf(
-                "wl_drop", "wl_open", "wl_pin", "wl_pop", "wl_pop2", "wl_powder",
+                "lw2_kiss", "wl_drop", "wl_open", "wl_pin", "wl_pop", "wl_pop2", "wl_powder",
                 "wl_sparkle", "wl_splash", "wl_wash", "wl_win",
                 "lw2_drop", "lw2_open", "lw2_pin", "lw2_powder", "lw2_start", "lw2_stain", "lw2_success", "lw2_reward", "lw2_wash_loop"
             )
@@ -325,6 +332,7 @@ fun LaundryScreen(
         m.stage = s
         m.stageT = 0f
         uiStage = s
+        if (s == ST_DONE) { m.nextKissT = 0.9f; m.nextSparkT = 0.6f; m.smackDone = false; m.smackT = 0f }
         setHint(
             when (s) {
                 ST_COLLECT -> "Брось грязное бельё в барабан"
@@ -481,7 +489,7 @@ fun LaundryScreen(
                 if (popped) haptics.vibrateShort()
             }
             ST_DONE -> {
-                if (real && m.stageT > 1.0f && rewardSticker == null) startRound()
+                if (real && m.stageT > 2.5f && rewardSticker == null) startRound()
             }
         }
     }
@@ -786,9 +794,46 @@ fun LaundryScreen(
                     snd("lw2_success", 1f)
                     snd("lw2_reward", 0.7f)
                     burst(3, w * 0.5f, h * 0.3f, 60, Color(0xFFFFC93C), w * 0.8f, w * 0.018f, up = 200f, life = 1.6f)
-                    LW_STICKERS.firstOrNull { it.need == nw }?.let { rewardSticker = it }
+                    LW_STICKERS.firstOrNull { it.need == nw }?.let { m.pendingSticker = it }
                 }
             }
+        }
+
+        // финал: пельмешек танцует, шлёт воздушные поцелуи и в конце целует «в экран»
+        if (m.stage == ST_DONE) {
+            val ft = m.stageT
+            val pose = lwFinalePose(ft, w, h, dumplingPos(), m.clock)
+            val mouthX = pose[0] - pose[2] * 0.05f
+            val mouthY = pose[1] + pose[2] * 0.02f
+            if (ft >= m.nextSparkT && ft < 5.4f) {
+                m.nextSparkT = ft + 0.18f
+                burst(2, pose[0], pose[1] - pose[2] * 0.1f, 2, Color(0xFFFFE066), w * 0.35f, w * 0.014f, up = 40f, life = 0.9f)
+            }
+            if (ft >= m.nextKissT && ft < 3.3f) {
+                m.nextKissT = ft + 0.55f
+                for (k in 0 until 2) {
+                    m.parts.add(
+                        LwPart(
+                            4, mouthX, mouthY, (Random.nextFloat() - 0.5f) * w * 0.5f, -h * (0.12f + Random.nextFloat() * 0.1f),
+                            1.5f, 1.5f, w * 0.03f, if (k == 0) Color(0xFFFF5C8A) else Color(0xFFFF8FB1),
+                            0f, (Random.nextFloat() - 0.5f) * 2f
+                        )
+                    )
+                }
+            }
+            if (!m.smackDone && ft > 3.5f) {
+                m.smackDone = true
+                m.smackT = 0f
+                sm.playFxRaw("lw2_kiss", volume = 0.9f)
+                haptics.vibrateShort()
+                burst(4, w * 0.5f, h * 0.33f, 14, Color(0xFFFF5C8A), w * 0.55f, w * 0.035f, up = 120f, life = 1.5f)
+                burst(2, w * 0.5f, h * 0.33f, 18, Color(0xFFFFE066), w * 0.7f, w * 0.02f, up = 80f, life = 1.2f)
+            }
+            if (m.smackDone) m.smackT += dt
+        }
+        // награда-наклейка выезжает после танца (или сразу, если ребёнок уже начал новую стирку)
+        m.pendingSticker?.let { st ->
+            if (m.stage != ST_DONE || m.stageT > 5.6f) { rewardSticker = st; m.pendingSticker = null }
         }
 
         // пузыри: движение
@@ -812,6 +857,7 @@ fun LaundryScreen(
             when (p.kind) {
                 0 -> { p.vy -= h * 0.05f * dt }
                 1 -> { p.vy += h * 0.4f * dt }
+                4 -> { p.vy -= h * 0.06f * dt; p.vx *= 0.99f }
                 else -> { p.vy += h * (if (p.kind == 3) 0.9f else 0.2f) * dt; p.vx *= 0.995f }
             }
             p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt
@@ -979,8 +1025,20 @@ fun LaundryScreen(
 
             // пельмешек-помощник
             val dp = dumplingPos()
-            val jump = if (m.stage == ST_DONE || m.stage == ST_OPEN) abs(sin(t * 6f)) * h * 0.02f else sin(t * 2f) * h * 0.004f
-            lwSpr(imgs.dumpling, dp.x, dp.y - jump, w * 0.2f, sin(t * 1.5f) * 4f)
+            if (m.stage == ST_DONE) {
+                val pose = lwFinalePose(m.stageT, w, h, dp, t)
+                lwSprXY(imgs.dumpling, pose[0], pose[1], pose[2], pose[3], pose[4], pose[5])
+                // «губки бантиком» вместо открытой улыбки, пока пельмешек целует
+                val puck = lwPucker(m.stageT)
+                if (puck > 0.01f) {
+                    withTransform({ translate(pose[0], pose[1]); rotate(pose[3], Offset.Zero) }) {
+                        lwLips(Offset(-pose[2] * 0.045f, pose[2] * 0.03f), pose[2] * 0.2f * puck, Color(0xFFE8456B))
+                    }
+                }
+            } else {
+                val jump = if (m.stage == ST_OPEN) abs(sin(t * 6f)) * h * 0.02f else sin(t * 2f) * h * 0.004f
+                lwSpr(imgs.dumpling, dp.x, dp.y - jump, w * 0.2f, sin(t * 1.5f) * 4f)
+            }
 
             // пузыри
             for (b in m.bubbles) {
@@ -998,8 +1056,21 @@ fun LaundryScreen(
                     0 -> drawCircle(p.color.copy(alpha = a), p.size, Offset(p.x, p.y))
                     1 -> drawCircle(p.color.copy(alpha = a), p.size, Offset(p.x, p.y))
                     2 -> lwSparkle(Offset(p.x, p.y), p.size * (0.5f + a), p.color.copy(alpha = a), p.rot)
+                    4 -> lwHeart(Offset(p.x, p.y), p.size * (0.6f + (1f - a) * 1.7f), p.color.copy(alpha = (a * 1.4f).coerceIn(0f, 1f)))
                     else -> withTransform({ translate(p.x, p.y); rotate(p.rot * 40f, Offset.Zero) }) {
                         drawRect(p.color.copy(alpha = a), Offset(-p.size * 0.5f, -p.size * 0.25f), Size(p.size, p.size * 0.5f))
+                    }
+                }
+            }
+
+            // большой «чмок» на экране
+            if (m.stage == ST_DONE && m.smackDone) {
+                val pop = lwEase(m.smackT / 0.16f) * (1f + 0.08f * sin(m.smackT * 9f))
+                val fade = (1f - (m.smackT - 1.2f) / 0.9f).coerceIn(0f, 1f)
+                if (fade > 0.01f) {
+                    val c0 = Offset(w * 0.5f, h * 0.33f)
+                    withTransform({ rotate(-12f, c0) }) {
+                        lwLips(c0, w * 0.4f * pop, Color(0xFFE8456B).copy(alpha = 0.88f * fade))
                     }
                 }
             }
@@ -1158,6 +1229,88 @@ fun LaundryScreen(
 }
 
 // ───────────────────────── рисование ─────────────────────────
+
+/**
+ * Поза пельмешка в финале: 0–0.9 с выезжает в центр и растёт, до 3.3 с танцует (прыжки с растяжением,
+ * покачивание), 3.3–4.2 с «целует» (наклон к зрителю и пульс), к 5.4 с уезжает домой.
+ * Возвращает [x, y, размер, поворот°, scaleX, scaleY].
+ */
+private fun lwFinalePose(ft: Float, w: Float, h: Float, home: Offset, t: Float): FloatArray {
+    val inK = lwEase(ft / 0.9f)
+    val outK = lwEase((ft - 5.4f) / 0.9f)
+    val k = inK * (1f - outK)
+    val dance = lwEase((ft - 0.5f) / 0.5f) * (1f - outK) * (1f - lwPucker(ft))
+    val beat = ft * 7.2f
+    val s = abs(sin(beat))
+    val hop = s * h * 0.05f * dance
+    val sway = sin(beat * 0.5f) * w * 0.07f * dance
+    val rot = sin(beat * 0.5f) * 13f * dance
+    var size = lwLerp(w * 0.2f, w * 0.5f, k)
+    val kissPulse = lwPucker(ft)
+    size *= 1f + 0.12f * kissPulse
+    val x = lwLerp(home.x, w * 0.5f, k) + sway
+    val y = lwLerp(home.y, h * 0.46f, k) - hop - kissPulse * h * 0.02f
+    val sy = 1f + (s - 0.5f) * 0.16f * dance + 0.04f * sin(t * 2f) * (1f - k)
+    val sx = 1f - (s - 0.5f) * 0.12f * dance
+    return floatArrayOf(x, y, size, rot - kissPulse * 6f, sx, sy)
+}
+
+/** 0..1: насколько пельмешек «сложил губки» (плавный вход и выход вокруг 3.3–4.2 с). */
+private fun lwPucker(ft: Float): Float = lwEase((ft - 3.2f) / 0.2f) * (1f - lwEase((ft - 4.0f) / 0.3f))
+
+private fun DrawScope.lwSprXY(img: ImageBitmap, cx: Float, cy: Float, maxDim: Float, rot: Float, sx: Float, sy: Float) {
+    val k = maxDim / max(img.width, img.height).toFloat()
+    val w = max(1, (img.width * k).toInt())
+    val h = max(1, (img.height * k).toInt())
+    withTransform({
+        translate(cx, cy)
+        rotate(rot, Offset.Zero)
+        scale(sx, sy, Offset(0f, h / 2f)) // масштаб от «ножек»: прыжок тянет вверх, приземление сплющивает
+    }) {
+        drawImage(
+            img,
+            dstOffset = IntOffset(-w / 2, -h / 2),
+            dstSize = IntSize(w, h),
+            filterQuality = FilterQuality.Medium
+        )
+    }
+}
+
+/** Сердечко с бликом. c — центр, r — «радиус». */
+private fun DrawScope.lwHeart(c: Offset, r: Float, color: Color) {
+    val p = Path().apply {
+        moveTo(c.x, c.y + r * 0.95f)
+        cubicTo(c.x - r * 1.25f, c.y + r * 0.1f, c.x - r * 1.1f, c.y - r * 0.9f, c.x - r * 0.5f, c.y - r * 0.85f)
+        cubicTo(c.x - r * 0.15f, c.y - r * 0.85f, c.x, c.y - r * 0.55f, c.x, c.y - r * 0.4f)
+        cubicTo(c.x, c.y - r * 0.55f, c.x + r * 0.15f, c.y - r * 0.85f, c.x + r * 0.5f, c.y - r * 0.85f)
+        cubicTo(c.x + r * 1.1f, c.y - r * 0.9f, c.x + r * 1.25f, c.y + r * 0.1f, c.x, c.y + r * 0.95f)
+        close()
+    }
+    drawPath(p, color)
+    drawCircle(Color.White.copy(alpha = color.alpha * 0.6f), r * 0.14f, Offset(c.x - r * 0.55f, c.y - r * 0.45f))
+}
+
+/** Губы-«поцелуйчик»: две дольки верхней губы и нижняя, с бликом. c — центр линии рта, wd — ширина. */
+private fun DrawScope.lwLips(c: Offset, wd: Float, color: Color) {
+    if (wd <= 1f) return
+    val hh = wd * 0.55f
+    val upper = Path().apply {
+        moveTo(c.x - wd / 2f, c.y)
+        cubicTo(c.x - wd * 0.32f, c.y - hh * 0.62f, c.x - wd * 0.08f, c.y - hh * 0.62f, c.x, c.y - hh * 0.28f)
+        cubicTo(c.x + wd * 0.08f, c.y - hh * 0.62f, c.x + wd * 0.32f, c.y - hh * 0.62f, c.x + wd / 2f, c.y)
+        cubicTo(c.x + wd * 0.25f, c.y + hh * 0.08f, c.x - wd * 0.25f, c.y + hh * 0.08f, c.x - wd / 2f, c.y)
+        close()
+    }
+    val lower = Path().apply {
+        moveTo(c.x - wd / 2f, c.y)
+        cubicTo(c.x - wd * 0.25f, c.y + hh * 0.08f, c.x + wd * 0.25f, c.y + hh * 0.08f, c.x + wd / 2f, c.y)
+        cubicTo(c.x + wd * 0.3f, c.y + hh * 0.62f, c.x - wd * 0.3f, c.y + hh * 0.62f, c.x - wd / 2f, c.y)
+        close()
+    }
+    drawPath(lower, color)
+    drawPath(upper, Color(color.red * 0.88f, color.green * 0.88f, color.blue * 0.88f, color.alpha))
+    drawOval(Color.White.copy(alpha = color.alpha * 0.4f), Offset(c.x - wd * 0.17f, c.y + hh * 0.14f), Size(wd * 0.34f, hh * 0.13f))
+}
 
 private fun DrawScope.lwSpr(img: ImageBitmap, cx: Float, cy: Float, maxDim: Float, rot: Float = 0f, alpha: Float = 1f) {
     val k = maxDim / max(img.width, img.height).toFloat()

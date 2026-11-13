@@ -9,6 +9,7 @@
     (0,24 с), у каждого цвета тембр чуть свой. Мелодии нот больше нет — лопание должно звучать как лопание.
   * rain_drop1..4, rain_splash — «Дождик»: мягкие водяные капельки и «плюх» вместо частого `drop_plip`/`splash_soft`
     (их играли до 12 раз в секунду, это раздражало). Теперь редкие, тихие, в одной тональности.
+  * lw2_kiss — «Стирка», финал: воздушный поцелуй пельмешка (тон вверх + мягкий чмок).
   * kc_munch1, kc_munch2 — жевание мишки. Были острыми шумовыми щелчками (центр спектра 7 кГц), которые
     4 раза подряд в одном ритме звучали как автоматная очередь. Теперь это округлое «ням» без верхов.
   * все «говорящие» файлы (praise_*, peekaboo_*, yum_voice, voice_hint_*, voice_arrow_*, voice_name_*,
@@ -154,6 +155,23 @@ def s_rain_splash():
     sprinkle = g.lowpass(g.bandpass(noise(sec), 500, 1800), 2000)
     sprinkle = sprinkle * np.minimum(1.0, t / 0.01) * np.exp(-t * 22) * 0.22
     return finish(reverb(body + sprinkle, 0.08), 0.5, 40.0, 5.0)
+
+
+# ───────────────────────── финал стирки ─────────────────────────
+
+def s_kiss():
+    """Воздушный поцелуй «мва»: короткий тон вверх и мягкий чмок губ (шум только 0,1 с и срезан сверху)."""
+    sec = 0.28
+    t = tt(sec)
+    f = 360 + 560 * np.minimum(1.0, t / 0.08)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    body = (np.sin(ph) + 0.2 * np.sin(2 * ph)) * (1 - np.exp(-t / 0.015)) * np.exp(-t * 15)
+    buf = body * 0.8
+    sm = int(0.12 * SR)
+    ts = np.arange(sm) / SR
+    smack = g.lowpass(g.bandpass(noise(0.12), 700, 2400), 2600) * np.exp(-ts * 55) * np.minimum(1.0, ts / 0.003)
+    place(buf, smack, 0.08, 0.55)
+    return finish(reverb(buf, 0.06), 0.62, 40.0, 4.0)
 
 
 # ───────────────────────── кастрюля чудес ─────────────────────────
@@ -347,6 +365,7 @@ def jobs():
     for i, hz in enumerate(RAIN_DROP_HZ):
         j[f"rain_drop{i + 1}"] = (lambda hz=hz: s_rain_drop(hz))
     j["rain_splash"] = s_rain_splash
+    j["lw2_kiss"] = s_kiss
     for i, m in enumerate(BALLOON_NOTES):
         j[f"bp_pop{i + 1}"] = (lambda m=m: s_balloon_pop(m))
     voices = {

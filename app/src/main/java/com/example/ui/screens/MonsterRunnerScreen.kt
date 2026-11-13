@@ -380,7 +380,7 @@ private fun RunChip(text: String) {
 }
 
 @Composable
-fun MonsterRunnerScreen(
+internal fun MonsterRunnerScreen(
     repository: GameRepository,
     soundPlayer: SoundEffectPlayer,
     /** Монстрик, с которым открыт забег (из общей комнаты); иначе берётся из «Моего дома». */

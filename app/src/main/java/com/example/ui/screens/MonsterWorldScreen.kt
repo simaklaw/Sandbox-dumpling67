@@ -30,7 +30,7 @@ private fun mwSaveLast(ctx: Context, spec: MonSpec) {
  * Индекс 32; прежний индекс 33 («Забег монстрика») выведен из использования и ведёт сюда же, сразу в забег.
  */
 @Composable
-fun MonsterWorldScreen(
+internal fun MonsterWorldScreen(
     repository: GameRepository,
     soundPlayer: SoundEffectPlayer,
     startInRun: Boolean = false

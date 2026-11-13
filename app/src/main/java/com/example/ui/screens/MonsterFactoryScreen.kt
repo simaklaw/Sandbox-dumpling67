@@ -357,7 +357,7 @@ private fun MonPill(text: String, color: Color, onClick: () -> Unit) {
 }
 
 @Composable
-fun MonsterFactoryScreen(
+internal fun MonsterFactoryScreen(
     repository: GameRepository,
     soundPlayer: SoundEffectPlayer,
     initialSpec: MonSpec? = null,

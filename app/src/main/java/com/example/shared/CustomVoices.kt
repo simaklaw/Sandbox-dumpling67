@@ -53,6 +53,18 @@ object CustomVoices {
         ))
     )
 
+    /**
+     * «Главные» фразы: то, что малыш слышит чаще всего (похвала, ку-ку, ням, подсказки). Родителю
+     * достаточно записать их (8 штук, около двух минут), остальное можно не трогать.
+     */
+    val essentialKeys: List<String> = listOf(
+        "praise_1", "praise_2", "praise_3", "peekaboo_1", "peekaboo_2", "yum_voice", "voice_hint_tap", "voice_hint_drag"
+    )
+
+    val allPhrases: List<Phrase> get() = groups.flatMap { it.phrases }
+
+    fun textOf(key: String): String = allPhrases.firstOrNull { it.key == key }?.text ?: key
+
     fun dir(context: Context): File = File(context.filesDir, "voices")
 
     fun file(context: Context, key: String): File = File(dir(context), "$key.m4a")

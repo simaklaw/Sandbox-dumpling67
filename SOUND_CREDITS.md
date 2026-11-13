@@ -74,3 +74,12 @@ sand_press_*, sand_scrape_*, sand_wave (кинетический песок) —
 - Картинки (res/drawable-nodpi/ra_*.png): набор «RoundAnimals» — lemmling, StudioFibonacci, bloodsong (clker.com / OpenClipart, общественное достояние).
 - Голоса ar_baa/ar_bark/ar_bleat/ar_meow/ar_moo/ar_mwa/ar_peeps/ar_squeal/ar_whinny: набор «baby-animals» (лицензия не указана автором — уточнить перед публикацией).
 - Голоса ar_moo2, ar_baa2, ar_lamb, ar_oink1–3: «Mudchute Animals» — Secretlondon, OpenGameArt.org, GFDL 1.2+ / CC-BY-SA 3.0+ (нужна атрибуция).
+
+## Звуки Kenney (CC0, `import_kenney_sounds.py`)
+
+Из паков Kenney (kenney.nl, **CC0 1.0**, указание авторства не требуется, приводится из уважения): Interface Sounds, RPG Audio, Impact Sounds, Sci-Fi Sounds, Voiceover Pack (женский голос, диктор: см. Credits.txt пака) заменены синтетические звуки: `tap`, `soft_no`, `spawn`, `open`, `pickup`, `lever_clack`, `switch_on/off`, `door_creak`, `door_close`, `bell_ding`, `clink`, `stamp`, `thud`, `wall`, `bumper`, `sling`, `flip`, `snap_in`, `box_pop`, `box_shake`, `arrow_hit`, `carrot_hit`, `star_hit`, `poke`, `squish_1..3` (слизь), `wear`, `gift`, `star_collect`, `robot_beep`, `ufo_hello`, `stir`, `chime`, `fanfare_short`, `fx_it_inv_7` (прежний файл был повреждён), а также английские слова `praise_1_en` (Congratulations), `praise_2_en` (Correct), `praise_3_en` (Mission completed). Файлы обрезаны, нормализованы и пересохранены в mono OGG. Список соответствий — в начале `import_kenney_sounds.py`.
+
+## Паки, присланные владельцем, но не включённые в сборку
+
+- **Softline UI Sounds FREE** (The Cooked Works): лицензия разрешает использовать звуки в приложении, но запрещает выкладывать сами файлы в репозитории и общие хранилища. Файлы в репозиторий не добавлялись. Если репозиторий приватный и вы согласны с условиями, их можно подключить локально.
+- **Essential UI SFX**: текста лицензии в архиве нет (в README сказано «синтез из оригинального кода»). Не использован, пока лицензия не уточнена.

@@ -225,6 +225,8 @@ fun MainAppScreen(
     LaunchedEffect(Unit) { soundManager.preloadSpeech() }
     var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
+    // Заставка показывается один раз за запуск (rememberSaveable: не повторяется при повороте/пересоздании)
+    var showIntro by rememberSaveable { mutableStateOf(true) }
     var showExitProtectionDialog by remember { mutableStateOf(false) }
 
     // Rest timer state
@@ -435,6 +437,10 @@ fun MainAppScreen(
                     showParentSettings = true
                 }
             )
+        }
+
+        if (showIntro) {
+            com.example.screens.IntroScreen(soundManager = soundManager, onFinished = { showIntro = false })
         }
 
         // Rest Timer Night Overlay

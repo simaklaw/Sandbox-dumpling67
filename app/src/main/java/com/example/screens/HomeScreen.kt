@@ -144,15 +144,6 @@ fun HomeScreen(
                     ) {
                         androidx.compose.material3.Text(text = if (com.example.shared.i18n.I18n.isEnglish) "EN" else "RU", fontSize = 16.sp, fontWeight = FontWeight.Black, color = ColorInk)
                     }
-                    // ⚙️ Parental Gate Settings Gear with 3-second hold circular animation
-                    ParentGearButton(
-                        onTrigger = {
-                            soundManager.play("chime")
-                            onOpenSettings()
-                        },
-                        soundManager = soundManager,
-                        haptics = haptics
-                    )
                 }
             }
 
@@ -313,6 +304,18 @@ fun HomeScreen(
                     }
                 }
             }
+
+            // Настройки для родителей: видимая подписанная кнопка внизу (раньше была безымянная шестерёнка в углу)
+            Spacer(modifier = Modifier.height(10.dp))
+            ParentGearButton(
+                showLabel = true,
+                onTrigger = {
+                    soundManager.play("chime")
+                    onOpenSettings()
+                },
+                soundManager = soundManager,
+                haptics = haptics
+            )
         }
 
         // Animated Guide Hand over "Кормление" for first launch or idle
@@ -341,6 +344,7 @@ fun HomeScreen(
 @Composable
 fun ParentGearButton(
     modifier: Modifier = Modifier,
+    showLabel: Boolean = false,
     onTrigger: () -> Unit,
     soundManager: SoundManager,
     haptics: Haptics
@@ -359,10 +363,10 @@ fun ParentGearButton(
         Box(
             contentAlignment = Alignment.Center,
             modifier = modifier
-                .size(56.dp)
-                .border(BorderStroke(3.dp, if (armed) ColorYellow else ColorInk), CircleShape)
-                .background(if (armed) ColorYellow else ColorBgSoft, CircleShape)
-                .clip(CircleShape)
+                .then(if (showLabel) Modifier.height(48.dp).widthIn(min = 56.dp) else Modifier.size(56.dp))
+                .border(BorderStroke(3.dp, if (armed) ColorInk else ColorInk), if (showLabel) androidx.compose.foundation.shape.RoundedCornerShape(24.dp) else CircleShape)
+                .background(if (armed || showLabel) ColorYellow else ColorBgSoft, if (showLabel) androidx.compose.foundation.shape.RoundedCornerShape(24.dp) else CircleShape)
+                .clip(if (showLabel) androidx.compose.foundation.shape.RoundedCornerShape(24.dp) else CircleShape)
                 .clickable {
                     val now = System.currentTimeMillis()
                     if (!armed) {
@@ -377,18 +381,29 @@ fun ParentGearButton(
                 }
                 .testTag("parent_settings_gear_btn")
         ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Родителям",
-                tint = ColorInk,
-                modifier = Modifier.size(32.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = if (showLabel) 16.dp else 0.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Родителям",
+                    tint = ColorInk,
+                    modifier = Modifier.size(if (showLabel) 26.dp else 32.dp)
+                )
+                if (showLabel) {
+                    Text(
+                        text = "Для родителей",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        color = ColorInk,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
         }
 
         if (armed) {
             androidx.compose.ui.window.Popup(
-                alignment = Alignment.BottomEnd,
-                offset = androidx.compose.ui.unit.IntOffset(0, 150)
+                alignment = if (showLabel) Alignment.TopCenter else Alignment.BottomEnd,
+                offset = androidx.compose.ui.unit.IntOffset(0, if (showLabel) -220 else 150)
             ) {
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),

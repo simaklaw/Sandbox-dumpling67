@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Только для покупок и активации лицензии в родительской зоне (пакет monetization/). Детский контур в сеть не ходит. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Только для «Свои голоса» в родительских настройках; запрашивается в момент записи. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

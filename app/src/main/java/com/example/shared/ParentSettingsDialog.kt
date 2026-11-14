@@ -31,6 +31,8 @@ import kotlin.math.roundToInt
 @Composable
 fun ParentSettingsDialog(
     soundManager: SoundManager,
+    musicOn: Boolean,
+    onToggleMusic: () -> Unit,
     onResetProgress: () -> Unit,
     onNavigateToGame: ((Int) -> Unit)? = null,
     onDismiss: () -> Unit
@@ -38,12 +40,6 @@ fun ParentSettingsDialog(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
-
-    // Sound settings (3 categories + master volume)
-    var isSfxEnabled by remember { mutableStateOf(soundManager.isSfxEnabled) }
-    var isVoiceEnabled by remember { mutableStateOf(soundManager.isVoiceEnabled) }
-    var isAnimalEnabled by remember { mutableStateOf(soundManager.isAnimalEnabled) }
-    var masterVolume by remember { mutableFloatStateOf(soundManager.masterVolume) }
 
     // Parent preferences
     var vibrationEnabled by remember { mutableStateOf(prefs.getBoolean("pref_vibration", true)) }
@@ -115,15 +111,7 @@ fun ParentSettingsDialog(
                     )
                 }
 
-                Text(
-                    text = "🔊 Звуковое сопровождение",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = ColorInk.copy(alpha = 0.8f),
-                    modifier = Modifier.align(Alignment.Start)
-                )
-
-                // 1. 🎵 SFX Switch
+                // 🎵 Музыка: единственная настройка звука (игровые звуки включены всегда)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -131,134 +119,25 @@ fun ParentSettingsDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Звуковые эффекты",
+                            text = "🎵 Фоновая музыка",
                             style = PlayTypography.bodyLarge,
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             color = ColorInk,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Клики, пружинки, хлопки, взмахи",
-                            fontSize = 12.sp,
+                            text = "Звуки игр, голоса и зверята остаются включёнными",
+                            fontSize = 11.5.sp,
                             color = ColorInk.copy(alpha = 0.6f)
                         )
                     }
                     Switch(
-                        checked = isSfxEnabled,
-                        onCheckedChange = {
-                            isSfxEnabled = it
-                            soundManager.setCategoryEnabled(SoundCategory.SFX, it)
-                            if (it) soundManager.play("pop")
-                        },
+                        checked = musicOn,
+                        onCheckedChange = { onToggleMusic() },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = ColorPink,
+                            checkedThumbColor = ColorPurple,
                             checkedTrackColor = ColorBgSoft
                         )
-                    )
-                }
-
-                // 2. 🗣️ VOICE Switch
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Голос и подсказки",
-                            style = PlayTypography.bodyLarge,
-                            fontSize = 16.sp,
-                            color = ColorInk,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Похвала, ку-ку, озвучка стрел",
-                            fontSize = 12.sp,
-                            color = ColorInk.copy(alpha = 0.6f)
-                        )
-                    }
-                    Switch(
-                        checked = isVoiceEnabled,
-                        onCheckedChange = {
-                            isVoiceEnabled = it
-                            soundManager.setCategoryEnabled(SoundCategory.VOICE, it)
-                            if (it) soundManager.play("praise")
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = ColorPink,
-                            checkedTrackColor = ColorBgSoft
-                        )
-                    )
-                }
-
-                // 3. 🐮 ANIMAL Switch
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Голоса животных",
-                            style = PlayTypography.bodyLarge,
-                            fontSize = 16.sp,
-                            color = ColorInk,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Реальные звуки собачек, котиков и др.",
-                            fontSize = 12.sp,
-                            color = ColorInk.copy(alpha = 0.6f)
-                        )
-                    }
-                    Switch(
-                        checked = isAnimalEnabled,
-                        onCheckedChange = {
-                            isAnimalEnabled = it
-                            soundManager.setCategoryEnabled(SoundCategory.ANIMAL, it)
-                            if (it) soundManager.play("animal_dog")
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = ColorPink,
-                            checkedTrackColor = ColorBgSoft
-                        )
-                    )
-                }
-
-                // 🎚️ Master Volume Slider (Safe limit: max 1.0)
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Общая громкость",
-                            style = PlayTypography.bodyLarge,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ColorInk
-                        )
-                        Text(
-                            text = "${(masterVolume * 100).roundToInt()}%",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ColorPurple
-                        )
-                    }
-                    Slider(
-                        value = masterVolume,
-                        onValueChange = {
-                            masterVolume = it
-                            soundManager.setMasterVolume(it)
-                        },
-                        valueRange = 0f..1f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = ColorPurple,
-                            activeTrackColor = ColorPurple,
-                            inactiveTrackColor = ColorBgSoft
-                        ),
-                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 

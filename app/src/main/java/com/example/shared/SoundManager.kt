@@ -123,7 +123,7 @@ class SoundManager(
     @Volatile private var isDucked = false
 
     // Category enable flags & Master Volume
-    var isSfxEnabled: Boolean = prefs.getBoolean(KEY_SFX_ENABLED, true)
+    var isSfxEnabled: Boolean = true
         private set
     var isSoundEnabled: Boolean
         get() = isSfxEnabled
@@ -136,13 +136,24 @@ class SoundManager(
         isSoundEnabled = newState
         return newState
     }
-    var isVoiceEnabled: Boolean = prefs.getBoolean(KEY_VOICE_ENABLED, true)
+    var isVoiceEnabled: Boolean = true
         private set
-    var isAnimalEnabled: Boolean = prefs.getBoolean(KEY_ANIMAL_ENABLED, true)
+    var isAnimalEnabled: Boolean = true
         private set
-    var masterVolume: Float = prefs.getFloat(KEY_MASTER_VOLUME, 0.7f).coerceIn(0f, 1f)
+    var masterVolume: Float = 0.7f
         private set
-    private var _isMuted: Boolean = prefs.getBoolean(KEY_MUTED, false)
+    private var _isMuted: Boolean = false
+
+    init {
+        // В настройках осталась только музыка, игровые звуки всегда включены. Старые сохранённые «выключено»/«тихо»
+        // сбрасываем, иначе у кого-то звук остался бы выключенным без возможности это исправить.
+        try {
+            prefs.edit().remove(KEY_SFX_ENABLED).remove(KEY_VOICE_ENABLED).remove(KEY_ANIMAL_ENABLED)
+                .remove(KEY_MASTER_VOLUME).remove(KEY_MUTED).apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Sound prefs reset failed", e)
+        }
+    }
     val isMuted: Boolean get() = _isMuted
 
     data class StreamInfo(

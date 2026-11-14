@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -118,7 +117,7 @@ fun BubbleWrapScreen(
     // кадровый цикл
     LaunchedEffect(Unit) {
         while (true) {
-            withFrameNanosEco { }
+            androidx.compose.runtime.withFrameNanos { } // физика «на кадр» вне лямбды: прореживать нельзя, скорость сменилась бы
             for (i in 0 until total) {
                 val target = if (popped[i]) 1f else 0f
                 anim[i] += (target - anim[i]) * 0.32f

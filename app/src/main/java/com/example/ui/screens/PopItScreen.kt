@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -156,7 +155,7 @@ fun PopItScreen(
 
     LaunchedEffect(Unit) {
         while (true) {
-            withFrameNanosEco { }
+            androidx.compose.runtime.withFrameNanos { } // физика «на кадр» вне лямбды: прореживать нельзя, скорость сменилась бы
             for (i in 0 until maxCells) {
                 val t = if (pushed[i]) 1f else 0f
                 // пружинка: щёлкает и чуть «пружинит»

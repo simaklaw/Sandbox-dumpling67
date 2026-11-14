@@ -188,6 +188,13 @@ fun MainAppScreen(
     LaunchedEffect(Unit) { soundManager.preloadSpeech() }
     var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
+    val toggleMusic: () -> Unit = {
+        val on = !musicOn
+        musicOn = on
+        prefs.edit().putBoolean("pref_music_enabled", on).apply()
+        viewModel.musicManager.setMusicEnabled(on)
+        if (on) soundManager.play("pop")
+    }
     // Заставка показывается один раз за запуск (rememberSaveable: не повторяется при повороте/пересоздании)
     var showIntro by rememberSaveable { mutableStateOf(true) }
     var showExitProtectionDialog by remember { mutableStateOf(false) }
@@ -272,13 +279,7 @@ fun MainAppScreen(
                                     showParentSettings = true
                                 },
                                 musicOn = musicOn,
-                                onToggleMusic = {
-                                    val on = !musicOn
-                                    musicOn = on
-                                    prefs.edit().putBoolean("pref_music_enabled", on).apply()
-                                    viewModel.musicManager.setMusicEnabled(on)
-                                    if (on) soundManager.play("pop")
-                                },
+                                onToggleMusic = toggleMusic,
                                 soundManager = soundManager,
                                 haptics = haptics
                             )
@@ -370,6 +371,8 @@ fun MainAppScreen(
         if (showParentSettings) {
             ParentSettingsDialog(
                 soundManager = soundManager,
+                musicOn = musicOn,
+                onToggleMusic = toggleMusic,
                 onResetProgress = {
                     viewModel.resetProgress()
                     soundManager.play("chime")

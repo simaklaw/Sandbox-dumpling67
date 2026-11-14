@@ -41,7 +41,11 @@ class GameRepository(context: Context) {
     val unlockedSkinDao: UnlockedSkinDao = database.unlockedSkinDao()
     val playerInventoryDao: PlayerInventoryDao = database.playerInventoryDao()
     val stickerDao: StickerDao = database.stickerDao()
-    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // Сбой записи прогресса (диск, Room) логируем и не роняем приложение; SupervisorJob не даёт одной ошибке остановить остальные записи.
+    private val ioScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO +
+            kotlinx.coroutines.CoroutineExceptionHandler { _, e -> android.util.Log.w("GameRepository", "background write failed", e) }
+    )
 
     val allStickers: Flow<List<StickerEntity>> = stickerDao.getAllStickers()
     val unlockedStickerCount: Flow<Int> = stickerDao.getUnlockedCount()

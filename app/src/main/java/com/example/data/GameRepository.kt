@@ -22,6 +22,7 @@ import com.example.model.PelmenCharacter
 import com.example.model.RunnerLocation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,7 +41,7 @@ class GameRepository(context: Context) {
     val unlockedSkinDao: UnlockedSkinDao = database.unlockedSkinDao()
     val playerInventoryDao: PlayerInventoryDao = database.playerInventoryDao()
     val stickerDao: StickerDao = database.stickerDao()
-    private val ioScope = CoroutineScope(Dispatchers.IO)
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val allStickers: Flow<List<StickerEntity>> = stickerDao.getAllStickers()
     val unlockedStickerCount: Flow<Int> = stickerDao.getUnlockedCount()

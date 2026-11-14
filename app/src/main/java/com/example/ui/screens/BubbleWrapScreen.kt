@@ -49,8 +49,7 @@ private val BW_THEMES = listOf(
 @Composable
 fun BubbleWrapScreen(
     repository: GameRepository,
-    soundPlayer: SoundEffectPlayer,
-    onBackClick: () -> Unit = {}
+    soundPlayer: SoundEffectPlayer
 ) {
     val context = LocalContext.current
     val haptics = rememberHaptics()

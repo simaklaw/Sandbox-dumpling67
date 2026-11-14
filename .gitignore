@@ -29,3 +29,6 @@ debug.keystore.base64
 /output/
 
 __pycache__/
+
+__pycache__/
+*.pyc

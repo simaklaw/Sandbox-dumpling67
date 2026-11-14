@@ -26,7 +26,9 @@ class LoopHandle(
     var streamId: Int,
     var targetVolume: Float,
     var currentVolume: Float,
-    var isFadingOut: Boolean = false
+    var isFadingOut: Boolean = false,
+    /** Громкость, как её просил вызывающий код (0..1), без множителей каталога и мастера: от неё считается пересчёт при смене мастер-громкости. */
+    var requestedVolume: Float = 1f
 )
 
 /**
@@ -116,8 +118,9 @@ class SoundManager(
     private val activeLoops: MutableMap<LoopHandle, Job?> = java.util.Collections.synchronizedMap(HashMap())
 
     // Ducking state
+    private val duckLock = Any()
     private var activeVoiceCount = 0
-    private var isDucked = false
+    @Volatile private var isDucked = false
 
     // Category enable flags & Master Volume
     var isSfxEnabled: Boolean = prefs.getBoolean(KEY_SFX_ENABLED, true)
@@ -125,7 +128,7 @@ class SoundManager(
     var isSoundEnabled: Boolean
         get() = isSfxEnabled
         set(value) {
-            isSfxEnabled = value
+            setCategoryEnabled(SoundCategory.SFX, value)
         }
 
     fun toggleSound(): Boolean {
@@ -228,7 +231,7 @@ class SoundManager(
     fun release(group: String) {
         if (group == "shared") return // keep shared in memory
         managerScope.launch(Dispatchers.IO) {
-            val entriesToUnload = SoundCatalog.entries.filter { it.group == group }
+            val entriesToUnload = SoundCatalog.entries.filter { (it.group == group || group == "all") && it.group != "shared" }
             for (entry in entriesToUnload) {
                 for (fileName in entry.files) {
                     val soundId = soundIdMap.remove(fileName)
@@ -349,10 +352,13 @@ class SoundManager(
         }
 
         return try {
-            val pool = soundPool ?: return null
-            val soundId = pool.load(appContext, resId, 1)
-            soundIdMap[fileName] = soundId
-            soundId
+            synchronized(soundIdMap) {
+                soundIdMap[fileName]?.let { return it }
+                val pool = soundPool ?: return null
+                val soundId = pool.load(appContext, resId, 1)
+                soundIdMap[fileName] = soundId
+                soundId
+            }
         } catch (e: Exception) {
             consecutiveLoadFailures++
             if (consecutiveLoadFailures >= 2) {
@@ -609,7 +615,8 @@ class SoundManager(
             soundId = soundId ?: 0,
             streamId = 0,
             targetVolume = baseVol,
-            currentVolume = baseVol
+            currentVolume = baseVol,
+            requestedVolume = 1f
         )
 
         if (soundId != null && loadedSoundIds.contains(soundId)) {
@@ -637,6 +644,7 @@ class SoundManager(
         val entry = SoundCatalog.find(handle.name)
         val baseVol = (entry?.volume ?: 1.0f) * masterVolume
         val target = (volume * baseVol).coerceIn(0f, 1f)
+        handle.requestedVolume = volume
         handle.targetVolume = target
         handle.currentVolume = target
 
@@ -687,7 +695,7 @@ class SoundManager(
             }
             activeLoops.clear()
 
-            soundPool?.autoPause()
+            for (id in activeStreams.keys.toList()) soundPool?.stop(id)
             activeStreams.clear()
             isDucked = false
             activeVoiceCount = 0
@@ -701,19 +709,19 @@ class SoundManager(
     // ==========================================
 
     private fun onVoiceStart() {
-        activeVoiceCount++
-        if (!isDucked) {
-            isDucked = true
-            applyDucking(0.6f) // Duck SFX by 40%
+        val duck = synchronized(duckLock) {
+            activeVoiceCount++
+            if (!isDucked) { isDucked = true; true } else false
         }
+        if (duck) applyDucking(0.6f) // Duck SFX by 40%
     }
 
     private fun onVoiceEnd() {
-        activeVoiceCount = max(0, activeVoiceCount - 1)
-        if (activeVoiceCount == 0 && isDucked) {
-            isDucked = false
-            applyDucking(1.0f) // Restore SFX volume
+        val restore = synchronized(duckLock) {
+            activeVoiceCount = max(0, activeVoiceCount - 1)
+            if (activeVoiceCount == 0 && isDucked) { isDucked = false; true } else false
         }
+        if (restore) applyDucking(1.0f) // Restore SFX volume
     }
 
     private fun applyDucking(factor: Float) {
@@ -767,7 +775,7 @@ class SoundManager(
         prefs.edit().putFloat(KEY_MASTER_VOLUME, masterVolume).apply()
         // Update active loops
         for (handle in synchronized(activeLoops) { activeLoops.keys.toList() }) {
-            setLoopVolume(handle, handle.targetVolume)
+            setLoopVolume(handle, handle.requestedVolume)
         }
     }
 
@@ -852,6 +860,22 @@ class SoundManager(
 
     fun onAppPause() {
         stopAll()
+        abandonAudioFocus()
+    }
+
+    /** Отдаём фокус, чтобы музыка/подкаст родителя в другом приложении не оставались приглушёнными, пока малыш ничего не нажимает. */
+    private fun abandonAudioFocus() {
+        lastFocusRequestMs = 0L
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                focusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(focusListener)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Audio focus abandon failed", e)
+        }
     }
 
     fun onAppResume() {
@@ -860,6 +884,10 @@ class SoundManager(
 
     fun releaseAll() {
         stopAll()
+        abandonAudioFocus()
+        // Синглтон пересоздаётся при следующем getInstance: иначе после пересоздания Activity (смена темы/языка)
+        // новые экраны получили бы менеджер с отменённой областью и выгруженным пулом, и звук молчал бы до перезапуска.
+        synchronized(Companion) { if (instance === this) instance = null }
         soundPool?.release()
         soundPool = null
         loadedSoundIds.clear()

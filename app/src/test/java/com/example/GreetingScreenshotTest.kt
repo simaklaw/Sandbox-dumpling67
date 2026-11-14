@@ -29,12 +29,10 @@ class GreetingScreenshotTest {
     val repository = GameRepository(context)
     val soundPlayer = SoundEffectPlayer(context)
     val musicManager = com.example.audio.BackgroundMusicManager().apply { isEnabled = false }
-    val tiltSensorManager = com.example.sensor.TiltSensorManager(context)
     val viewModel = com.example.ui.viewmodel.PlaygroundViewModel(
         repository = repository,
         soundPlayer = soundPlayer,
-        musicManager = musicManager,
-        tiltSensorManager = tiltSensorManager
+        musicManager = musicManager
     )
 
     composeTestRule.setContent {

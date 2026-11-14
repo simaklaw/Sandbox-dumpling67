@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -10,7 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -428,7 +428,7 @@ fun ButtonJoyScreen(
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
-            withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0f else (now - last) / 1_000_000_000f
                 last = now
                 if (world.w > 0f) world.step(dt)

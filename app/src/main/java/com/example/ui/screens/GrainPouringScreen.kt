@@ -65,6 +65,7 @@ package com.example.ui.screens
  *                    + sun / moon / cloud / heapPoke (мир отвечает на тап).
  */
 
+import com.example.shared.withFrameNanosEco
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -92,7 +93,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1883,7 +1883,7 @@ fun GrainPouringScreen(
     LaunchedEffect(world) {
         var last = 0L
         while (true) {
-            withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 if (last != 0L) world.step((now - last) / 1_000_000_000f)
                 last = now
                 tick++

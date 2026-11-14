@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.shared.withFrameNanosEco
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -938,7 +939,7 @@ fun ShopRoomScreen(
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
-            androidx.compose.runtime.withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
                 last = now
                 update(dt)

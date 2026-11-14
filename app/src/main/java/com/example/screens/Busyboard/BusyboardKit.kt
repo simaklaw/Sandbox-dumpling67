@@ -1,5 +1,6 @@
 package com.example.screens.Busyboard
 
+import com.example.shared.withFrameNanosEco
 import android.os.SystemClock
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -104,7 +105,7 @@ internal fun rememberBbTick(onFrame: (dt: Float) -> Boolean): BbTick {
     LaunchedEffect(Unit) {
         var last = 0L
         while (isActive) {
-            androidx.compose.runtime.withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceIn(0f, 0.05f)
                 last = now
                 if (frame(dt)) tick.bump()

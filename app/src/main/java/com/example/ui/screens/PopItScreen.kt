@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -155,7 +156,7 @@ fun PopItScreen(
 
     LaunchedEffect(Unit) {
         while (true) {
-            withFrameNanos { }
+            withFrameNanosEco { }
             for (i in 0 until maxCells) {
                 val t = if (pushed[i]) 1f else 0f
                 // пружинка: щёлкает и чуть «пружинит»

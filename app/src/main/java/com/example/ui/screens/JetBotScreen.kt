@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.shared.withFrameNanosEco
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -223,7 +224,7 @@ fun JetBotScreen(
         if (ref.world == null) ref.world = JetWorld(logicalH())
         var last = 0L
         while (true) {
-            withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0f else min(0.05f, (now - last) / 1_000_000_000f)
                 last = now
                 tick(dt)

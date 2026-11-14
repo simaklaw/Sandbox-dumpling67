@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
@@ -166,7 +167,7 @@ fun VeggieCuttingScreen(
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
-            withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
                 last = now
                 m.clock += dt

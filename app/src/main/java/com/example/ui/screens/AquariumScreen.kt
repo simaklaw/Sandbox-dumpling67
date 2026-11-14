@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -12,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -456,7 +456,7 @@ fun AquariumScreen(
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
-            withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0f else (now - last) / 1_000_000_000f
                 last = now
                 world.step(dt)

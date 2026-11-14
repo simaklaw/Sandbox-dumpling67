@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.shared.withFrameNanosEco
 import android.content.Context
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -35,7 +36,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -757,7 +757,7 @@ internal fun MonsterFactoryScreen(
         var last = 0L
         var beat = 0f
         while (true) {
-            withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
                 last = now
                 clock += dt
@@ -1116,7 +1116,7 @@ private fun MonsterPartyView(
         var last = 0L
         var beat = 0f
         while (true) {
-            withFrameNanos { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
                 last = now
                 clock += dt

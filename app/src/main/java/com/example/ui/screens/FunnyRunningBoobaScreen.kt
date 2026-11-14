@@ -288,10 +288,10 @@ fun FunnyRunningBoobaScreen(
         var totalFlightTime = 0f
 
         while (isActive) {
-            withFrameNanos { nowNanos ->
+            withFrameNanosEco { nowNanos ->
                 if (lastNanos == 0L) {
                     lastNanos = nowNanos
-                    return@withFrameNanos
+                    return@withFrameNanosEco
                 }
                 val frameDt = ((nowNanos - lastNanos) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
                 lastNanos = nowNanos

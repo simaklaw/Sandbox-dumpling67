@@ -140,5 +140,5 @@
 
 ## Монетизация (ЮKassa, см. SPEC_MONETIZATION_YOOKASSA.md)
 - [x] PR1 настройки: INTERNET, BuildConfig, зависимости. [x] PR2 родительский замок.
-- [ ] PR3 таблица entitlements (миграция 5→6). [ ] PR4 клиент monetization/. [ ] PR5 магазин в родительской зоне. [ ] PR6 гейтинг каталога. [ ] PR7 backend (отдельный репозиторий).
+- [x] PR3 таблица entitlements (миграция 5→6, схема 6.json). [ ] PR4 клиент monetization/. [ ] PR5 магазин в родительской зоне. [ ] PR6 гейтинг каталога. [ ] PR7 backend (отдельный репозиторий).
 - [ ] Владельцу: ЮKassa (shopId/secretKey/webhook), хостинг и домен, пара Ed25519, оферта и политика, решение по дистрибуции, лицензии ассетов из SOUND_CREDITS.md.

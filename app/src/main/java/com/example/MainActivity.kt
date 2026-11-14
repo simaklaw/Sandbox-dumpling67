@@ -189,6 +189,7 @@ fun MainAppScreen(
     LaunchedEffect(Unit) { soundManager.preloadSpeech() }
     var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
+    var showParentLock by remember { mutableStateOf(false) }
     val toggleMusic: () -> Unit = {
         val on = !musicOn
         musicOn = on
@@ -279,9 +280,7 @@ fun MainAppScreen(
                                 onNavigateToFolder = { title, type ->
                                     activeScreenState = AppScreenState.Folder(title, type)
                                 },
-                                onOpenSettings = {
-                                    showParentSettings = true
-                                },
+                                onOpenSettings = { showParentLock = true },
                                 musicOn = musicOn,
                                 onToggleMusic = toggleMusic,
                                 soundManager = soundManager,
@@ -372,6 +371,16 @@ fun MainAppScreen(
         }
 
         // Settings for parents dialog
+        if (showParentLock) {
+            com.example.shared.ParentLockDialog(
+                onUnlocked = {
+                    showParentLock = false
+                    showParentSettings = true
+                },
+                onDismiss = { showParentLock = false }
+            )
+        }
+
         if (showParentSettings) {
             ParentSettingsDialog(
                 soundManager = soundManager,
@@ -400,7 +409,7 @@ fun MainAppScreen(
                 },
                 onParentUnlock = {
                     showExitProtectionDialog = false
-                    showParentSettings = true
+                    showParentLock = true
                 }
             )
         }

@@ -199,27 +199,30 @@ fun MainAppScreen(
     var showIntro by rememberSaveable { mutableStateOf(true) }
     var showExitProtectionDialog by remember { mutableStateOf(false) }
 
-    // Rest timer state
-    var activePlaySeconds by remember { mutableLongStateOf(0L) }
+    // Таймер отдыха: считаем только пока приложение на экране (в кармане/свёрнутым время не идёт)
+    // и не теряем накопленное при пересоздании Activity (смена темы/языка).
+    var activePlaySeconds by rememberSaveable { mutableLongStateOf(0L) }
     var showRestTimerOverlay by remember { mutableStateOf(false) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    // Rest timer ticker loop
-    LaunchedEffect(showRestTimerOverlay) {
+    LaunchedEffect(showRestTimerOverlay, lifecycleOwner) {
         if (!showRestTimerOverlay) {
-            while (isActive) {
-                delay(1000L)
-                activePlaySeconds++
+            lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                while (isActive) {
+                    delay(1000L)
+                    activePlaySeconds++
 
-                val restSetting = prefs.getString("pref_rest_timer", "off") ?: "off"
-                val limitMinutes = when (restSetting) {
-                    "10" -> 10
-                    "20" -> 20
-                    "30" -> 30
-                    else -> 0
-                }
+                    val restSetting = prefs.getString("pref_rest_timer", "off") ?: "off"
+                    val limitMinutes = when (restSetting) {
+                        "10" -> 10
+                        "20" -> 20
+                        "30" -> 30
+                        else -> 0
+                    }
 
-                if (limitMinutes > 0 && activePlaySeconds >= limitMinutes * 60L) {
-                    showRestTimerOverlay = true
+                    if (limitMinutes > 0 && activePlaySeconds >= limitMinutes * 60L) {
+                        showRestTimerOverlay = true
+                    }
                 }
             }
         }

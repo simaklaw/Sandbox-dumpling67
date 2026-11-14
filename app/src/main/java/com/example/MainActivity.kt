@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import android.os.Bundle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent

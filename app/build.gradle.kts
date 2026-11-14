@@ -94,3 +94,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+// Схема Room экспортируется в app/schemas (лежит в репозитории): это основа будущих миграций и их тестов.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}

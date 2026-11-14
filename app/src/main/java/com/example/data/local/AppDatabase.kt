@@ -16,7 +16,7 @@ import androidx.room.RoomDatabase
         StickerEntity::class
     ],
     version = 5,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
 

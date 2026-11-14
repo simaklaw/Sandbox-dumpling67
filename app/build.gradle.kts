@@ -23,6 +23,8 @@ android {
         // Адрес backend без секретов; секреты ЮKassa живут только на сервере.
         buildConfigField("boolean", "MONETIZATION_ENABLED", "false")
         buildConfigField("String", "LICENSE_BACKEND_URL", "\"\"")
+        // Публичный ключ Ed25519 (raw 32 байта в base64) для проверки лицензий; пусто, пока владелец не выдал пару ключей.
+        buildConfigField("String", "LICENSE_PUBLIC_KEY", "\"\"")
     }
 
     buildTypes {
@@ -62,6 +64,8 @@ dependencies {
     // Сеть только для покупок в родительской зоне, пакет monetization/
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
+    // Ed25519 (проверка подписи лицензии на любом API, включая < 33)
+    implementation(libs.tink.android)
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))
@@ -85,6 +89,7 @@ dependencies {
     // Тесты
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
+    testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.runner)
     testImplementation(libs.kotlinx.coroutines.test)

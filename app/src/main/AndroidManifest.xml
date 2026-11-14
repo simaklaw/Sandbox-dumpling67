@@ -11,9 +11,6 @@
         android:required="false" />
 
     <uses-feature
-        android:name="android.hardware.sensor.accelerometer"
-        android:required="false" />
-    <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
     <uses-feature

@@ -407,8 +407,7 @@ private val SAND_COLORS = listOf(
 @Composable
 fun KineticSandScreen(
     repository: GameRepository,
-    soundPlayer: SoundEffectPlayer,
-    onBackClick: () -> Unit = {}
+    soundPlayer: SoundEffectPlayer
 ) {
     val context = LocalContext.current
     val dens = LocalDensity.current.density

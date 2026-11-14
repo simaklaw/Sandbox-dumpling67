@@ -14,6 +14,16 @@ import org.junit.Test
 class GameNavigationTest {
 
     @Test
+    fun everyFolderGameHasAScreenBranchInMainActivity() {
+        // Реестр папок и `when (pageIndex)` в MainActivity — два списка; забытая ветка дала бы тихий пустой экран.
+        val file = listOf("src/main/java/com/example/MainActivity.kt", "app/src/main/java/com/example/MainActivity.kt")
+            .map { java.io.File(it) }.first { it.exists() }
+        val branches = Regex("""(?m)^\s*(\d+)\s*->""").findAll(file.readText()).map { it.groupValues[1].toInt() }.toSet()
+        val missing = FOLDER_ITEMS.values.flatten().map { it.pageIndex }.filter { it !in branches }
+        assertTrue("Нет ветки в MainActivity для игр: $missing", missing.isEmpty())
+    }
+
+    @Test
     fun everyGameLivesInExactlyOneFolder() {
         val all = FOLDER_ITEMS.values.flatten().map { it.pageIndex }
         assertEquals("Игра не должна дублироваться в папках", all.size, all.toSet().size)

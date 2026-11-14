@@ -582,8 +582,7 @@ private fun ease(p: Float): Float = if (p < 0.5f) 4f * p * p * p else 1f - Math.
 @Composable
 fun SmeshinkiScreen(
     repository: GameRepository,
-    soundPlayer: SoundEffectPlayer,
-    onBackClick: () -> Unit = {}
+    soundPlayer: SoundEffectPlayer
 ) {
     val context = LocalContext.current
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }

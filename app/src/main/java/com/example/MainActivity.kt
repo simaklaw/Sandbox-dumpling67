@@ -24,7 +24,6 @@ import com.example.screens.FolderScreen
 import com.example.screens.FolderType
 import com.example.screens.folderTypeForPage
 import com.example.screens.HomeScreen
-import com.example.sensor.TiltSensorManager
 import com.example.shared.*
 import com.example.ui.components.RestTimerOverlay
 import com.example.ui.components.ToddlerExitProtectionDialog
@@ -81,7 +80,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var soundPlayer: SoundEffectPlayer
     private lateinit var soundManager: SoundManager
     private lateinit var musicManager: BackgroundMusicManager
-    private lateinit var tiltSensorManager: TiltSensorManager
     private lateinit var viewModel: PlaygroundViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,54 +94,17 @@ class MainActivity : ComponentActivity() {
             previousHandler?.uncaughtException(thread, throwable)
         }
 
-        try {
-            repository = GameRepository(this)
-        } catch (e: Throwable) {
-            android.util.Log.e("MainActivity", "Failed to init GameRepository, using fallback", e)
-            repository = GameRepository(applicationContext)
-        }
-
-        try {
-            soundPlayer = SoundEffectPlayer(this)
-        } catch (e: Throwable) {
-            android.util.Log.e("MainActivity", "Failed to init SoundEffectPlayer", e)
-            soundPlayer = SoundEffectPlayer(applicationContext)
-        }
-
-        try {
-            soundManager = SoundManager.getInstance(this, soundPlayer)
-        } catch (e: Throwable) {
-            android.util.Log.e("MainActivity", "Failed to init SoundManager", e)
-            soundManager = SoundManager.getInstance(applicationContext, soundPlayer)
-        }
-
-        try {
-            musicManager = BackgroundMusicManager()
-        } catch (e: Throwable) {
-            android.util.Log.e("MainActivity", "Failed to init BackgroundMusicManager", e)
-            musicManager = BackgroundMusicManager()
-        }
-
+        repository = GameRepository(this)
+        soundPlayer = SoundEffectPlayer(this)
+        soundManager = SoundManager.getInstance(this, soundPlayer)
+        musicManager = BackgroundMusicManager()
         try {
             val on = getSharedPreferences("playground_prefs", MODE_PRIVATE).getBoolean("pref_music_enabled", true)
             musicManager.setMusicEnabled(on)
         } catch (e: Throwable) {
             android.util.Log.w("MainActivity", "music pref", e)
         }
-
-        try {
-            tiltSensorManager = TiltSensorManager(this)
-        } catch (e: Throwable) {
-            android.util.Log.e("MainActivity", "Failed to init TiltSensorManager", e)
-            tiltSensorManager = TiltSensorManager(applicationContext)
-        }
-
-        try {
-            viewModel = PlaygroundViewModel(repository, soundPlayer, musicManager, tiltSensorManager)
-        } catch (e: Throwable) {
-            android.util.Log.e("MainActivity", "Failed to init PlaygroundViewModel", e)
-            viewModel = PlaygroundViewModel(repository, soundPlayer, musicManager, tiltSensorManager)
-        }
+        viewModel = PlaygroundViewModel(repository, soundPlayer, musicManager)
 
         setContent {
             MyApplicationTheme {
@@ -176,7 +137,6 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
         try {
             if (::musicManager.isInitialized) musicManager.resumeMusic()
-            if (::tiltSensorManager.isInitialized) tiltSensorManager.startListening()
             if (::soundManager.isInitialized) soundManager.onAppResume()
         } catch (e: Throwable) {
             android.util.Log.w("MainActivity", "Error in onResume", e)
@@ -187,7 +147,6 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         try {
             if (::musicManager.isInitialized) musicManager.pauseMusic()
-            if (::tiltSensorManager.isInitialized) tiltSensorManager.stopListening()
             if (::soundManager.isInitialized) soundManager.onAppPause()
         } catch (e: Throwable) {
             android.util.Log.w("MainActivity", "Error in onPause", e)
@@ -200,7 +159,6 @@ class MainActivity : ComponentActivity() {
             if (::musicManager.isInitialized) musicManager.release()
             if (::soundPlayer.isInitialized) soundPlayer.release()
             if (::soundManager.isInitialized) soundManager.releaseAll()
-            if (::tiltSensorManager.isInitialized) tiltSensorManager.stopListening()
         } catch (e: Throwable) {
             android.util.Log.w("MainActivity", "Error in onDestroy", e)
         }
@@ -359,9 +317,9 @@ fun MainAppScreen(
                                      12 -> PinballMarbleRunScreen(repository = repository, soundPlayer = soundPlayer)
                                      16 -> PopItScreen(repository = repository, soundPlayer = soundPlayer)
                                      17 -> PinataScreen(repository = repository, soundPlayer = soundPlayer)
-                                    20 -> BubbleWrapScreen(repository = repository, soundPlayer = soundPlayer, onBackClick = { leaveGame(20) })
-                                    21 -> SmeshinkiScreen(repository = repository, soundPlayer = soundPlayer, onBackClick = { leaveGame(21) })
-                                    22 -> KineticSandScreen(repository = repository, soundPlayer = soundPlayer, onBackClick = { leaveGame(22) })
+                                    20 -> BubbleWrapScreen(repository = repository, soundPlayer = soundPlayer)
+                                    21 -> SmeshinkiScreen(repository = repository, soundPlayer = soundPlayer)
+                                    22 -> KineticSandScreen(repository = repository, soundPlayer = soundPlayer)
                                     24 -> RainScreen(repository = repository, soundPlayer = soundPlayer)
                                     26 -> ShapeSorterScreen(repository = repository, soundPlayer = soundPlayer)
                                     27 -> AlienRoomScreen(repository = repository, soundPlayer = soundPlayer)
@@ -393,11 +351,7 @@ fun MainAppScreen(
                                     49 -> ClawGameScreen(repository = repository, soundPlayer = soundPlayer)
                                     50 -> JetBotScreen(repository = repository, soundPlayer = soundPlayer)
                                     51 -> CookScreen(repository = repository, soundPlayer = soundPlayer)
-                                    23 -> BabyPhoneScreen(
-                                        repository = repository,
-                                        soundPlayer = soundPlayer,
-                                        onBackClick = { leaveGame(23) }
-                                    )
+                                    23 -> BabyPhoneScreen(repository = repository, soundPlayer = soundPlayer)
                                 }
                                 }
                             }

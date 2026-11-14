@@ -80,8 +80,7 @@ private class PhoneFloat(val id: Long, val emoji: String, val dx: Float)
 @Composable
 fun BabyPhoneScreen(
     repository: GameRepository,
-    soundPlayer: SoundEffectPlayer,
-    onBackClick: () -> Unit = {}
+    soundPlayer: SoundEffectPlayer
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()

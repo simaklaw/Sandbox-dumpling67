@@ -49,6 +49,7 @@ fun ParentSettingsDialog(
     var showResetConfirm by remember { mutableStateOf(false) }
     var showSoundAuditDialog by remember { mutableStateOf(false) }
     var showVoiceStudio by remember { mutableStateOf(false) }
+    var showCredits by remember { mutableStateOf(false) }
 
     // Gear long-press 6-second timer state
     var gearPressStartTime by remember { mutableLongStateOf(0L) }
@@ -286,6 +287,10 @@ fun ParentSettingsDialog(
 
                 Divider(color = ColorInk.copy(alpha = 0.2f), thickness = 2.dp)
 
+                TextButton(onClick = { showCredits = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Благодарности и лицензии", color = ColorInk, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
                 // 🗑️ Reset Progress Trigger Button
                 Button(
                     onClick = { showResetConfirm = true },
@@ -356,6 +361,10 @@ fun ParentSettingsDialog(
                 }
             }
         )
+    }
+
+    if (showCredits) {
+        CreditsDialog(onDismiss = { showCredits = false })
     }
 
     if (showVoiceStudio) {

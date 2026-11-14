@@ -52,7 +52,7 @@ function fitCamera() {
 window.addEventListener('resize', fitCamera);
 fitCamera();
 
-new THREE.TextureLoader().load('google-office.jpg', (tex) => {
+new THREE.TextureLoader().load('claw_env.jpg', (tex) => {
   tex.mapping = THREE.EquirectangularReflectionMapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   scene.background = tex;

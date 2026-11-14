@@ -2,9 +2,7 @@ package com.example
 
 import android.content.Context
 import androidx.room.Room
-import androidx.room.testing.MigrationTestHelper
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.platform.app.InstrumentationRegistry
 import com.example.data.local.AppDatabase
 import com.example.data.local.EntitlementEntity
 import com.example.data.local.MIGRATION_5_6
@@ -13,8 +11,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Rule
 import org.junit.Test
+import org.json.JSONObject
+import java.io.File
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -22,30 +21,45 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class EntitlementDbTest {
-    @get:Rule
-    val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), AppDatabase::class.java)
-
     private fun ent(id: String, product: String = "full_access", active: Boolean = true) = EntitlementEntity(
         licenseId = id, productId = product, kind = "durable", issuedAtMillis = 1L,
         active = active, source = "direct", token = "t-$id", updatedAtMillis = 1L
     )
 
+    /**
+     * Строим БД версии 5 по замороженной схеме (5.json: SQL таблиц и хеш), кладём строку, затем открываем
+     * её через Room версии 6 с MIGRATION_5_6: Room сам сверяет получившиеся таблицы со схемой и падает при расхождении.
+     */
     @Test
     fun migrate5To6_keepsOldData_andCreatesEntitlements() {
-        val name = "migration-test"
-        helper.createDatabase(name, 5).apply {
-            execSQL(
-                "INSERT INTO runner_stickers (id, title, description, emoji, biome, requiredDistance, isUnlocked, unlockedTimestamp) " +
-                    "VALUES ('s1', 'Звезда', 'd', '⭐', 'kitchen', 10, 1, 5)"
-            )
-            close()
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val name = "migration-test.db"
+        ctx.deleteDatabase(name)
+        val schemaFile = listOf("schemas", "app/schemas").map { File(it) }.first { it.exists() }
+        val json = JSONObject(File(schemaFile, "com.example.data.local.AppDatabase/5.json").readText()).getJSONObject("database")
+        val old = ctx.openOrCreateDatabase(name, Context.MODE_PRIVATE, null)
+        val entities = json.getJSONArray("entities")
+        for (i in 0 until entities.length()) {
+            val e = entities.getJSONObject(i)
+            old.execSQL(e.getString("createSql").replace("\${TABLE_NAME}", e.getString("tableName")))
         }
-        val db = helper.runMigrationsAndValidate(name, 6, true, MIGRATION_5_6)
-        db.query("SELECT title FROM runner_stickers WHERE id = 's1'").use {
+        val setup = json.getJSONArray("setupQueries")
+        for (i in 0 until setup.length()) old.execSQL(setup.getString(i))
+        old.execSQL(
+            "INSERT INTO runner_stickers (id, title, description, emoji, biome, requiredDistance, isUnlocked, unlockedTimestamp) " +
+                "VALUES ('s1', 'Звезда', 'd', '⭐', 'kitchen', 10, 1, 5)"
+        )
+        old.version = 5
+        old.close()
+
+        val db = Room.databaseBuilder(ctx, AppDatabase::class.java, name)
+            .addMigrations(MIGRATION_5_6).allowMainThreadQueries().build()
+        val sticker = db.openHelper.readableDatabase
+        sticker.query("SELECT title FROM runner_stickers WHERE id = 's1'").use {
             assertTrue(it.moveToFirst())
             assertEquals("Звезда", it.getString(0))
         }
-        db.query("SELECT COUNT(*) FROM entitlements").use {
+        sticker.query("SELECT COUNT(*) FROM entitlements").use {
             assertTrue(it.moveToFirst())
             assertEquals(0, it.getInt(0))
         }

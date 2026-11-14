@@ -1,3 +1,5 @@
+> **Заменено `SPEC_MONETIZATION_YOOKASSA.md`** (ЮKassa + лицензионные ключи). Разделы про RuStore/Play Billing, flavor'ы и `BillingGateway` не выполнять. Остаются в силе: когнитивный замок, таблица `entitlements` (с `source="direct"`), гейтинг каталога, запреты. Боевые игры остаются в каталоге (раздел «Для детей постарше» отменён).
+
 # MONETIZATION_PLAN.md — задание для Claude Code
 
 ## 0. Контекст и цель

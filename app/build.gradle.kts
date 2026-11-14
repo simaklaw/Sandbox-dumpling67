@@ -3,6 +3,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.devtools.ksp)
     alias(libs.plugins.roborazzi)
 }
@@ -18,6 +19,10 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Монетизация (лицензионные ключи через ЮKassa): выключена, пока backend не развёрнут.
+        // Адрес backend без секретов; секреты ЮKassa живут только на сервере.
+        buildConfigField("boolean", "MONETIZATION_ENABLED", "false")
+        buildConfigField("String", "LICENSE_BACKEND_URL", "\"\"")
     }
 
     buildTypes {
@@ -54,6 +59,9 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
+    // Сеть только для покупок в родительской зоне, пакет monetization/
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))

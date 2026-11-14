@@ -939,7 +939,7 @@ fun ShopRoomScreen(
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
-            androidx.compose.runtime.withFrameNanosEco { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
                 last = now
                 update(dt)

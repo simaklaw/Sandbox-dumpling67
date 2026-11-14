@@ -105,7 +105,7 @@ internal fun rememberBbTick(onFrame: (dt: Float) -> Boolean): BbTick {
     LaunchedEffect(Unit) {
         var last = 0L
         while (isActive) {
-            androidx.compose.runtime.withFrameNanosEco { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0f else ((now - last) / 1_000_000_000f).coerceIn(0f, 0.05f)
                 last = now
                 if (frame(dt)) tick.bump()

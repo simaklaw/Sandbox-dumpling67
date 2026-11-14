@@ -732,7 +732,7 @@ fun KastrulyaScreen(
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
-            androidx.compose.runtime.withFrameNanosEco { now ->
+            withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
                 last = now
                 update(dt)
@@ -1055,7 +1055,7 @@ fun KastrulyaScreen(
                     var tt by remember { mutableFloatStateOf(0f) }
                     LaunchedEffect(Unit) {
                         var last = 0L
-                        while (true) androidx.compose.runtime.withFrameNanosEco { n -> if (last != 0L) tt += (n - last) / 1e9f; last = n }
+                        while (true) withFrameNanosEco { n -> if (last != 0L) tt += (n - last) / 1e9f; last = n }
                     }
                     Canvas(Modifier.size(190.dp)) {
                         for (i in 0 until 8) {

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -354,7 +355,7 @@ fun RainScreen(
 
         var last = 0L
         while (isActive) {
-            androidx.compose.runtime.withFrameNanos { now ->
+            androidx.compose.runtime.withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
                 last = now
                 world.step(

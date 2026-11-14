@@ -1,5 +1,6 @@
 package com.example.screens
 
+import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -72,7 +73,7 @@ fun IntroScreen(soundManager: SoundManager, onFinished: () -> Unit) {
         var last = 0L
         soundManager.play("whoosh_soft", 0.7f)
         while (true) {
-            androidx.compose.runtime.withFrameNanos { now ->
+            androidx.compose.runtime.withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
                 last = now
                 t += dt

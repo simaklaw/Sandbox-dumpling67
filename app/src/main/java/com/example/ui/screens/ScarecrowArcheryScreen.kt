@@ -126,10 +126,10 @@ fun ScarecrowArcheryScreen(
     LaunchedEffect(Unit) {
         var lastTimeNanos = 0L
         while (isActive) {
-            withFrameNanos { nowNanos ->
+            withFrameNanosEco { nowNanos ->
                 if (lastTimeNanos == 0L) {
                     lastTimeNanos = nowNanos
-                    return@withFrameNanos
+                    return@withFrameNanosEco
                 }
                 val dt = ((nowNanos - lastTimeNanos) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
                 lastTimeNanos = nowNanos

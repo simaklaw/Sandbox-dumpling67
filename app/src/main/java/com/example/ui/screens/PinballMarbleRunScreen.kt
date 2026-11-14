@@ -183,7 +183,7 @@ fun PinballMarbleRunScreen(
     // игровой цикл: физика + пушка
     LaunchedEffect(Unit) {
         while (isActive) {
-            withFrameNanos { ns ->
+            withFrameNanosEco { ns ->
                 if (!menuOpen && !gameOver) engine.step(ns)
                 val nowMs = System.currentTimeMillis()
                 val held = engine.hasHeldBall() && !gameOver && !menuOpen

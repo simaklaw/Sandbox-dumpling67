@@ -42,6 +42,11 @@ android {
         buildConfig = true
     }
 
+    sourceSets {
+        // Схемы Room нужны тесту миграций как assets
+        getByName("test").assets.srcDir("$projectDir/schemas")
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -85,6 +90,7 @@ dependencies {
     // Тесты
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.runner)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -13,9 +13,10 @@ import androidx.room.RoomDatabase
         GameSaveEntity::class,
         PlayerInventoryEntity::class,
         UnlockedSkinEntity::class,
-        StickerEntity::class
+        StickerEntity::class,
+        EntitlementEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playerInventoryDao(): PlayerInventoryDao
     abstract fun unlockedSkinDao(): UnlockedSkinDao
     abstract fun stickerDao(): StickerDao
+    abstract fun entitlementDao(): EntitlementDao
 
     companion object {
         @Volatile
@@ -38,7 +40,13 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "pelmen_runner.db"
-                ).fallbackToDestructiveMigration().build()
+                )
+                    // Явная миграция 5→6 имеет приоритет: текущие пользователи данные не теряют.
+                    // fallback срабатывает только для цепочек короче 5 (пред-релизные сборки).
+                    // Перед публичным релизом fallback убрать и написать полную цепочку миграций.
+                    .addMigrations(MIGRATION_5_6)
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

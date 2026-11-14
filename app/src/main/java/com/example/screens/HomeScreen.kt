@@ -309,10 +309,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(10.dp))
             ParentGearButton(
                 showLabel = true,
-                onTrigger = {
-                    soundManager.play("chime")
-                    onOpenSettings()
-                },
+                onTrigger = onOpenSettings,
                 soundManager = soundManager,
                 haptics = haptics
             )
@@ -337,9 +334,8 @@ fun HomeScreen(
 }
 
 /**
- * Шестерёнка «Родителям»: вход в настройки двумя нажатиями, а не зажимом.
- * 1-е нажатие показывает подсказку «Нажмите ещё раз, чтобы открыть настройки» на 5 секунд,
- * 2-е нажатие (не раньше чем через 0,5 с, чтобы малыш не открыл случайной «дрожащей» двойной тапкой) открывает настройки.
+ * Кнопка «Для родителей»: открывает родительский замок (задача в `ParentLockDialog`, её показывает `MainActivity`).
+ * Сама кнопка ничего не защищает: малыш может её нажать, но задачу не решит.
  */
 @Composable
 fun ParentGearButton(
@@ -349,95 +345,40 @@ fun ParentGearButton(
     soundManager: SoundManager,
     haptics: Haptics
 ) {
-    var armedAt by remember { mutableLongStateOf(0L) }
-    var armed by remember { mutableStateOf(false) }
-
-    LaunchedEffect(armed, armedAt) {
-        if (armed) {
-            delay(GEAR_ARM_WINDOW_MS)
-            armed = false
-        }
-    }
-
-    Box {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = modifier
-                .then(if (showLabel) Modifier.height(48.dp).widthIn(min = 56.dp) else Modifier.size(56.dp))
-                .border(BorderStroke(3.dp, if (armed) ColorInk else ColorInk), if (showLabel) androidx.compose.foundation.shape.RoundedCornerShape(24.dp) else CircleShape)
-                .background(if (armed || showLabel) ColorYellow else ColorBgSoft, if (showLabel) androidx.compose.foundation.shape.RoundedCornerShape(24.dp) else CircleShape)
-                .clip(if (showLabel) androidx.compose.foundation.shape.RoundedCornerShape(24.dp) else CircleShape)
-                .clickable {
-                    val now = System.currentTimeMillis()
-                    if (!armed) {
-                        armed = true
-                        armedAt = now
-                        haptics.vibrateShort()
-                        soundManager.play("tap")
-                    } else if (now - armedAt >= GEAR_MIN_GAP_MS) {
-                        armed = false
-                        onTrigger()
-                    }
-                }
-                .testTag("parent_settings_gear_btn")
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = if (showLabel) 16.dp else 0.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Родителям",
-                    tint = ColorInk,
-                    modifier = Modifier.size(if (showLabel) 26.dp else 32.dp)
-                )
-                if (showLabel) {
-                    Text(
-                        text = "Для родителей",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Black,
-                        color = ColorInk,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
+    val shape = if (showLabel) androidx.compose.foundation.shape.RoundedCornerShape(24.dp) else CircleShape
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .then(if (showLabel) Modifier.height(48.dp).widthIn(min = 56.dp) else Modifier.size(56.dp))
+            .border(BorderStroke(3.dp, ColorInk), shape)
+            .background(if (showLabel) ColorYellow else ColorBgSoft, shape)
+            .clip(shape)
+            .clickable {
+                haptics.vibrateShort()
+                soundManager.play("tap")
+                onTrigger()
             }
-        }
-
-        if (armed) {
-            androidx.compose.ui.window.Popup(
-                alignment = if (showLabel) Alignment.TopCenter else Alignment.BottomEnd,
-                offset = androidx.compose.ui.unit.IntOffset(0, if (showLabel) -220 else 150)
-            ) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    color = ColorYellow,
-                    border = BorderStroke(3.dp, ColorInk),
-                    shadowElevation = 6.dp,
-                    modifier = Modifier.testTag("parent_settings_hint")
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .widthIn(max = 230.dp)
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            text = "Для родителей",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ColorInk.copy(alpha = 0.7f)
-                        )
-                        Text(
-                            text = "Нажмите ещё раз, чтобы открыть настройки",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black,
-                            color = ColorInk
-                        )
-                    }
-                }
+            .testTag("parent_settings_gear_btn")
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = if (showLabel) 16.dp else 0.dp)) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Родителям",
+                tint = ColorInk,
+                modifier = Modifier.size(if (showLabel) 26.dp else 32.dp)
+            )
+            if (showLabel) {
+                Text(
+                    text = "Для родителей",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Black,
+                    color = ColorInk,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
             }
         }
     }
 }
-
-private const val GEAR_ARM_WINDOW_MS = 5000L
-private const val GEAR_MIN_GAP_MS = 500L
 
 @Composable
 fun HomeScreenCard(

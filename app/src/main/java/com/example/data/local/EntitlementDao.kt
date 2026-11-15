@@ -17,6 +17,9 @@ interface EntitlementDao {
     fun activeProductIds(): Flow<List<String>>
 
     @Query("SELECT * FROM entitlements WHERE active = 1 AND kind = 'durable'")
+    fun activeDurableFlow(): Flow<List<EntitlementEntity>>
+
+    @Query("SELECT * FROM entitlements WHERE active = 1 AND kind = 'durable'")
     suspend fun activeDurable(): List<EntitlementEntity>
 
     @Query("UPDATE entitlements SET active = 0, updatedAtMillis = :now WHERE licenseId = :licenseId")

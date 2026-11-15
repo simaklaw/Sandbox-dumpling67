@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +36,7 @@ fun ParentSettingsDialog(
     onToggleMusic: () -> Unit,
     onResetProgress: () -> Unit,
     onNavigateToGame: ((Int) -> Unit)? = null,
+    onOpenStore: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -286,6 +288,18 @@ fun ParentSettingsDialog(
                 }
 
                 Divider(color = ColorInk.copy(alpha = 0.2f), thickness = 2.dp)
+
+                if (onOpenStore != null) {
+                    Button(
+                        onClick = onOpenStore,
+                        colors = ButtonDefaults.buttonColors(containerColor = ColorGreen),
+                        border = BorderStroke(2.dp, ColorInk),
+                        shape = ShapeSmall,
+                        modifier = Modifier.fillMaxWidth().testTag("parent_open_store")
+                    ) {
+                        Text("Полный доступ и лицензия", color = ColorInk, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                    }
+                }
 
                 TextButton(onClick = { showCredits = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Благодарности и лицензии", color = ColorInk, fontWeight = FontWeight.Bold, fontSize = 15.sp)

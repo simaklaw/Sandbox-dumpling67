@@ -194,6 +194,7 @@ fun MainAppScreen(
     var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
     var showParentLock by remember { mutableStateOf(false) }
+    var showStore by remember { mutableStateOf(false) }
 
     // Доступ к играм: при выключенной монетизации открыто всё. null = права ещё читаются из локальной БД.
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
@@ -405,6 +406,10 @@ fun MainAppScreen(
             )
         }
 
+        if (showStore) {
+            com.example.shared.ParentStoreDialog(onDismiss = { showStore = false })
+        }
+
         if (showParentSettings) {
             ParentSettingsDialog(
                 soundManager = soundManager,
@@ -418,6 +423,7 @@ fun MainAppScreen(
                     activeScreenState = AppScreenState.Game(targetIndex, if (targetIndex == 11) "Сюрпризы" else "Бегун")
                     showParentSettings = false
                 },
+                onOpenStore = if (BuildConfig.MONETIZATION_ENABLED) ({ showStore = true }) else null,
                 onDismiss = {
                     showParentSettings = false
                 }

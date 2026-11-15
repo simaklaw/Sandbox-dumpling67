@@ -199,7 +199,8 @@ fun MainAppScreen(
     var showStore by remember { mutableStateOf(false) }
 
     // Реклама: только на безопасных точках (вход на главный и выход из игры), решает AdManager.
-    val adManager = remember { com.example.ads.AdServices.manager(androidx.compose.ui.platform.LocalContext.current.applicationContext) }
+    val adContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val adManager = remember { com.example.ads.AdServices.manager(adContext) }
     var showExitAd by remember { mutableStateOf(false) }
     var showHomeAd by remember { mutableStateOf(false) }
     var launchAdTried by rememberSaveable { mutableStateOf(false) }

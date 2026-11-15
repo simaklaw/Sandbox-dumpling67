@@ -21,6 +21,10 @@ import androidx.compose.ui.unit.dp
 import com.example.audio.BackgroundMusicManager
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.monetization.GameAccess
+import com.example.monetization.MonetizationServices
+import com.example.screens.FOLDER_ITEMS
 import com.example.screens.FolderScreen
 import com.example.screens.FolderType
 import com.example.screens.folderTypeForPage
@@ -190,6 +194,16 @@ fun MainAppScreen(
     var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
     var showParentLock by remember { mutableStateOf(false) }
+
+    // Доступ к играм: при выключенной монетизации открыто всё. null = права ещё читаются из локальной БД.
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val unlockedState: Set<String>? by remember { MonetizationServices.unlockedProducts(appContext) }
+        .collectAsStateWithLifecycle(initialValue = if (BuildConfig.MONETIZATION_ENABLED) null else emptySet())
+    val unlockedSet = unlockedState ?: emptySet()
+    val canPlay: (Int) -> Boolean = remember(unlockedSet) {
+        { index -> GameAccess.canPlay(index, BuildConfig.MONETIZATION_ENABLED, unlockedSet) }
+    }
+    val kitchenVisible = remember(canPlay) { FOLDER_ITEMS.getValue(FolderType.KITCHEN).any { canPlay(it.pageIndex) } }
     val toggleMusic: () -> Unit = {
         val on = !musicOn
         musicOn = on
@@ -284,7 +298,8 @@ fun MainAppScreen(
                                 musicOn = musicOn,
                                 onToggleMusic = toggleMusic,
                                 soundManager = soundManager,
-                                haptics = haptics
+                                haptics = haptics,
+                                kitchenVisible = kitchenVisible
                             )
                         }
                         is AppScreenState.Folder -> {
@@ -298,10 +313,18 @@ fun MainAppScreen(
                                     activeScreenState = AppScreenState.Home
                                 },
                                 soundManager = soundManager,
-                                haptics = haptics
+                                haptics = haptics,
+                                canPlay = canPlay
                             )
                         }
                         is AppScreenState.Game -> {
+                            if (unlockedState == null) {
+                                Box(modifier = Modifier.fillMaxSize())
+                            } else if (!canPlay(screenState.pageIndex)) {
+                                // Платная игра без права: не рисуем, возвращаем на главный (защита от обхода).
+                                LaunchedEffect(screenState) { activeScreenState = AppScreenState.Home }
+                                Box(modifier = Modifier.fillMaxSize())
+                            } else {
                             Column(modifier = Modifier.fillMaxSize()) {
                                 GameTopBar(
                                     title = screenState.title,
@@ -363,6 +386,7 @@ fun MainAppScreen(
                                     23 -> BabyPhoneScreen(repository = repository, soundPlayer = soundPlayer)
                                 }
                                 }
+                            }
                             }
                         }
                     }

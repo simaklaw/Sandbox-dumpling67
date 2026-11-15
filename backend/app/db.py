@@ -37,8 +37,11 @@ CREATE TABLE IF NOT EXISTS processed_events (
 class Db:
     def __init__(self, path: str):
         self.path = path
-        with self.tx() as c:
-            c.executescript(SCHEMA)
+        conn = sqlite3.connect(self.path, timeout=10)
+        try:
+            conn.executescript(SCHEMA)  # executescript сам фиксирует транзакцию, поэтому вне tx()
+        finally:
+            conn.close()
 
     @contextmanager
     def tx(self):
@@ -49,7 +52,8 @@ class Db:
             yield conn
             conn.execute("COMMIT")
         except BaseException:
-            conn.execute("ROLLBACK")
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
             raise
         finally:
             conn.close()

@@ -464,7 +464,7 @@ fun MainAppScreen(
                     activeScreenState = AppScreenState.Game(targetIndex, if (targetIndex == 11) "Сюрпризы" else "Бегун")
                     showParentSettings = false
                 },
-                onOpenStore = if (BuildConfig.MONETIZATION_ENABLED) ({ showStore = true }) else null,
+                onOpenStore = if (BuildConfig.MONETIZATION_ENABLED && BuildConfig.ADS_ENABLED) ({ showStore = true }) else null,
                 onDismiss = {
                     showParentSettings = false
                 }

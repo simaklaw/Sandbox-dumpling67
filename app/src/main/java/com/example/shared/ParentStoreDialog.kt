@@ -80,8 +80,8 @@ fun ParentStoreDialog(onDismiss: () -> Unit) {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Полный доступ", fontSize = 20.sp, fontWeight = FontWeight.Black, color = ink)
-                Text("Игры работают без интернета. Он нужен только для покупки и активации.", fontSize = 13.sp, color = ink.copy(alpha = 0.75f))
+                Text("Убрать рекламу", fontSize = 20.sp, fontWeight = FontWeight.Black, color = ink)
+                Text("Все игры бесплатны и работают без интернета. Покупка убирает рекламу навсегда; интернет нужен только для покупки и активации.", fontSize = 13.sp, color = ink.copy(alpha = 0.75f))
 
                 when (val p = state.products) {
                     ProductsState.Loading -> Text("Загрузка…", fontSize = 14.sp, color = ink)

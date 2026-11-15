@@ -52,8 +52,8 @@ class StoreControllerTest {
     private lateinit var gateway: DirectLicenseGateway
     private lateinit var controller: StoreController
 
-    private fun token(): String {
-        val bytes = """{"product_id":"full_access","license_id":"L1","issued_at":1731500000,"expires_at":null,"v":1}""".toByteArray()
+    private fun token(product: String = "full_access"): String {
+        val bytes = """{"product_id":"$product","license_id":"L1","issued_at":1731500000,"expires_at":null,"v":1}""".toByteArray()
         val sig = Signature.getInstance("Ed25519").apply { initSign(kp.private); update(bytes) }.sign()
         val enc = Base64.getUrlEncoder().withoutPadding()
         return enc.encodeToString(bytes) + "." + enc.encodeToString(sig)
@@ -128,6 +128,14 @@ class StoreControllerTest {
         assertEquals("full_access", controller.state.value.activatedProductId)
         assertNull(mem.id)
         assertEquals(setOf("full_access"), gateway.unlockedProducts.first())
+    }
+
+    @Test
+    fun removeAdsActivationSaysAdsAreOff_andUnlocksProduct() = runBlocking {
+        api.activate = ApiResult.Success(ActivateResponse(token("remove_ads"), "remove_ads", 2))
+        controller.activate("DPLA-AAAA-BBBB-CCCC")
+        assertEquals("Реклама отключена навсегда. Спасибо!", controller.state.value.message)
+        assertEquals(setOf(ProductIds.REMOVE_ADS), gateway.unlockedProducts.first())
     }
 
     @Test

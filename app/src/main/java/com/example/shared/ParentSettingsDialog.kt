@@ -297,8 +297,14 @@ fun ParentSettingsDialog(
                         shape = ShapeSmall,
                         modifier = Modifier.fillMaxWidth().testTag("parent_open_store")
                     ) {
-                        Text("Полный доступ и лицензия", color = ColorInk, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                        Text("Убрать рекламу / лицензия", color = ColorInk, fontWeight = FontWeight.Black, fontSize = 15.sp)
                     }
+                    // Напоминание только здесь, в родительской зоне; ребёнок его не видит.
+                    Text(
+                        "Смотрите рекламу? Уберите её навсегда.",
+                        color = ColorInk.copy(alpha = 0.7f), fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    )
                 }
 
                 TextButton(onClick = { showCredits = true }, modifier = Modifier.fillMaxWidth()) {

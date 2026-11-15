@@ -121,7 +121,7 @@ class StoreController(
             pending.set(null)
             _state.update {
                 it.copy(busy = false, pendingOrderId = null, readyKey = null, activatedProductId = outcome.productId,
-                    message = "Полный доступ открыт. Спасибо!")
+                    message = activatedMessage(outcome.productId))
             }
         } else {
             _state.update { it.copy(busy = false, message = outcomeMessage(outcome)) }
@@ -129,6 +129,12 @@ class StoreController(
     }
 
     companion object {
+        fun activatedMessage(productId: String): String = when (productId) {
+            ProductIds.REMOVE_ADS -> "Реклама отключена навсегда. Спасибо!"
+            ProductIds.FULL_ACCESS -> "Полный доступ открыт. Спасибо!"
+            else -> "Покупка активирована. Спасибо!"
+        }
+
         fun outcomeMessage(o: ActivationOutcome): String = when (o) {
             is ActivationOutcome.Activated -> "Готово."
             ActivationOutcome.InvalidKey -> "Такого ключа нет. Проверьте, что ввели его без ошибок."

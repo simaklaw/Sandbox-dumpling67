@@ -145,5 +145,5 @@
 
 ## Монетизация v3: реклама + «Убрать рекламу» (SPEC_MONETIZATION_ADS.md)
 - [x] PR1 откат платности: все игры бесплатны (флаг, код сохранён).
-- [ ] PR2 ads/: AdConfig, AdManager, NoopProvider, тесты. [ ] PR3 триггер «при выходе». [ ] PR4 «при входе» + AdCard.
-- [ ] PR6 реальный SDK (после ответа Яндекса/ВК, фаза 0 у владельца). [ ] PR7 продукт remove_ads + UI + связка с AdManager.
+- [x] PR2 ads/: AdConfig, AdManager, NoopProvider, тесты. [x] PR3 триггер «при выходе». [x] PR4 «при входе» + AdCard.
+- [ ] PR6 реальный SDK (после ответа Яндекса/ВК, фаза 0 у владельца). [x] PR7 продукт remove_ads + UI + связка с AdManager (adsRemoved из entitlements).

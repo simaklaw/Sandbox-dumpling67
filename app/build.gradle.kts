@@ -22,12 +22,17 @@ android {
         // Монетизация (лицензионные ключи через ЮKassa): выключена, пока backend не развёрнут.
         // Адрес backend без секретов; секреты ЮKassa живут только на сервере.
         buildConfigField("boolean", "MONETIZATION_ENABLED", "false")
+        // Реклама: в release выключена, пока нет реального SDK (Яндекс/ВК); в debug включается тестовая заглушка.
+        buildConfigField("boolean", "ADS_ENABLED", "false")
         buildConfigField("String", "LICENSE_BACKEND_URL", "\"\"")
         // Публичный ключ Ed25519 (raw 32 байта в base64) для проверки лицензий; пусто, пока владелец не выдал пару ключей.
         buildConfigField("String", "LICENSE_PUBLIC_KEY", "\"\"")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "ADS_ENABLED", "true")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

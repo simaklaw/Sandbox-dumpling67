@@ -142,3 +142,8 @@
 - [x] PR1 настройки: INTERNET, BuildConfig, зависимости. [x] PR2 родительский замок.
 - [x] PR3 таблица entitlements (миграция 5→6, схема 6.json). [x] PR4 клиент monetization/. [x] PR5 магазин в родительской зоне (StoreController + ParentStoreDialog). [x] PR6 гейтинг каталога (GameAccess, фильтрация, защита в MainActivity). [x] PR7 backend в папке backend/ (FastAPI, тесты, CI; при желании вынести в отдельный репозиторий).
 - [ ] Владельцу: ЮKassa (shopId/secretKey/webhook), хостинг и домен, пара Ed25519, оферта и политика, решение по дистрибуции, лицензии ассетов из SOUND_CREDITS.md.
+
+## Монетизация v3: реклама + «Убрать рекламу» (SPEC_MONETIZATION_ADS.md)
+- [x] PR1 откат платности: все игры бесплатны (флаг, код сохранён).
+- [ ] PR2 ads/: AdConfig, AdManager, NoopProvider, тесты. [ ] PR3 триггер «при выходе». [ ] PR4 «при входе» + AdCard.
+- [ ] PR6 реальный SDK (после ответа Яндекса/ВК, фаза 0 у владельца). [ ] PR7 продукт remove_ads + UI + связка с AdManager.

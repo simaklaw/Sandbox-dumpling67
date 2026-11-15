@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 object ProductIds {
     const val FULL_ACCESS = "full_access"
     const val WINTER_PACK = "winter_pack"
+    const val REMOVE_ADS = "remove_ads"
 }
 
 @Serializable

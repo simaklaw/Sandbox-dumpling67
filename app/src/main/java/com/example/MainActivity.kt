@@ -100,6 +100,8 @@ class MainActivity : ComponentActivity() {
         }
 
         repository = GameRepository(this)
+        // Считаем запуск один раз за процесс (не при повороте): первые запуски без рекламы.
+        if (savedInstanceState == null) com.example.ads.AdServices.manager(this).onAppLaunch()
         soundPlayer = SoundEffectPlayer(this)
         soundManager = SoundManager.getInstance(this, soundPlayer)
         musicManager = BackgroundMusicManager()
@@ -196,11 +198,23 @@ fun MainAppScreen(
     var showParentLock by remember { mutableStateOf(false) }
     var showStore by remember { mutableStateOf(false) }
 
+    // Реклама: только на безопасных точках (вход на главный и выход из игры), решает AdManager.
+    val adContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val adManager = remember { com.example.ads.AdServices.manager(adContext) }
+    var showExitAd by remember { mutableStateOf(false) }
+    var showHomeAd by remember { mutableStateOf(false) }
+    var launchAdTried by rememberSaveable { mutableStateOf(false) }
+
     // Доступ к играм: при выключенной монетизации открыто всё. null = права ещё читаются из локальной БД.
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val unlockedState: Set<String>? by remember { MonetizationServices.unlockedProducts(appContext) }
         .collectAsStateWithLifecycle(initialValue = if (BuildConfig.MONETIZATION_ENABLED) null else emptySet())
     val unlockedSet = unlockedState ?: emptySet()
+    // Пока права читаются из БД или куплен remove_ads, рекламы нет.
+    androidx.compose.runtime.SideEffect {
+        com.example.ads.AdServices.adsRemoved =
+            unlockedState == null || com.example.monetization.ProductIds.REMOVE_ADS in unlockedSet
+    }
     val canPlay: (Int) -> Boolean = remember(unlockedSet) {
         { index -> GameAccess.canPlay(index, BuildConfig.MONETIZATION_ENABLED, unlockedSet) }
     }
@@ -246,9 +260,20 @@ fun MainAppScreen(
     }
 
     // Общий выход из игры (кнопка «Назад» внутри экранов со своей верхней панелью)
+    // Единственное место выхода из игры: реклама (если AdManager разрешит) показывается ПОСЛЕ выхода, на экране папки/главном.
+    val exitGame: (Int) -> Unit = { pageIndex ->
+        activeScreenState = parentStateForGame(pageIndex)
+        if (adManager.decide(com.example.ads.AdTrigger.EXIT) is com.example.ads.AdDecision.Show) showExitAd = true
+    }
+    LaunchedEffect(showIntro, activeScreenState) {
+        if (!launchAdTried && !showIntro && activeScreenState is AppScreenState.Home) {
+            launchAdTried = true
+            if (adManager.decide(com.example.ads.AdTrigger.LAUNCH) is com.example.ads.AdDecision.Show) showHomeAd = true
+        }
+    }
     val leaveGame: (Int) -> Unit = { pageIndex ->
         soundManager.play("transition")
-        activeScreenState = parentStateForGame(pageIndex)
+        exitGame(pageIndex)
     }
 
     CompositionLocalProvider(LocalAgeProfile provides UNIVERSAL_PROFILE) {
@@ -263,9 +288,7 @@ fun MainAppScreen(
                     activeScreenState = AppScreenState.Home
                 }
                 is AppScreenState.Game -> {
-                    activeScreenState = parentStateForGame(
-                        (activeScreenState as AppScreenState.Game).pageIndex
-                    )
+                    exitGame((activeScreenState as AppScreenState.Game).pageIndex)
                 }
             }
         }
@@ -332,7 +355,7 @@ fun MainAppScreen(
                                     haptics = haptics,
                                     onHome = {
                                         soundManager.play("transition")
-                                        activeScreenState = parentStateForGame(screenState.pageIndex)
+                                        exitGame(screenState.pageIndex)
                                     }
                                 )
                                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -404,6 +427,24 @@ fun MainAppScreen(
                 },
                 onDismiss = { showParentLock = false }
             )
+        }
+
+        if (showExitAd) {
+            LaunchedEffect(Unit) { adManager.markShown(com.example.ads.AdTrigger.EXIT) }
+            com.example.ads.components.AdInterstitial(
+                provider = com.example.ads.AdServices.provider(),
+                onClosed = { showExitAd = false }
+            )
+        }
+
+        if (showHomeAd && activeScreenState is AppScreenState.Home && !showIntro) {
+            LaunchedEffect(Unit) { adManager.markShown(com.example.ads.AdTrigger.LAUNCH) }
+            Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 12.dp), contentAlignment = Alignment.BottomCenter) {
+                com.example.ads.components.AdCard(
+                    provider = com.example.ads.AdServices.provider(),
+                    onClosed = { showHomeAd = false }
+                )
+            }
         }
 
         if (showStore) {

@@ -43,7 +43,8 @@ fun HomeScreen(
     musicOn: Boolean = true,
     onToggleMusic: () -> Unit = {},
     soundManager: SoundManager,
-    haptics: Haptics = rememberHaptics()
+    haptics: Haptics = rememberHaptics(),
+    kitchenVisible: Boolean = true
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -222,7 +223,7 @@ fun HomeScreen(
                             haptics = haptics,
                             onClick = { onNavigateToFolder("Игры", FolderType.GAMES) }
                         )
-                        HomeScreenCard(
+                        if (kitchenVisible) HomeScreenCard(
                             modifier = Modifier.weight(1f),
                             title = "Кухня",
                             icon = "🫖",

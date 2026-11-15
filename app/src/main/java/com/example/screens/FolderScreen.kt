@@ -109,6 +109,12 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
 val FOLDER_ITEMS: Map<FolderType, List<FolderItem>> =
     FOLDER_SECTIONS.mapValues { (_, secs) -> secs.flatMap { it.items } }
 
+/** Секции папки только с теми играми, которые доступны; пустые секции скрыты (ребёнок не видит «закрытого»). */
+fun visibleSections(folderType: FolderType, canPlay: (Int) -> Boolean): List<FolderSection> =
+    FOLDER_SECTIONS.getValue(folderType)
+        .map { sec -> sec.copy(items = sec.items.filter { canPlay(it.pageIndex) }) }
+        .filter { it.items.isNotEmpty() }
+
 /** В какой папке лежит игра с этим индексом (null — игра открывается прямо с главного экрана). */
 fun folderTypeForPage(pageIndex: Int): FolderType? =
     FOLDER_ITEMS.entries.firstOrNull { (_, list) -> list.any { it.pageIndex == pageIndex } }?.key
@@ -121,9 +127,10 @@ fun FolderScreen(
     onNavigateToGame: (Int, String) -> Unit,
     onGoBack: () -> Unit,
     soundManager: SoundManager,
-    haptics: Haptics = rememberHaptics()
+    haptics: Haptics = rememberHaptics(),
+    canPlay: (Int) -> Boolean = { true }
 ) {
-    val sections = remember(folderType) { FOLDER_SECTIONS.getValue(folderType) }
+    val sections = remember(folderType, canPlay) { visibleSections(folderType, canPlay) }
 
     Box(
         modifier = modifier

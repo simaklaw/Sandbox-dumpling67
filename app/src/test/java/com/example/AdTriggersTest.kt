@@ -21,9 +21,9 @@ class AdTriggersTest {
     }
 
     @Test
-    fun adsAreOnlyDecidedByAdManagerAtTwoTriggers() {
+    fun adsAreOnlyShownByAdManagerAtTwoTriggers() {
         val main = src("MainActivity.kt")
-        assertEquals(2, Regex("""adManager\.decide\(""").findAll(main).count())
+        assertEquals(2, Regex("""adManager\.tryShow\(""").findAll(main).count())
         assertTrue(main.contains("AdTrigger.EXIT") && main.contains("AdTrigger.LAUNCH"))
     }
 

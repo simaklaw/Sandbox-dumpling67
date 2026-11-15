@@ -6,6 +6,8 @@
     <!-- Только для покупок и активации лицензии в родительской зоне (пакет monetization/). Детский контур в сеть не ходит. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Детское приложение: рекламный идентификатор не используется, разрешение AD_ID из SDK убираем. -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
     <!-- Только для «Свои голоса» в родительских настройках; запрашивается в момент записи. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

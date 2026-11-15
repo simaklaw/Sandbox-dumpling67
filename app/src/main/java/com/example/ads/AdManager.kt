@@ -38,7 +38,7 @@ class AdManager(
 
     fun decide(trigger: AdTrigger): AdDecision {
         if (adsRemoved()) return skip(SkipReason.ADS_REMOVED)
-        val format = if (trigger == AdTrigger.LAUNCH) AdFormat.NATIVE_CARD else AdFormat.INTERSTITIAL
+        val format = if (trigger == AdTrigger.LAUNCH) AdFormat.APP_OPEN else AdFormat.INTERSTITIAL
         if (!provider.isAvailable(format)) return skip(SkipReason.NO_PROVIDER)
         if (!online()) return skip(SkipReason.OFFLINE)
         if (store.launchCount <= AdConfig.MIN_LAUNCH_BEFORE_FIRST_AD) return skip(SkipReason.TOO_EARLY)
@@ -52,6 +52,22 @@ class AdManager(
             AdTrigger.EXIT -> if (random() >= AdConfig.EXIT_PROBABILITY) return skip(SkipReason.PROBABILITY)
         }
         return AdDecision.Show(format)
+    }
+
+    /**
+     * Подгрузка рекламы заранее. Не раньше, чем будет разрешено показывать: не при `remove_ads`, не офлайн и не в первые
+     * запуски (в эти запуски SDK вообще не создаётся). Вызывать после первого кадра, не из `onCreate`.
+     */
+    fun preload(activity: android.app.Activity) {
+        if (adsRemoved() || !online() || store.launchCount <= AdConfig.MIN_LAUNCH_BEFORE_FIRST_AD) return
+        provider.preload(activity)
+    }
+
+    /** Единственный путь показа: решение [decide], показ через провайдер, учёт лимитов по факту показа. */
+    fun tryShow(activity: android.app.Activity, trigger: AdTrigger): Boolean {
+        val d = decide(trigger) as? AdDecision.Show ?: return false
+        provider.show(activity, d.format, onShown = { markShown(trigger) }, onFinished = { preload(activity) })
+        return true
     }
 
     /** Вызывать, когда реклама реально показана на экране. */

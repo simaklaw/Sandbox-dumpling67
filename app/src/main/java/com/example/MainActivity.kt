@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.ads.findActivity
 import android.content.Context
 import android.os.Bundle
 import androidx.lifecycle.repeatOnLifecycle
@@ -199,10 +200,8 @@ fun MainAppScreen(
     var showStore by remember { mutableStateOf(false) }
 
     // Реклама: только на безопасных точках (вход на главный и выход из игры), решает AdManager.
-    val adContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    val adManager = remember { com.example.ads.AdServices.manager(adContext) }
-    var showExitAd by remember { mutableStateOf(false) }
-    var showHomeAd by remember { mutableStateOf(false) }
+    val adContext = androidx.compose.ui.platform.LocalContext.current
+    val adManager = remember { com.example.ads.AdServices.manager(adContext.applicationContext) }
     var launchAdTried by rememberSaveable { mutableStateOf(false) }
 
     // Доступ к играм: при выключенной монетизации открыто всё. null = права ещё читаются из локальной БД.
@@ -263,12 +262,16 @@ fun MainAppScreen(
     // Единственное место выхода из игры: реклама (если AdManager разрешит) показывается ПОСЛЕ выхода, на экране папки/главном.
     val exitGame: (Int) -> Unit = { pageIndex ->
         activeScreenState = parentStateForGame(pageIndex)
-        if (adManager.decide(com.example.ads.AdTrigger.EXIT) is com.example.ads.AdDecision.Show) showExitAd = true
+        adContext.findActivity()?.let { adManager.tryShow(it, com.example.ads.AdTrigger.EXIT) }
+    }
+    // Подгрузка рекламы заранее (не в onCreate): пока идёт заставка. AdManager сам не пустит при remove_ads/офлайне/первых запусках.
+    LaunchedEffect(unlockedState) {
+        if (unlockedState != null) adContext.findActivity()?.let { adManager.preload(it) }
     }
     LaunchedEffect(showIntro, activeScreenState) {
         if (!launchAdTried && !showIntro && activeScreenState is AppScreenState.Home) {
             launchAdTried = true
-            if (adManager.decide(com.example.ads.AdTrigger.LAUNCH) is com.example.ads.AdDecision.Show) showHomeAd = true
+            adContext.findActivity()?.let { adManager.tryShow(it, com.example.ads.AdTrigger.LAUNCH) }
         }
     }
     val leaveGame: (Int) -> Unit = { pageIndex ->
@@ -427,24 +430,6 @@ fun MainAppScreen(
                 },
                 onDismiss = { showParentLock = false }
             )
-        }
-
-        if (showExitAd) {
-            LaunchedEffect(Unit) { adManager.markShown(com.example.ads.AdTrigger.EXIT) }
-            com.example.ads.components.AdInterstitial(
-                provider = com.example.ads.AdServices.provider(),
-                onClosed = { showExitAd = false }
-            )
-        }
-
-        if (showHomeAd && activeScreenState is AppScreenState.Home && !showIntro) {
-            LaunchedEffect(Unit) { adManager.markShown(com.example.ads.AdTrigger.LAUNCH) }
-            Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 12.dp), contentAlignment = Alignment.BottomCenter) {
-                com.example.ads.components.AdCard(
-                    provider = com.example.ads.AdServices.provider(),
-                    onClosed = { showHomeAd = false }
-                )
-            }
         }
 
         if (showStore) {

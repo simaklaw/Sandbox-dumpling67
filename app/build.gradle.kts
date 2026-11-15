@@ -22,8 +22,8 @@ android {
         // Монетизация (лицензионные ключи через ЮKassa): выключена, пока backend не развёрнут.
         // Адрес backend без секретов; секреты ЮKassa живут только на сервере.
         buildConfigField("boolean", "MONETIZATION_ENABLED", "false")
-        // Реклама: в release выключена, пока нет реального SDK (Яндекс/ВК); в debug включается тестовая заглушка.
-        buildConfigField("boolean", "ADS_ENABLED", "false")
+        // Реклама Яндекса (Yandex Mobile Ads SDK): Ad Unit ID задаются по типам сборки ниже.
+        buildConfigField("boolean", "ADS_ENABLED", "true")
         buildConfigField("String", "LICENSE_BACKEND_URL", "\"\"")
         // Публичный ключ Ed25519 (raw 32 байта в base64) для проверки лицензий; пусто, пока владелец не выдал пару ключей.
         buildConfigField("String", "LICENSE_PUBLIC_KEY", "\"\"")
@@ -31,9 +31,13 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("boolean", "ADS_ENABLED", "true")
+            // Только демо-блоки Яндекса: боевые ID в debug не используются, чтобы не накручивать показы и не ловить блокировку.
+            buildConfigField("String", "AD_UNIT_APP_OPEN", "\"demo-appopenad-yandex\"")
+            buildConfigField("String", "AD_UNIT_INTERSTITIAL", "\"demo-interstitial-yandex\"")
         }
         release {
+            buildConfigField("String", "AD_UNIT_APP_OPEN", "\"R-M-20423624-1\"")
+            buildConfigField("String", "AD_UNIT_INTERSTITIAL", "\"R-M-20423624-2\"")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Подпись релиза: ключи хранить ВНЕ репозитория и подключать через переменные окружения/CI-секреты
@@ -109,6 +113,7 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 
+    implementation(libs.yandex.mobileads)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

@@ -1,7 +1,5 @@
 package com.example
 
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import com.example.ads.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +17,8 @@ class AdManagerTest {
 
     private class Ready : AdProvider {
         override fun isAvailable(format: AdFormat) = true
-        @Composable override fun Content(format: AdFormat, interactive: Boolean, modifier: Modifier) = Unit
+        override fun preload(activity: android.app.Activity) = Unit
+        override fun show(activity: android.app.Activity, format: AdFormat, onShown: () -> Unit, onFinished: () -> Unit) = onFinished()
     }
 
     private class Env {
@@ -52,7 +51,7 @@ class AdManagerTest {
             assertEquals(skip(SkipReason.TOO_EARLY), e.manager().decide(AdTrigger.EXIT))
         }
         e.launches(1)
-        assertEquals(AdDecision.Show(AdFormat.NATIVE_CARD), e.manager().decide(AdTrigger.LAUNCH))
+        assertEquals(AdDecision.Show(AdFormat.APP_OPEN), e.manager().decide(AdTrigger.LAUNCH))
     }
 
     @Test

@@ -10,7 +10,7 @@ import java.util.Locale
 
 /**
  * Единственное место сборки рекламы. Ленивое: ничего не создаётся, пока не вызван [manager]; SDK в `Application` нет.
- * Пока реального SDK нет: в release провайдер [NoopProvider], в debug (при `ADS_ENABLED`) тестовая заглушка.
+ * Debug использует демо-блоки Яндекса, release только боевые Ad Unit ID (см. `app/build.gradle.kts`).
  */
 object AdServices {
     /** true, пока права не прочитаны или куплен `remove_ads`: тогда рекламы нет. Обновляет MainActivity. */
@@ -18,8 +18,14 @@ object AdServices {
 
     @Volatile private var instance: AdManager? = null
 
-    fun provider(): AdProvider =
-        if (BuildConfig.ADS_ENABLED && BuildConfig.DEBUG) DebugAdProvider else NoopProvider
+    /** Яндекс-провайдер только при `ADS_ENABLED`; сам SDK создаётся лениво, при первом preload. */
+    private val provider: AdProvider by lazy {
+        if (BuildConfig.ADS_ENABLED) {
+            com.example.ads.yandex.YandexAdProvider(BuildConfig.AD_UNIT_APP_OPEN, BuildConfig.AD_UNIT_INTERSTITIAL)
+        } else NoopProvider
+    }
+
+    fun provider(): AdProvider = provider
 
     fun manager(context: Context): AdManager =
         instance ?: synchronized(this) {
@@ -39,4 +45,14 @@ object AdServices {
     } catch (e: SecurityException) {
         false
     }
+}
+
+/** Activity из Context (Compose даёт обёртку над Activity). */
+fun Context.findActivity(): android.app.Activity? {
+    var c: Context? = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
 }

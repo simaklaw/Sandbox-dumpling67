@@ -26,6 +26,7 @@ jbox2d = "2.2.1.1"
 lottie = "6.4.0"
 okhttp = "4.12.0"
 tink = "1.15.0"
+yandexMobileAds = "8.6.0"
 kotlinxSerializationJson = "1.9.0"
 
 [libraries]
@@ -63,6 +64,7 @@ roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "robora
 
 lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
+yandex-mobileads = { group = "com.yandex.android", name = "mobileads", version.ref = "yandexMobileAds" }
 tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }

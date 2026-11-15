@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.example.audio.BackgroundMusicManager
 import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.monetization.GameAccess
 import com.example.monetization.MonetizationServices
 import com.example.screens.FOLDER_ITEMS

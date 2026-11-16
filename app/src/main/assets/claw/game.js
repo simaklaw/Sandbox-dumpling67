@@ -4,17 +4,24 @@
  * физика призов — собственная (сферы + капсулы когтя), управление — джойстик и кнопка.
  */
 import * as THREE from './three.module.min.js';
+import { SPECIES, SPECIES_BY_ID, RARITY, makePlushMesh, randomSpecies } from './plush.js';
+import { Showcase } from './showcase.js';
 
 const $ = (id) => document.getElementById(id);
 const bridge = (name, value) => { try { if (window.Android) window.Android.onEvent(name, String(value === undefined ? '' : value)); } catch (e) {} };
 
-// ───────────────────────── правила (как в оригинале) ─────────────────────────
-const COLOR_VALUES = { '#FBBC04': 50, '#EA4335': 40, '#34A853': 30, '#E37400': 20, '#9AA0A6': 10 };
-const TYPE_MULT = { dodecahedron: 3, sphere: 2, box: 1 };
-const COLORS = Object.keys(COLOR_VALUES);
-const TYPES = Object.keys(TYPE_MULT);
-const GAME_SECONDS = 60;
+// ───────────────────────── правила ─────────────────────────
+const GAME_SECONDS = 90;
 const CHUTE_X = -3.5, CHUTE_Z = 3.5;
+const COMBO_WINDOW = 20; // секунд между выигрышами для комбо
+const RARITY_COLORS = { 1: '#9AA0A6', 2: '#4285F4', 3: '#A142F4', 4: '#FBBC04' };
+const CONGRATS = {
+  1: ['Ура! Новый друг!', 'Какой милый!', 'Отлично!'],
+  2: ['Здорово! Редкий зверёк!', 'Вот это улов!', 'Молодец!'],
+  3: ['Ого! Очень редкий!', 'Супер-ловкость!', 'Ты настоящий чемпион!'],
+  4: ['ЛЕГЕНДА! Единорожка твоя!', 'Чудо! Волшебный улов!', 'Невероятно!'],
+};
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 // ───────────────────────── рендерер, сцена ─────────────────────────
 const canvas = $('scene');
@@ -25,6 +32,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
+const showcase = new Showcase(renderer);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x15152a);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 400);
@@ -48,6 +56,7 @@ function fitCamera() {
   camera.position.set(0, portrait ? 6.5 : 8, z);
   camera.lookAt(0, portrait ? 3.6 : 4, 0);
   camera.updateProjectionMatrix();
+  showcase.resize(w, h);
 }
 window.addEventListener('resize', fitCamera);
 fitCamera();
@@ -61,6 +70,7 @@ new THREE.TextureLoader().load('claw_env.jpg', (tex) => {
   scene.environmentIntensity = 1.5;
   scene.backgroundRotation.set(0, Math.PI * 0.725, 0);
   scene.environmentRotation.set(0, Math.PI * 1.2, 0);
+  showcase.setEnvironment(tex);
   $('loading').style.display = 'none';
 }, undefined, () => { $('loading').style.display = 'none'; });
 setTimeout(() => { $('loading').style.display = 'none'; }, 6000);
@@ -174,17 +184,19 @@ aimRing.renderOrder = 6;
 scene.add(aimRing);
 const claw = { x: 0, y: 8, z: 0, state: 'idle', closed: false, timer: 0, grabbed: null, vx: 0, vy: 0, vz: 0 };
 
-// ───────────────────────── призы ─────────────────────────
-const GEO = {
-  box: new THREE.BoxGeometry(0.8, 0.8, 0.8),
-  sphere: new THREE.SphereGeometry(0.5, 20, 16),
-  dodecahedron: new THREE.DodecahedronGeometry(0.6),
-};
-const PRIZE_R = { box: 0.5, sphere: 0.5, dodecahedron: 0.58, bugdroid: 0.75 };
-const prizeMats = {};
-function prizeMat(color) {
-  if (!prizeMats[color]) prizeMats[color] = new THREE.MeshStandardMaterial({ color, metalness: 0.5, roughness: 0.1, envMapIntensity: 1 });
-  return prizeMats[color];
+// ───────────────────────── призы (плюшевые зверята) ─────────────────────────
+const haloTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,.9)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+const haloMats = {};
+function haloMat(rarity) {
+  if (!haloMats[rarity]) haloMats[rarity] = new THREE.SpriteMaterial({ map: haloTex, color: RARITY_COLORS[rarity], transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
+  return haloMats[rarity];
 }
 let prizes = [];
 let prizeSeq = 0;
@@ -194,22 +206,22 @@ function randomXZ() {
   if (x < -2 && z > 2) x += 3;
   return [x, z];
 }
-function addPrize(type, color, value, x, y, z) {
+function addPrize(sp, x, y, z) {
   const group = new THREE.Group();
-  if (type === 'bugdroid') {
-    const b = makeBugdroid();
-    b.scale.setScalar(0.35);
-    b.position.set(0, -0.8, 0);
-    group.add(b);
-  } else {
-    const m = new THREE.Mesh(GEO[type], prizeMat(color));
-    m.castShadow = true; m.receiveShadow = true;
-    group.add(m);
+  const m = makePlushMesh(sp.id);
+  group.add(m);
+  if (sp.rarity >= 3) {
+    const h = new THREE.Sprite(haloMat(sp.rarity));
+    h.scale.setScalar(sp.r * 4.2);
+    h.renderOrder = 4;
+    group.add(h);
+    group.userData.halo = h;
   }
+  group.rotation.y = Math.random() * Math.PI * 2;
   group.position.set(x, y, z);
   scene.add(group);
   prizes.push({
-    id: ++prizeSeq, type, color, value, group, r: PRIZE_R[type],
+    id: ++prizeSeq, sp, rarity: sp.rarity, value: RARITY[sp.rarity].value, group, r: sp.r,
     pos: new THREE.Vector3(x, y, z), vel: new THREE.Vector3(), grabbed: false, gone: false,
   });
 }
@@ -220,16 +232,12 @@ function clearPrizes() {
 }
 function initPrizes() {
   clearPrizes();
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 44; i++) {
     const [x, z] = randomXZ();
-    const type = TYPES[Math.floor(Math.random() * TYPES.length)];
-    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
-    addPrize(type, color, COLOR_VALUES[color] * TYPE_MULT[type], x, Math.random() * 4 + 1, z);
+    addPrize(randomSpecies(), x, Math.random() * 4 + 1, z);
   }
-  for (let i = 0; i < 3; i++) {
-    const [x, z] = randomXZ();
-    addPrize('bugdroid', '#34A853', 100, x, Math.random() * 2 + 5, z);
-  }
+  const [ux, uz] = randomXZ();
+  addPrize(SPECIES_BY_ID.unicorn, ux, 5.5, uz); // одна легендарная единорожка на каждую «загрузку»
 }
 
 // ───────────────────────── физика ─────────────────────────
@@ -334,12 +342,11 @@ const rollQ = new THREE.Quaternion(), rollAxis = new THREE.Vector3();
 function syncPrizeMeshes(dt) {
   for (const p of prizes) {
     p.group.position.copy(p.pos);
-    if (p.type === 'bugdroid') continue;
     if (p.grabbed) continue;
     const sp = Math.hypot(p.vel.x, p.vel.z);
     if (sp > 0.02 && (p.grounded || p.pos.y < 1.6)) {
       rollAxis.set(p.vel.z, 0, -p.vel.x).normalize();
-      rollQ.setFromAxisAngle(rollAxis, (sp * dt) / p.r);
+      rollQ.setFromAxisAngle(rollAxis, (sp * dt) / p.r * 0.6);
       p.group.quaternion.premultiply(rollQ);
     }
   }
@@ -407,12 +414,17 @@ $('drop').addEventListener('pointerdown', (e) => { tryDrop(); e.preventDefault()
 // ───────────────────────── игра ─────────────────────────
 let mode = 'ready'; // ready | playing | over
 let score = 0, timeLeft = GAME_SECONDS;
+let combo = 0, lastWinAt = -999, gameClock = 0, wins = 0, misses = 0; // misses: подряд неудачи (для «жалости»)
+let presenting = null, presentT = 0;
+const winQueue = [];
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 let best = store.get('claw_best', 0);
 let topList = store.get('claw_top', []);
+let album = store.get('claw_album', {});
+const albumCount = () => SPECIES.filter((s) => album[s.id]).length;
 
 function updateHud() {
   $('scoreV').textContent = String(score);
@@ -420,7 +432,27 @@ function updateHud() {
   $('timeV').textContent = mode === 'playing' ? String(t) : '--';
   $('time').classList.toggle('low', mode === 'playing' && t <= 10);
   $('drop').classList.toggle('off', !(mode === 'playing' && claw.state === 'idle'));
+  $('albumN').textContent = albumCount() + '/' + SPECIES.length;
 }
+// подсказка силы хвата: шанс схватить зверя под когтем (чем реже, тем скользче)
+function updateGripMeter() {
+  const el = $('grip');
+  let near = null, min = 1.6;
+  if (mode === 'playing' && claw.state === 'idle') {
+    for (const p of prizes) {
+      const d = Math.hypot(p.pos.x - claw.x, p.pos.y - 3.3, p.pos.z - claw.z);
+      if (d < min) { min = d; near = p; }
+    }
+  }
+  if (!near) { el.classList.remove('show'); return; }
+  const g = catchChance(near);
+  el.classList.add('show');
+  $('gripFill').style.width = Math.round(g * 100) + '%';
+  $('gripFill').style.background = RARITY_COLORS[near.rarity];
+  $('gripName').textContent = near.sp.emoji + ' ' + RARITY[near.rarity].label;
+}
+const catchChance = (p) => Math.min(0.95, RARITY[p.rarity].grip + Math.min(misses, 3) * 0.1);
+const holdChance = (p) => Math.min(0.97, 0.55 + RARITY[p.rarity].grip * 0.45 + Math.min(misses, 3) * 0.05);
 function toast(text) {
   const el = $('toast');
   el.textContent = text;
@@ -429,10 +461,12 @@ function toast(text) {
   el.classList.add('go');
 }
 function resetClaw() {
-  Object.assign(claw, { x: 0, y: 8, z: 0, state: 'idle', closed: false, timer: 0, grabbed: null });
+  Object.assign(claw, { x: 0, y: 8, z: 0, state: 'idle', closed: false, timer: 0, grabbed: null, slipAt: -1, wobble: 0, tried: false });
 }
 function startGame() {
   score = 0; timeLeft = GAME_SECONDS;
+  combo = 0; lastWinAt = -999; gameClock = 0; wins = 0; misses = 0;
+  presenting = null; winQueue.length = 0; $('winO').classList.remove('show'); showcase.stop();
   resetClaw();
   initPrizes();
   mode = 'playing';
@@ -461,11 +495,21 @@ function endGame() {
   updateHud();
 }
 function tryDrop() {
-  if (mode === 'playing' && claw.state === 'idle') { claw.state = 'dropping'; bridge('drop'); updateHud(); }
+  if (mode === 'playing' && claw.state === 'idle') { claw.state = 'dropping'; claw.tried = false; bridge('drop'); updateHud(); }
 }
 $('startBtn').addEventListener('click', startGame);
 $('startO').addEventListener('click', (e) => { if (e.target === $('startO')) startGame(); });
 $('againBtn').addEventListener('click', startGame);
+function openAlbum() {
+  $('albumGrid').innerHTML = SPECIES.map((sp) => {
+    const n = album[sp.id] || 0;
+    return `<div class="cell r${sp.rarity}${n ? '' : ' lock'}"><span class="em">${n ? sp.emoji : '❓'}</span><small>${n ? sp.name.split(' ')[0] : '???'}</small>${n > 1 ? `<i>×${n}</i>` : ''}</div>`;
+  }).join('');
+  $('albumTitle').textContent = `Мои зверята ${albumCount()}/${SPECIES.length}`;
+  $('albumO').classList.add('show');
+}
+$('albumBtn').addEventListener('click', openAlbum);
+$('albumClose').addEventListener('click', () => $('albumO').classList.remove('show'));
 $('infoBtn').addEventListener('click', () => $('infoO').classList.add('show'));
 $('infoClose').addEventListener('click', () => $('infoO').classList.remove('show'));
 $('bestLine').textContent = best > 0 ? `Рекорд: ${best}` : '';
@@ -491,17 +535,37 @@ function updateClaw(dt) {
   } else if (claw.state === 'closing') {
     claw.closed = true;
     claw.timer += dt;
-    if (!claw.grabbed) {
-      let best2 = null, min = 1.8;
+    if (!claw.grabbed && !claw.tried) {
+      let best2 = null, min = 1.6;
       for (const p of prizes) {
         const d = Math.hypot(p.pos.x - claw.x, p.pos.y - (claw.y - 1.2), p.pos.z - claw.z);
         if (d < min) { min = d; best2 = p; }
       }
-      if (best2) { claw.grabbed = best2; best2.grabbed = true; best2.vel.set(0, 0, 0); bridge('grab'); }
+      claw.tried = true;
+      if (best2) {
+        if (Math.random() < catchChance(best2)) {
+          claw.grabbed = best2; best2.grabbed = true; best2.vel.set(0, 0, 0); bridge('grab');
+          // где-то по пути вверх зверёк может выскользнуть: чем реже зверь, тем вероятнее
+          claw.slipAt = Math.random() > holdChance(best2) ? 3.5 + Math.random() * 3.5 : -1;
+          claw.wobble = 0;
+        } else {
+          misses++; bridge('miss');
+          best2.vel.set((Math.random() - 0.5) * 2, 2.5, (Math.random() - 0.5) * 2); // зверёк увернулся
+          toast('Выскользнул!');
+        }
+      }
     }
     if (claw.timer > 1) claw.state = 'raising';
   } else if (claw.state === 'raising') {
     claw.y += 4 * dt;
+    if (claw.grabbed && claw.slipAt > 0 && claw.y >= claw.slipAt && claw.wobble === 0) claw.wobble = 0.001;
+    if (claw.wobble > 0) {
+      claw.wobble += dt;
+      if (claw.wobble > 0.55 && claw.grabbed) { // отпустил
+        const g = claw.grabbed; g.grabbed = false; g.vel.set(0, -1, 0); claw.grabbed = null;
+        misses++; claw.slipAt = -1; claw.wobble = 0; bridge('slip'); toast('Ой, упал!');
+      }
+    }
     if (claw.y >= 8) { claw.y = 8; claw.state = 'returning'; }
   } else if (claw.state === 'returning') {
     const k = Math.min(1, 3 * dt);
@@ -510,14 +574,17 @@ function updateClaw(dt) {
     if (Math.abs(claw.x - CHUTE_X) < 0.1 && Math.abs(claw.z - CHUTE_Z) < 0.1) { claw.state = 'opening'; claw.timer = 0; }
   } else if (claw.state === 'opening') {
     claw.closed = false;
-    if (claw.grabbed) { claw.grabbed.grabbed = false; claw.grabbed.vel.set(0, 0, 0); claw.grabbed = null; }
+    if (claw.grabbed) { misses = 0; claw.grabbed.grabbed = false; claw.grabbed.vel.set(0, 0, 0); claw.grabbed = null; }
     claw.timer += dt;
     if (claw.timer > 3.0) { claw.state = 'idle'; claw.closed = false; updateHud(); }
   }
   clawVel.set((claw.x - ox) / dt, (claw.y - oy) / dt, (claw.z - oz) / dt);
   if (clawVel.lengthSq() > 400) clawVel.set(0, 0, 0);
 
-  if (claw.grabbed) claw.grabbed.pos.set(claw.x, claw.y - 1.2, claw.z);
+  if (claw.grabbed) {
+    const sh = claw.wobble > 0 ? Math.sin(claw.wobble * 60) * 0.12 : 0;
+    claw.grabbed.pos.set(claw.x + sh, claw.y - 1.2, claw.z);
+  }
 
   clawBase.position.set(claw.x, claw.y, claw.z);
   const targetAngle = claw.closed ? -Math.PI / 8 : Math.PI / 3;
@@ -549,18 +616,52 @@ function updateClaw(dt) {
   cable.scale.set(1, Math.max(0.01, 10 - claw.y), 1);
 }
 
+function winPrize(p) {
+  let bonus = 0;
+  combo = gameClock - lastWinAt <= COMBO_WINDOW ? combo + 1 : 0;
+  lastWinAt = gameClock;
+  if (combo > 0) bonus = Math.min(combo, 5) * 10;
+  const total = p.value + bonus;
+  score += total; wins++;
+  const isNew = !album[p.sp.id];
+  album[p.sp.id] = (album[p.sp.id] || 0) + 1;
+  store.set('claw_album', album);
+  bridge('prize', total);
+  winQueue.push({ sp: p.sp, value: p.value, bonus, combo, isNew, total });
+  updateHud();
+}
+function showWin(w) {
+  presenting = w; presentT = 0;
+  $('grip').classList.remove('show');
+  const sp = w.sp, rar = RARITY[sp.rarity];
+  $('winTitle').textContent = pick(CONGRATS[sp.rarity]);
+  $('winName').textContent = sp.emoji + ' ' + sp.name;
+  $('winFact').textContent = sp.fact;
+  $('winStars').textContent = '★'.repeat(sp.rarity) + '☆'.repeat(4 - sp.rarity);
+  $('winRar').textContent = rar.label;
+  $('winRar').style.background = RARITY_COLORS[sp.rarity];
+  $('winPts').textContent = '+' + w.value + (w.bonus ? '  + комбо ' + w.bonus : '');
+  $('winNew').style.display = w.isNew ? 'inline-block' : 'none';
+  $('winCol').textContent = 'Коллекция: ' + albumCount() + ' из ' + SPECIES.length;
+  $('winO').classList.add('show');
+  showcase.start(sp.id, sp.rarity);
+  bridge('win', (sp.snd || '') + '|' + sp.rarity);
+}
+function endWin() {
+  presenting = null;
+  $('winO').classList.remove('show');
+  showcase.stop();
+  updateHud();
+}
+$('winO').addEventListener('pointerdown', (e) => { if (presenting && presentT > 0.9) endWin(); e.preventDefault(); });
+
 function collectPrizes() {
   for (let i = prizes.length - 1; i >= 0; i--) {
     const p = prizes[i];
     if (p.pos.y < -0.5) {
       scene.remove(p.group);
       prizes.splice(i, 1);
-      if (mode === 'playing') {
-        score += p.value;
-        toast('+' + p.value);
-        bridge('prize', p.value);
-        updateHud();
-      }
+      if (mode === 'playing') winPrize(p);
     }
   }
   if (prizes.length < 10) initPrizes();
@@ -574,7 +675,18 @@ function loop(now) {
   const dt = Math.min(0.033, Math.max(0.001, (now - last) / 1000));
   last = now;
   if (document.hidden) return;
+  if (presenting || (winQueue.length && mode !== 'ready')) {
+    // мини-презентация выигрыша: игра на паузе, время не идёт
+    if (!presenting) showWin(winQueue.shift());
+    presentT += dt;
+    showcase.update(dt);
+    if (presentT > 5.5) endWin();
+    renderer.render(scene, camera);
+    showcase.render();
+    return;
+  }
   if (mode === 'playing') {
+    gameClock += dt;
     timeLeft -= dt;
     if (timeLeft <= 0) { timeLeft = 0; endGame(); }
     else if (frame % 6 === 0) updateHud();
@@ -583,6 +695,7 @@ function loop(now) {
   physicsStep(dt);
   collectPrizes();
   syncPrizeMeshes(dt);
+  if (frame % 6 === 0) updateGripMeter();
   if (frame % 3 === 0) renderer.shadowMap.needsUpdate = true;
   frame++;
   renderer.render(scene, camera);

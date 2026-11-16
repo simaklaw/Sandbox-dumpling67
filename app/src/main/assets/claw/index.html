@@ -10,9 +10,9 @@
   html,body { margin:0; height:100%; overflow:hidden; background:#101020; font-family:system-ui,-apple-system,"Roboto",sans-serif; color:var(--ink); }
   #scene { position:fixed; inset:0; width:100%; height:100%; display:block; }
   .hud { position:fixed; left:0; right:0; top:0; padding:calc(10px + env(safe-area-inset-top)) 12px 10px 92px; display:flex; gap:8px; align-items:stretch; justify-content:space-between; pointer-events:none; }
-  .pill { background:rgba(255,255,255,.92); border-radius:18px; padding:6px 14px; box-shadow:0 2px 10px rgba(0,0,0,.25); min-width:84px; text-align:center; }
+  .pill { background:rgba(255,255,255,.92); border-radius:18px; padding:6px 10px; box-shadow:0 2px 10px rgba(0,0,0,.25); min-width:62px; text-align:center; }
   .pill small { display:block; font-size:10px; font-weight:800; letter-spacing:.08em; color:#80868b; text-transform:uppercase; }
-  .pill b { font-size:26px; font-weight:900; line-height:1.05; }
+  .pill b { font-size:23px; font-weight:900; line-height:1.05; }
   #score b { color:var(--green); }
   #time b { color:var(--blue); }
   #time.low b { color:var(--red); }
@@ -45,6 +45,32 @@
   #toast { position:fixed; left:50%; top:96px; transform:translateX(-50%); font-size:34px; font-weight:900; color:#fff; text-shadow:0 2px 0 #000,0 0 14px rgba(0,0,0,.6); opacity:0; pointer-events:none; }
   #toast.go { animation:pop .9s ease-out; }
   @keyframes pop { 0%{opacity:0; transform:translate(-50%,10px) scale(.6)} 20%{opacity:1; transform:translate(-50%,0) scale(1.15)} 100%{opacity:0; transform:translate(-50%,-34px) scale(1)} }
+  #albumBtn { pointer-events:auto; height:48px; align-self:center; border:0; border-radius:24px; padding:0 12px; background:rgba(255,255,255,.92); font-size:15px; font-weight:900; color:var(--blue); box-shadow:0 2px 10px rgba(0,0,0,.25); }
+  #grip { position:fixed; left:50%; transform:translateX(-50%); top:calc(78px + env(safe-area-inset-top)); width:180px; background:rgba(255,255,255,.92); border-radius:14px; padding:5px 10px 7px; text-align:center; font-size:12px; font-weight:800; display:none; pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  #grip.show { display:block; }
+  #gripBar { height:8px; border-radius:4px; background:#e3e5e8; margin-top:4px; overflow:hidden; }
+  #gripFill { height:100%; width:0; border-radius:4px; transition:width .15s; }
+  #winO { background:rgba(0,0,0,0); align-items:flex-end; justify-content:center; touch-action:none; }
+  #winO .panel { background:rgba(255,255,255,.96); border-radius:26px; padding:16px 20px; width:100%; max-width:420px; text-align:center; margin-bottom:calc(18px + env(safe-area-inset-bottom)); box-shadow:0 8px 30px rgba(0,0,0,.45); animation:rise .5s .3s both ease-out; }
+  @media (min-aspect-ratio:23/20) { #winO { align-items:center; justify-content:flex-end; padding-right:4%; } #winO .panel { max-width:min(400px,44vw); margin-bottom:0; } }
+  @keyframes rise { from{opacity:0; transform:translateY(30px)} to{opacity:1; transform:none} }
+  #winTitle { font-size:26px; font-weight:900; color:var(--green); }
+  #winName { font-size:22px; font-weight:900; margin:4px 0; }
+  #winFact { font-size:14px; font-weight:600; color:#5f6368; margin-bottom:8px; }
+  #winStars { font-size:24px; color:#FBBC04; letter-spacing:2px; }
+  #winRar { display:inline-block; color:#fff; font-size:12px; font-weight:900; border-radius:10px; padding:2px 10px; margin:2px 0 6px; }
+  #winPts { font-size:28px; font-weight:900; color:var(--blue); }
+  #winNew { display:none; background:var(--red); color:#fff; font-size:12px; font-weight:900; border-radius:10px; padding:2px 8px; margin-left:8px; vertical-align:middle; animation:blink .6s infinite alternate; }
+  @keyframes blink { to{ transform:scale(1.15) } }
+  #winCol { font-size:12px; font-weight:800; color:#80868b; margin-top:4px; }
+  .tapHint { font-size:11px; color:#9aa0a6; margin-top:6px; font-weight:700; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0 14px; }
+  .cell { position:relative; background:#f6f7f9; border-radius:14px; padding:8px 2px 4px; border:3px solid #9AA0A6; }
+  .cell.r2 { border-color:#4285F4; } .cell.r3 { border-color:#A142F4; } .cell.r4 { border-color:#FBBC04; background:#fff8e1; }
+  .cell.lock { filter:grayscale(1); opacity:.55; }
+  .cell .em { font-size:34px; display:block; }
+  .cell small { font-size:11px; font-weight:800; color:#3c4043; }
+  .cell i { position:absolute; right:4px; top:2px; font-style:normal; font-size:11px; font-weight:900; color:var(--blue); }
   #loading { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#101020; color:#fff; font-weight:800; z-index:20; }
 </style>
 </head>
@@ -53,9 +79,11 @@
 
 <div class="hud" id="hud">
   <div class="pill" id="score"><small>Очки</small><b id="scoreV">0</b></div>
-  <div class="pill" id="time"><small>Время</small><b id="timeV">60</b></div>
+  <div class="pill" id="time"><small>Время</small><b id="timeV">90</b></div>
+  <button id="albumBtn" aria-label="Мои зверята">🧸 <span id="albumN">0/18</span></button>
   <button id="infoBtn" aria-label="Правила">?</button>
 </div>
+<div id="grip"><span id="gripName"></span><div id="gripBar"><div id="gripFill"></div></div></div>
 <div id="toast"></div>
 <div id="zoneL"></div>
 <div class="pad" id="pad">
@@ -66,8 +94,8 @@
 <div class="overlay show" id="startO">
   <div class="card">
     <h1>ХВАТАЛКА</h1>
-    <p>Схвати как можно больше призов за 60 секунд!</p>
-    <p class="hint" style="margin:0 0 14px">Левым пальцем веди коготь, правой кнопкой хватай. Призы неси к лотку слева.</p>
+    <p>Лови плюшевых зверят за 90 секунд! Чем реже зверь, тем он скользче.</p>
+    <p class="hint" style="margin:0 0 14px">Левым пальцем веди коготь, правой кнопкой хватай. Зверят неси к лотку слева — и собери всю коллекцию!</p>
     <button class="big" id="startBtn">Играть</button>
     <div class="best" id="bestLine"></div>
   </div>
@@ -87,22 +115,34 @@
     <h2>Как играть</h2>
     <p>Коснись левой части экрана и води пальцем: коготь едет туда же. Красная кнопка опускает его. Светящееся кольцо на полу показывает, куда он упадёт. Призы нужно донести до лотка слева.</p>
     <div class="legend">
-      <h3>Цвета (очки)</h3>
-      <div class="row"><span class="dot" style="background:#FBBC04"></span>Жёлтый: 50</div>
-      <div class="row"><span class="dot" style="background:#EA4335"></span>Красный: 40</div>
-      <div class="row"><span class="dot" style="background:#34A853"></span>Зелёный: 30</div>
-      <div class="row"><span class="dot" style="background:#E37400"></span>Оранжевый: 20</div>
-      <div class="row"><span class="dot" style="background:#9AA0A6"></span>Серый: 10</div>
-      <h3>Формы (множитель)</h3>
-      <div class="row"><span class="dot" style="background:#34A853"></span><b>Андроид: 100 очков</b></div>
-      <div class="row"><span class="dot" style="background:#bbb;border-radius:3px"></span>Додекаэдр: x3</div>
-      <div class="row"><span class="dot" style="background:#bbb"></span>Шар: x2</div>
-      <div class="row"><span class="dot" style="background:#bbb;border-radius:3px"></span>Куб: x1</div>
+      <h3>Зверята (очки · хват)</h3>
+      <div class="row"><span class="dot" style="background:#9AA0A6"></span>Обычные: 20, хватаются легко</div>
+      <div class="row"><span class="dot" style="background:#4285F4"></span>Редкие: 40</div>
+      <div class="row"><span class="dot" style="background:#A142F4"></span>Очень редкие: 70</div>
+      <div class="row"><span class="dot" style="background:#FBBC04"></span><b>Единорожка: 150, одна на всех!</b></div>
+      <h3>Фишки</h3>
+      <div class="row">Полоска сверху показывает шанс хвата.</div>
+      <div class="row">Зверёк может выскользнуть: держись!</div>
+      <div class="row">Несколько выигрышей подряд = бонус комбо.</div>
+      <div class="row">Кнопка 🧸 открывает коллекцию.</div>
     </div>
     <div style="height:18px"></div>
     <button class="big dark" id="infoClose">Понятно</button>
   </div>
 </div>
+
+<div class="overlay" id="winO"><div class="panel">
+  <div id="winTitle"></div><div id="winName"></div><div id="winStars"></div>
+  <div><span id="winRar"></span><span id="winNew">НОВЫЙ!</span></div>
+  <div id="winFact"></div><div id="winPts"></div><div id="winCol"></div>
+  <div class="tapHint">Нажми, чтобы продолжить</div>
+</div></div>
+
+<div class="overlay" id="albumO"><div class="card">
+  <h2 id="albumTitle">Мои зверята</h2>
+  <div class="grid" id="albumGrid"></div>
+  <button class="big dark" id="albumClose">Закрыть</button>
+</div></div>
 
 <div id="loading">Загрузка…</div>
 <script type="module" src="game.js"></script>

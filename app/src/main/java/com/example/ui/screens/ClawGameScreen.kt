@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.runtime.remember
@@ -30,6 +31,12 @@ import java.io.ByteArrayInputStream
 
 private const val CLAW_HOST = "appassets.androidplatform.net"
 private const val CLAW_URL = "https://$CLAW_HOST/claw/index.html"
+
+/** Звуки зверят, которые игра может попросить (белый список: имя приходит из JS). */
+private val CLAW_ANIMAL_SOUNDS = setOf(
+    "animal_bunny_happy", "animal_cat_happy", "animal_dog_happy", "animal_pig_1",
+    "animal_duck_1", "animal_frog_1", "animal_sheep_1", "animal_cow_1",
+)
 
 /** Мост JS → Android: игра шлёт события, мы отвечаем звуком и вибрацией. */
 private class ClawBridge(private val onEvent: (String, String) -> Unit) {
@@ -65,6 +72,11 @@ fun ClawGameScreen(
     val context = LocalContext.current
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
     val haptics = rememberHaptics()
+    val main = remember { Handler(Looper.getMainLooper()) }
+
+    LaunchedEffect(soundManager) {
+        soundManager.preloadRaw(CLAW_ANIMAL_SOUNDS.toList() + listOf("fx_magic_sparkle", "fx_legendary_fanfare", "btn_tada", "fx_squeak"))
+    }
 
     val webView = remember {
         WebView(context).apply {
@@ -78,12 +90,25 @@ fun ClawGameScreen(
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
             addJavascriptInterface(
-                ClawBridge { name, _ ->
+                ClawBridge { name, value ->
                     when (name) {
                         "start" -> { soundManager.play("whoosh") }
                         "drop" -> { soundManager.play("boing"); haptics.vibrateShort() }
                         "grab" -> { soundManager.play("pop"); haptics.vibratePop() }
                         "prize" -> { soundManager.play("bell_ding"); haptics.vibrateShort() }
+                        "miss" -> { soundManager.playFxRaw("fx_squeak", 0.6f, 1.2f) }
+                        "slip" -> { soundManager.playFxRaw("fx_squeak", 0.7f, 0.8f); haptics.vibrateShort() }
+                        "win" -> {
+                            // value = «звук|редкость»; поздравление: фанфара по редкости, затем голос зверька
+                            val parts = value.split("|")
+                            val snd = parts.getOrNull(0).orEmpty()
+                            val rarity = parts.getOrNull(1)?.toIntOrNull() ?: 1
+                            soundManager.playFxRaw(if (rarity >= 4) "fx_legendary_fanfare" else if (rarity >= 3) "btn_tada" else "fx_magic_sparkle", 0.9f)
+                            if (snd in CLAW_ANIMAL_SOUNDS) {
+                                main.postDelayed({ soundManager.playFxRaw(snd, 1.0f) }, 600)
+                            }
+                            haptics.vibratePop()
+                        }
                         "over" -> { soundManager.play("fanfare_short") }
                     }
                 },
@@ -116,6 +141,7 @@ fun ClawGameScreen(
 
     DisposableEffect(Unit) {
         onDispose {
+            main.removeCallbacksAndMessages(null)
             webView.stopLoading()
             webView.destroy()
         }

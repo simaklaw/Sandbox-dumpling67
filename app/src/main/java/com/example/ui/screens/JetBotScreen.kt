@@ -106,7 +106,8 @@ private val JB_SHIELD: Path by lazy {
 @Composable
 fun JetBotScreen(
     repository: GameRepository,
-    soundPlayer: SoundEffectPlayer
+    soundPlayer: SoundEffectPlayer,
+    onExit: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val sm = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
@@ -284,6 +285,16 @@ fun JetBotScreen(
             }
         }
 
+        // ── Домик «выйти из игры»: заметный и в полёте (внизу слева, чтобы не мешать пальцу), и на экранах ──
+        if (onExit != null && phase == JB_PLAY) {
+            com.example.shared.HomeButton(
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 14.dp),
+                haptics = haptics,
+                size = 52.dp,
+                onClick = onExit
+            )
+        }
+
         // ── Экраны: старт, «ещё раз», победа ──
         if (phase != JB_PLAY) {
             Box(
@@ -332,6 +343,23 @@ fun JetBotScreen(
                             when (phase) { JB_READY -> "Полетели!"; JB_WON -> "Лететь ещё"; else -> "Ещё раз" },
                             fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF3A0728)
                         )
+                    }
+                    if (onExit != null) {
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(Color(0xFFFFD54F))
+                                .border(3.dp, Color(0xFF3A0728), CircleShape)
+                                .clickable { onExit() }
+                                .padding(horizontal = 22.dp, vertical = 8.dp)
+                                .testTag("jetbot_home"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🏠", fontSize = 24.sp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Домой", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color(0xFF3A0728))
+                        }
                     }
                 }
             }

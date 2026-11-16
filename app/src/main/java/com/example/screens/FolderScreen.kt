@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import com.example.shared.i18n.Text
 import androidx.compose.runtime.*
@@ -128,7 +130,10 @@ fun FolderScreen(
     onGoBack: () -> Unit,
     soundManager: SoundManager,
     haptics: Haptics = rememberHaptics(),
-    canPlay: (Int) -> Boolean = { true }
+    canPlay: (Int) -> Boolean = { true },
+    // Состояние прокрутки приходит снаружи: экран папки пересоздаётся при входе в игру и обратно,
+    // а позиция должна остаться (раньше список возвращался в самое начало).
+    gridState: LazyGridState = rememberLazyGridState()
 ) {
     val sections = remember(folderType, canPlay) { visibleSections(folderType, canPlay) }
 
@@ -172,6 +177,7 @@ fun FolderScreen(
             }
 
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Fixed(2),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),

@@ -93,14 +93,14 @@ private val FO_STEEL_D = Color(0xFF546E7A)
 private val FO_WOOD = Color(0xFF6D4C41)
 private val FO_GOLD = Color(0xFFFBC02D)
 
-private val BIO_BONE = arrayOf(Color(0xFFF1EBDD), Color(0xFFD6E3B5), Color(0xFFE4E1F2), Color(0xFF6F5B52))
-private val BIO_BONE2 = arrayOf(Color(0xFFD9D0BC), Color(0xFFB3C48C), Color(0xFFC2BEDA), Color(0xFF54433C))
-private val BIO_SHADE = arrayOf(Color(0xFF4B4136), Color(0xFF33401F), Color(0xFF2D2848), Color(0xFF1E1210))
-private val BIO_EYE = arrayOf(Color(0xFFFF5252), Color(0xFF76FF03), Color(0xFFB388FF), Color(0xFFFF9100))
+private val BIO_BONE = arrayOf(Color(0xFFF1EBDD), Color(0xFFD6E3B5), Color(0xFFE4E1F2), Color(0xFF6F5B52), Color(0xFFD7F1FA))
+private val BIO_BONE2 = arrayOf(Color(0xFFD9D0BC), Color(0xFFB3C48C), Color(0xFFC2BEDA), Color(0xFF54433C), Color(0xFF9FCDE0))
+private val BIO_SHADE = arrayOf(Color(0xFF4B4136), Color(0xFF33401F), Color(0xFF2D2848), Color(0xFF1E1210), Color(0xFF1C3C52))
+private val BIO_EYE = arrayOf(Color(0xFFFF5252), Color(0xFF76FF03), Color(0xFFB388FF), Color(0xFFFF9100), Color(0xFF18FFFF))
 
 /** Рядовой скелет: цвет костей и глаз зависит от локации (0 поля, 1 лес, 2 замок, 3 вулкан). */
 internal fun skelStyle(weapon: Int, hat: Int, biome: Int, shield: Boolean): SkelStyle {
-    val b = biome.coerceIn(0, 3)
+    val b = biome.coerceIn(0, 4)
     return SkelStyle(weapon, hat, BIO_BONE[b], BIO_BONE2[b], BIO_SHADE[b], BIO_EYE[b], shield)
 }
 
@@ -111,6 +111,9 @@ internal val BOSS_STYLES: List<SkelStyle> = listOf(
     SkelStyle(20, 1, BIO_BONE[2], BIO_BONE2[2], BIO_SHADE[2], BIO_EYE[2], false, Color(0xFFB0BEC5), Color(0xFFB388FF)),
     SkelStyle(20, 7, BIO_BONE[3], BIO_BONE2[3], BIO_SHADE[3], BIO_EYE[3], false, Color(0xFFFF7043), Color(0xFFFFAB00))
 )
+
+/** Ледяной босс пятой карты (вид 5): гигантский скелет изо льда. */
+internal val ICE_BOSS = SkelStyle(20, 3, BIO_BONE[4], BIO_BONE2[4], BIO_SHADE[4], BIO_EYE[4], false, Color(0xFF80DEEA), Color(0xFF00E5FF))
 
 // ---------- примитивы ----------
 private fun DrawScope.foLn(x1: Float, y1: Float, x2: Float, y2: Float, w: Float, col: Color) =

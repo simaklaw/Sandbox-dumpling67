@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.IntSize
 import com.example.R
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.roundToInt
 

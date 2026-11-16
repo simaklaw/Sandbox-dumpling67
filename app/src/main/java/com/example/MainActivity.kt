@@ -230,6 +230,13 @@ fun MainAppScreen(
     }
     // Заставка показывается один раз за запуск (rememberSaveable: не повторяется при повороте/пересоздании)
     var showIntro by rememberSaveable { mutableStateOf(true) }
+    // музыка стартует только после заставки: иначе она звучит поверх нот
+    LaunchedEffect(showIntro) {
+        if (!showIntro) {
+            viewModel.musicManager.held = false
+            viewModel.musicManager.resumeMusic()
+        }
+    }
     var showExitProtectionDialog by remember { mutableStateOf(false) }
 
     // Таймер отдыха: считаем только пока приложение на экране (в кармане/свёрнутым время не идёт)

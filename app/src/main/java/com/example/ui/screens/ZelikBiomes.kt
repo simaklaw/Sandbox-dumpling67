@@ -14,6 +14,7 @@ import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.example.R
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -94,6 +95,11 @@ private fun DrawScope.parallaxItems(
 }
 
 internal fun DrawScope.drawBiomeBackdrop(b: ZBiomeGfx, biome: Int, camX: Float, camY: Float, z: Float, groundY: Float, t: Int) {
+    drawBiomeBackdropBase(b, biome, camX, camY, z, groundY, t)
+    drawBiomeAtmosphere(biome, camX, z, (groundY - camY) * z, t)
+}
+
+private fun DrawScope.drawBiomeBackdropBase(b: ZBiomeGfx, biome: Int, camX: Float, camY: Float, z: Float, groundY: Float, t: Int) {
     val sh = size.height
     val baseY = (groundY - camY) * z
     when (biome) {
@@ -126,7 +132,7 @@ internal fun DrawScope.drawBiomeBackdrop(b: ZBiomeGfx, biome: Int, camX: Float, 
 }
 
 /** Земля (платформа №0). Координаты — мировые (внутри translate/scale). */
-internal fun DrawScope.drawBiomeGround(b: ZBiomeGfx, biome: Int, x0: Float, x1: Float, y: Float, h: Float) {
+internal fun DrawScope.drawBiomeGround(b: ZBiomeGfx, biome: Int, x0: Float, x1: Float, y: Float, h: Float, t: Int = 0) {
     val w = x1 - x0
     when (biome) {
         0 -> {
@@ -178,6 +184,7 @@ internal fun DrawScope.drawBiomeGround(b: ZBiomeGfx, biome: Int, x0: Float, x1: 
             while (xx < x1) { pxImg(b.casGround, xx, y, tw + 1f, 48f * 2.2f); xx += tw }
         }
     }
+    drawGroundDetail(biome, x0, x1, y, t)
     // мягкая тень под кромкой земли и светлая линия сверху: земля «лежит» объёмнее
     drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.32f), Color.Transparent), startY = y, endY = y + 46f), Offset(x0, y), Size(w, 46f))
     drawRect(Color.White.copy(alpha = 0.18f), Offset(x0, y), Size(w, 2f))
@@ -185,6 +192,11 @@ internal fun DrawScope.drawBiomeGround(b: ZBiomeGfx, biome: Int, x0: Float, x1: 
 
 /** Парящие платформы. */
 internal fun DrawScope.drawBiomePlatform(biome: Int, x: Float, y: Float, w: Float, h: Float) {
+    drawBiomePlatformBase(biome, x, y, w, h)
+    drawPlatformDetail(biome, x, y, w, h)
+}
+
+private fun DrawScope.drawBiomePlatformBase(biome: Int, x: Float, y: Float, w: Float, h: Float) {
     when (biome) {
         0 -> {
             drawRoundRect(Color(0xFF123A44), Offset(x, y), Size(w, h), CornerRadius(8f))
@@ -319,5 +331,232 @@ private fun DrawScope.drawIceBackdrop(camX: Float, z: Float, baseY: Float, t: In
         val x = (((i * 97.3f) * z - camX * z * 0.25f + sin(t * 0.02f + i) * 14f * z) % w + w) % w
         val y = ((t * (0.9f + sp4) * z + i * 61f * z) % baseY)
         drawCircle(Color.White.copy(alpha = 0.35f + 0.4f * sp4), (1.2f + (i % 3) * 0.7f) * z, Offset(x, y))
+    }
+}
+
+
+// ======================= детали земли и платформ =======================
+private fun hsh(i: Int): Float = (((i * 1103515245 + 12345) ushr 8) and 0xFFFF) / 65535f
+
+private fun DrawScope.blade(x: Float, y: Float, h: Float, lean: Float, col: Color) {
+    drawPath(Path().apply { moveTo(x - 3f, y); lineTo(x + lean, y - h); lineTo(x + 3.5f, y); close() }, col)
+}
+
+/** Фактура земли: травинки, цветы, камни, трещины лавы и мороза. Координаты мировые. */
+private fun DrawScope.drawGroundDetail(biome: Int, x0: Float, x1: Float, y: Float, t: Int) {
+    val step = 22f
+    var k = floor(x0 / step).toInt() - 1
+    while (k * step < x1 + step) {
+        val r = hsh(k); val r2 = hsh(k + 977)
+        val x = k * step + r * 14f
+        when (biome) {
+            0 -> {
+                blade(x, y + 3f, 8f + r2 * 9f, (r - 0.5f) * 8f, Color(0xFF3F8F34))
+                blade(x + 7f, y + 3f, 6f + r * 7f, (r2 - 0.5f) * 8f, Color(0xFF7BC553))
+                if (k % 5 == 0) {
+                    val fc = when ((k / 5).mod(4)) { 0 -> Color(0xFFFF80AB); 1 -> Color(0xFFFFEB3B); 2 -> Color.White; else -> Color(0xFF80D8FF) }
+                    val fh = 13f + r2 * 8f
+                    drawLine(Color(0xFF2E7D32), Offset(x, y + 2f), Offset(x + 1f, y - fh), 2f)
+                    drawCircle(fc, 4.2f, Offset(x + 1f, y - fh))
+                    drawCircle(Color(0xFFFFB300), 1.7f, Offset(x + 1f, y - fh))
+                }
+            }
+            1 -> {
+                blade(x, y + 5f, 9f + r2 * 10f, (r - 0.5f) * 10f, Color(0xFF9BB62E))
+                blade(x + 8f, y + 5f, 7f + r * 8f, (r2 - 0.5f) * 8f, Color(0xFFD4E04A))
+                if (k % 6 == 0) { // грибок
+                    drawRect(Color(0xFFF5E6C8), Offset(x - 2f, y - 7f), Size(4f, 8f))
+                    drawArc(Color(0xFFE53935), 180f, 180f, true, Offset(x - 8f, y - 15f), Size(16f, 14f))
+                    drawCircle(Color.White, 1.8f, Offset(x - 3f, y - 10f)); drawCircle(Color.White, 1.4f, Offset(x + 3f, y - 11f))
+                }
+                if (k % 3 == 1) { // камешки и корни в земле
+                    drawOval(Color(0xFF4A3550), Offset(x, y + 28f + r2 * 40f), Size(9f + r * 9f, 6f))
+                    drawLine(Color(0xFF3A2540), Offset(x, y + 18f), Offset(x + 10f + r * 12f, y + 38f + r2 * 14f), 2.5f)
+                }
+            }
+            2 -> {
+                if (k % 4 == 0) { // кладка и мелкий мусор
+                    drawRect(Color.Black.copy(alpha = 0.22f), Offset(x, y + 22f + (k % 3) * 22f), Size(3f, 20f))
+                }
+                if (k % 7 == 2) {
+                    drawPath(Path().apply { moveTo(x, y); lineTo(x + 5f, y - 7f); lineTo(x + 11f, y - 2f); lineTo(x + 12f, y); close() }, Color(0xFF6B6B88))
+                }
+                if (k % 9 == 4) blade(x, y + 1f, 6f, 1f, Color(0xFF3E7C4A)) // мох
+            }
+            3 -> {
+                if (k % 4 == 0) {
+                    val a = (0.55f + 0.35f * sin(t * 0.06f + k)).coerceIn(0.2f, 1f)
+                    val px = x; var py = y + 6f
+                    val path = Path().apply { moveTo(px, py); for (q in 1..4) { py += 10f + hsh(k + q) * 6f; lineTo(px + (hsh(k * 3 + q) - 0.5f) * 26f * q * 0.5f, py) } }
+                    drawPath(path, Color(0xFF1A0A0C), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f))
+                    drawPath(path, Color(0xFFFF7A18).copy(alpha = a), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f))
+                    drawPath(path, Color(0xFFFFE082).copy(alpha = a * 0.8f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2f))
+                }
+                if (k % 5 == 2) drawOval(Color(0xFF2B1618), Offset(x, y - 5f), Size(12f + r * 10f, 9f))
+            }
+            4 -> {
+                if (k % 3 == 0) {
+                    val path = Path().apply { moveTo(x, y + 5f); lineTo(x + 8f, y + 16f); lineTo(x + 3f, y + 26f); lineTo(x + 12f, y + 40f + r * 10f) }
+                    drawPath(path, Color(0xFFB3E5FC).copy(alpha = 0.55f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
+                }
+                if (k % 4 == 1) { // искры мороза
+                    val tw = (0.5f + 0.5f * sin(t * 0.08f + k * 1.7f))
+                    drawCircle(Color.White.copy(alpha = 0.3f + 0.6f * tw), 1.5f + 1.5f * tw, Offset(x + 6f, y - 3f - r2 * 4f))
+                }
+                if (k % 6 == 3) { // ледяной зубец на кромке
+                    drawPath(Path().apply { moveTo(x, y); lineTo(x + 6f, y - 14f - r * 8f); lineTo(x + 13f, y); close() }, Color(0xFFCFEFFF))
+                }
+            }
+        }
+        k++
+    }
+}
+
+private fun DrawScope.drawPlatformDetail(biome: Int, x: Float, y: Float, w: Float, h: Float) {
+    // тень под платформой: объём
+    drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.30f), Color.Transparent), startY = y + h, endY = y + h + 16f), Offset(x + 3f, y + h), Size(w - 6f, 16f))
+    var xx = x + 6f
+    var i = (x / 20f).toInt()
+    while (xx < x + w - 6f) {
+        val r = hsh(i++)
+        when (biome) {
+            0 -> blade(xx, y + 3f, 5f + r * 5f, (r - 0.5f) * 6f, Color(0xFF8DD06B))
+            1 -> if (r > 0.45f) { // свисающий мох
+                drawRect(Color(0xFF7A9A2A), Offset(xx, y + h - 2f), Size(3f, 6f + r * 9f))
+                drawCircle(Color(0xFF9BB62E), 3f, Offset(xx + 1.5f, y + h + 5f + r * 9f))
+            }
+            2 -> drawRect(Color.Black.copy(alpha = 0.2f), Offset(xx, y + 10f), Size(2f, max(2f, h - 12f)))
+            3 -> if (r > 0.5f) drawRect(Color(0xFFFF8F00).copy(alpha = 0.6f), Offset(xx, y + 10f), Size(3f, max(2f, min(h - 12f, 8f + r * 10f))))
+            4 -> if (r > 0.4f) { // сосульки
+                drawPath(Path().apply { moveTo(xx - 4f, y + h - 1f); lineTo(xx, y + h + 8f + r * 14f); lineTo(xx + 4f, y + h - 1f); close() }, Color(0xFFCFEFFF).copy(alpha = 0.9f))
+            }
+        }
+        xx += 20f
+    }
+}
+
+// ======================= атмосфера: свет, пыльца, светлячки, пепел, снег =======================
+/** Эффекты на заднем плане (экранные координаты). */
+private fun DrawScope.drawBiomeAtmosphere(biome: Int, camX: Float, z: Float, baseY: Float, t: Int) {
+    val w = size.width
+    val h = size.height
+    when (biome) {
+        0 -> {
+            // солнечное свечение и плывущие облачка
+            drawCircle(Brush.radialGradient(listOf(Color(0x66FFF59D), Color(0x00FFF59D)), Offset(w * 0.85f, h * 0.08f), w * 0.55f), w * 0.55f, Offset(w * 0.85f, h * 0.08f))
+            for (i in 0 until 4) {
+                val cx = ((i * 0.37f + t * 0.00018f - camX * z * 0.00004f) % 1.3f + 1.3f) % 1.3f * w - w * 0.15f
+                val cy = h * (0.10f + (i % 3) * 0.07f)
+                val c = Color.White.copy(alpha = 0.5f)
+                drawOval(c, Offset(cx - 60f * z, cy), Size(120f * z, 26f * z))
+                drawOval(c, Offset(cx - 28f * z, cy - 14f * z), Size(70f * z, 30f * z))
+            }
+            // лепестки и пыльца
+            for (i in 0 until 22) {
+                val sp = 0.4f + (i % 4) * 0.15f
+                val x = (((i * 83.1f) * z + t * 0.7f * sp * z - camX * z * 0.3f) % w + w) % w
+                val y = (((i * 57.7f) * z + t * 0.5f * sp * z + sin(t * 0.03f + i) * 20f * z) % baseY + baseY) % baseY
+                val c = if (i % 3 == 0) Color(0xCCFFC1D9) else if (i % 3 == 1) Color(0xBBFFFFFF) else Color(0xAAFFF59D)
+                drawOval(c, Offset(x, y), Size((4f + i % 3) * z, (2.4f + i % 2) * z))
+            }
+        }
+        1 -> {
+            // лучи света сквозь листву
+            for (i in 0 until 5) {
+                val x = ((i * 0.23f + 0.05f) * w - camX * z * 0.05f % w + w) % w
+                val sway = sin(t * 0.012f + i * 1.7f) * 0.04f * w
+                val a = 0.07f + 0.04f * sin(t * 0.02f + i)
+                val path = Path().apply {
+                    moveTo(x + sway, 0f); lineTo(x + sway + 0.07f * w, 0f)
+                    lineTo(x + sway - 0.12f * w, baseY); lineTo(x + sway - 0.22f * w, baseY); close()
+                }
+                drawPath(path, Color(0xFFF6FFB0).copy(alpha = a))
+            }
+            // светлячки
+            for (i in 0 until 18) {
+                val x = (((i * 137.3f) * z - camX * z * 0.4f + sin(t * 0.02f + i * 2.1f) * 30f * z) % w + w) % w
+                val y = baseY * (0.35f + 0.6f * hsh(i * 7)) + cos(t * 0.025f + i) * 14f * z
+                val blink = (0.5f + 0.5f * sin(t * 0.05f + i * 1.3f)).coerceIn(0f, 1f)
+                drawCircle(Brush.radialGradient(listOf(Color(0xCCEAFF6A).copy(alpha = 0.75f * blink), Color(0x00EAFF6A)), Offset(x, y), 14f * z), 14f * z, Offset(x, y))
+                drawCircle(Color(0xFFF9FFD0).copy(alpha = blink), 2.2f * z, Offset(x, y))
+            }
+            // падающие листья
+            for (i in 0 until 10) {
+                val sp = 0.5f + (i % 3) * 0.2f
+                val x = (((i * 151f) * z + t * 0.4f * z - camX * z * 0.35f + sin(t * 0.04f + i) * 26f * z) % w + w) % w
+                val y = ((t * sp * 0.9f * z + i * 88f * z) % baseY)
+                drawOval(if (i % 2 == 0) Color(0xCC8BC34A) else Color(0xCCFF9800), Offset(x, y), Size(7f * z, 4f * z))
+            }
+        }
+        2 -> {
+            // тёплый свет факелов: мерцающие пятна в тех же местах, что и факелы фона
+            val sp = 330f * z
+            val scroll = camX * z * 0.28f - 165f * z
+            val f = floor(scroll / sp).toInt() - 1
+            for (i in f until f + (w / sp).toInt() + 3) {
+                if (i % 3 == 0) continue
+                val x = i * sp - scroll
+                val fl = 0.75f + 0.25f * sin(t * 0.3f + i * 2f) * sin(t * 0.17f + i)
+                val cy = baseY - 150f * z
+                drawCircle(Brush.radialGradient(listOf(Color(0xFFFFB74D).copy(alpha = 0.34f * fl), Color(0x00FF9800)), Offset(x, cy), 150f * z), 150f * z, Offset(x, cy))
+            }
+            // пылинки в свете
+            for (i in 0 until 26) {
+                val x = (((i * 101.7f) * z - camX * z * 0.2f + sin(t * 0.01f + i) * 24f * z) % w + w) % w
+                val y = (((i * 63.3f) * z - t * 0.18f * z * (0.5f + (i % 3) * 0.3f)) % baseY + baseY) % baseY
+                drawCircle(Color(0xFFFFE0B2).copy(alpha = 0.25f + 0.25f * sin(t * 0.04f + i)), (1f + i % 2) * z, Offset(x, y))
+            }
+        }
+        3 -> {
+            // пепел и марево
+            for (i in 0 until 24) {
+                val sp = 0.5f + (i % 4) * 0.18f
+                val x = (((i * 91.7f) * z + t * 0.45f * z - camX * z * 0.3f + sin(t * 0.03f + i) * 18f * z) % w + w) % w
+                val y = ((t * sp * 0.8f * z + i * 71f * z) % baseY)
+                drawOval(Color(0xFF9E9E9E).copy(alpha = 0.35f), Offset(x, y), Size((3f + i % 3) * z, (2f + i % 2) * z))
+            }
+            for (i in 0 until 4) { // колышущееся марево у горизонта
+                val y = baseY - (10f + i * 18f) * z
+                val sh = sin(t * 0.05f + i * 1.9f) * 14f * z
+                drawRect(Color(0xFFFF8F00).copy(alpha = 0.06f), Offset(sh, y), Size(w, 7f * z))
+            }
+        }
+        4 -> {
+            // морозная дымка у земли
+            for (i in 0 until 3) {
+                val cx = ((i * 0.5f + t * 0.0004f) % 1.6f - 0.3f) * w
+                drawOval(Color(0xFFB3E5FC).copy(alpha = 0.10f), Offset(cx - 200f * z, baseY - 34f * z), Size(400f * z, 60f * z))
+            }
+        }
+    }
+}
+
+/** Эффекты поверх мира (экранные координаты): виньетка цвета карты, дымка у земли, крупные близкие частицы. */
+internal fun DrawScope.drawBiomeForeground(biome: Int, camX: Float, z: Float, t: Int) {
+    val w = size.width
+    val h = size.height
+    val tint = when (biome) {
+        0 -> Color(0x2E1B5E20); 1 -> Color(0x5A0A2A12); 2 -> Color(0x66120A30); 3 -> Color(0x66400A00); else -> Color(0x4A06223A)
+    }
+    drawRect(Brush.radialGradient(listOf(Color.Transparent, tint), center = Offset(w / 2f, h * 0.55f), radius = max(w, h) * 0.78f), size = size)
+    // близкие частицы, пролетающие быстрее мира
+    val n = 7
+    for (i in 0 until n) {
+        val sp = 1.6f + (i % 3) * 0.5f
+        val x = (((i * 211f) * z - camX * z * 0.9f + t * 0.6f * sp * z) % (w + 60f * z) + w + 60f * z) % (w + 60f * z) - 30f * z
+        val y = ((i * 0.151f + t * 0.0011f * sp) % 1f) * h
+        when (biome) {
+            0 -> drawOval(Color.White.copy(alpha = 0.55f), Offset(x, y), Size(10f * z, 5f * z))
+            1 -> drawOval(Color(0xAA7CB342), Offset(x, y), Size(13f * z, 7f * z))
+            2 -> drawCircle(Color(0xFFFFB74D).copy(alpha = 0.35f), 3f * z, Offset(x, h - y * 0.5f))
+            3 -> drawCircle(Brush.radialGradient(listOf(Color(0xFFFFCA28), Color(0x00FF6F00)), Offset(x, h - y * 0.7f), 9f * z), 9f * z, Offset(x, h - y * 0.7f))
+            else -> drawCircle(Color.White.copy(alpha = 0.8f), 3.2f * z, Offset(x, y))
+        }
+    }
+    // низкая дымка поверх земли
+    val mist = when (biome) { 0 -> Color(0x14FFFFFF); 1 -> Color(0x22CFE8C0); 2 -> Color(0x1A9FA8DA); 3 -> Color(0x22FF7043); else -> Color(0x26CFEFFF) }
+    for (i in 0 until 2) {
+        val cx = ((i * 0.6f + t * 0.0006f) % 1.5f - 0.25f) * w
+        drawOval(mist, Offset(cx - 260f * z, h * 0.86f), Size(520f * z, 70f * z))
     }
 }

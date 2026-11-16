@@ -191,8 +191,11 @@ class BackgroundMusicManager {
         _isPlaying.value = false
     }
 
+    /** Пока идёт заставка, музыка не стартует (иначе она накладывается на ноты заставки). */
+    @Volatile var held: Boolean = true
+
     fun resumeMusic() {
-        if (!isEnabled) return
+        if (!isEnabled || held) return
         _isPlaying.value = true
         ensureLoop()
     }

@@ -6,10 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -249,6 +253,20 @@ private data class ZHud(
     val bossKind: Int = 0,
     val heroesLeft: Int = 0
 )
+
+/**
+ * Полоса жизни внутри контейнера-дорожки. Доля берётся от ширины дорожки (BoxScope.fillMaxWidth(fraction));
+ * раньше перед ней стоял fillMaxSize(), он занимал всю ширину, и полоса визуально не убывала.
+ * Цветная часть уменьшается плавно, светлый «хвост» догоняет её медленнее и показывает, сколько жизни только что потеряно.
+ */
+@Composable
+private fun BoxScope.ZLifeBar(fraction: Float, color: Color) {
+    val target = fraction.coerceIn(0f, 1f)
+    val shown by animateFloatAsState(target, animationSpec = tween(180), label = "lifeBar")
+    val ghost by animateFloatAsState(target, animationSpec = tween(700, delayMillis = 250), label = "lifeGhost")
+    Box(Modifier.fillMaxHeight().fillMaxWidth(ghost).background(Color.White.copy(alpha = 0.85f)))
+    Box(Modifier.fillMaxHeight().fillMaxWidth(shown).background(color))
+}
 
 private class ZHelperGfx(val imgs: MonImgs, val spec: MonSpec, val anim: MonAnim)
 
@@ -730,7 +748,10 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             if (abs(input.stickX) > 0.25f) moveX = input.stickX.coerceIn(-1f, 1f)
             crouching = ZelikControls.crouch(input.stickX, input.stickY, onGround)
             val speedMul = if (crouching) 0.5f else 1f
-            pvx = moveX * MOVE_SPEED * speedMul
+            // Плавный разгон и торможение (в воздухе слабее): отбрасывание от ударов теперь заметно, а не стирается за кадр
+            val targetVx = moveX * MOVE_SPEED * speedMul
+            pvx += (targetVx - pvx) * (if (onGround) 0.3f else 0.18f)
+            if (moveX == 0f && abs(pvx) < 0.05f) pvx = 0f
 
             if (onGround) { airJumps = 1; coyote = 7 } else if (coyote > 0) coyote--
             val standingOnOneWay = onGround && platforms.any { it.oneWay && px < it.x + it.w && px + pw > it.x && abs(py + ph - it.y) < 1.5f }
@@ -797,6 +818,8 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             }
         }
         val prevBottom = py + ph
+        val wasOnGround = onGround
+        val fallV = pvy
         py += pvy
         onGround = false
         for (p in platforms) {
@@ -810,6 +833,14 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             }
         }
         if (dropT > 0) dropT--
+        if (onGround && !wasOnGround && fallV > 5f && !dead) {
+            // облачко пыли при приземлении
+            val n = if (fallV > 11f) 9 else 5
+            repeat(n) {
+                val side = if (it % 2 == 0) 1f else -1f
+                parts.add(ZPart(px + pw / 2f + side * 8f, py + ph - 2f, side * (1f + Random.nextFloat() * 1.8f), -Random.nextFloat() * 1.2f, 0.8f, 0.045f, 3f + Random.nextFloat() * 2f, Color(0xFFEEE7DA)))
+            }
+        }
         if (!dead) {
             for (sp in springs) {
                 val feet = py + ph
@@ -2204,6 +2235,7 @@ private fun DrawScope.drawZelik(w: ZelikWorld, f: ZFrames) {
     if (w.crouching && !w.dead) dh *= 0.84f
     val top = bottom - dh
     val dwAdj = if (w.crouching && !w.dead) dw else dw
+    if (!w.dead) drawOval(Color.Black.copy(alpha = 0.22f), Offset(cx - 22f, bottom - 5f), Size(44f, 9f))
     withTransform({
         if (w.facing < 0f) scale(-1f, 1f, Offset(cx, 0f))
     }) {
@@ -2410,6 +2442,20 @@ fun ZelikAdventureScreen(
                 w.vw = size.width / density
                 w.vh = size.height / density
                 drawWorld(w, frames, density, fireA, fireB, wingsFx, waterFx, helperGfx, biomeGfx)
+                // красная виньетка: вспышка при ударе и пульс при малом здоровье
+                val lowHp = !w.dead && w.hp in 1..3
+                val flash = if (w.hurtAnim > 0) w.hurtAnim / 24f else 0f
+                if (lowHp || flash > 0f) {
+                    val pulse = if (lowHp) 0.16f + 0.09f * sin(w.animTime * 0.12f) else 0f
+                    val a = (pulse + flash * 0.3f).coerceIn(0f, 0.5f)
+                    drawRect(
+                        Brush.radialGradient(
+                            listOf(Color.Transparent, Color(0xFFD50000).copy(alpha = a)),
+                            center = center,
+                            radius = hypot(size.width, size.height) / 2f
+                        )
+                    )
+                }
             }
         }
 
@@ -2436,12 +2482,7 @@ fun ZelikAdventureScreen(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(Color(0xFFCFD8DC))
                             ) {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .fillMaxWidth(hud.hp / PLAYER_MAX_HP.toFloat())
-                                        .background(if (hud.hp <= 3) Color(0xFFE53935) else Color(0xFF66BB6A))
-                                )
+                                ZLifeBar(hud.hp / PLAYER_MAX_HP.toFloat(), if (hud.hp <= 3) Color(0xFFE53935) else Color(0xFF66BB6A))
                             }
                             Spacer(Modifier.width(8.dp))
                             Text("👽×${hud.lives}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF37474F))
@@ -2485,12 +2526,7 @@ fun ZelikAdventureScreen(
                             .clip(RoundedCornerShape(6.dp))
                             .background(Color(0xFFCFD8DC))
                     ) {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .fillMaxWidth(hud.bossHp / hud.bossMax.toFloat())
-                                .background(if (hud.bossPhase >= 2) Color(0xFFE53935) else if (hud.bossPhase == 1) Color(0xFFFB8C00) else Color(0xFF8E24AA))
-                        )
+                        ZLifeBar(hud.bossHp / hud.bossMax.toFloat(), if (hud.bossPhase >= 2) Color(0xFFE53935) else if (hud.bossPhase == 1) Color(0xFFFB8C00) else Color(0xFF8E24AA))
                     }
                 }
             }

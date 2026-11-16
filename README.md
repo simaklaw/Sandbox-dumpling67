@@ -6,6 +6,7 @@
 - «Ракетный робот» (индекс 50, `ui/screens/JetBotScreen.kt` + правила `JetBotRules.kt` с тестами): идея из веб-игры Supersonic-bot, переписана на Compose Canvas — палец держит тягу, три сердечка, без микрофона и интернета, все картинки нарисованы кодом
 - «Поваренок» (индекс 51, «Кухня», `ui/screens/CookScreen.kt` + правила `CookRules.kt` с тестами): по мотивам игры «Последняя смена» из Grok, но добрая — нарисованный повар сам ходит между лентой, доской, плитой, тарелкой и гостями (тап = «иди сюда»), зверята-гости, смены без проигрыша, подарки-улучшения, книга из 20 рецептов; прогресс — строка `cook_prefs/p`
 - «Хваталка» (игра с когтем) — three.js внутри WebView, ассеты в `app/src/main/assets/claw`, всё грузится локально; призы — 18 плюшевых зверят (`plush.js`, процедурные модели без внешних картинок), презентация выигрыша в `showcase.js`, коллекция в `localStorage` (`claw_album`)
+- «Гипертрасса» (индекс 52, папка «Игры → Бегалки») — космический 3D-забег, игра владельца проекта: `app/src/main/assets/hypertrack` (`index.html` + `three.min.js` r128), WebView, офлайн; шрифты системные, звук синтезирует сама игра (WebAudio), рекорды в `localStorage` WebView. Экран — `HyperTrackScreen`.
 - `applicationId`: `com.aistudio.kidsplayground.play`, код живёт в пакете `com.example`
 - minSdk 24, targetSdk/compileSdk 36, JDK 21, Gradle 9.3.1
 

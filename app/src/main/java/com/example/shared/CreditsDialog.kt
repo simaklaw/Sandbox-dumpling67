@@ -36,6 +36,7 @@ val CREDITS: List<CreditEntry> = listOf(
     CreditEntry("Аквариум, «Тир»: спрайты", "Kenney (kenney.nl)", "CC0"),
     CreditEntry("Звуки коровы, свиньи, овцы, кошки", "josephsardin, JarredGibb, sandeepkurissery, Ben Burnes (freesound.org)", "CC0"),
     CreditEntry("«Хваталка»: графика", "three.js (threejs.org); игра Claw Game by simaklaw", "MIT; Apache-2.0"),
+    CreditEntry("«Гипертрасса»: графика", "three.js r128 (threejs.org); игра «Гипертрасса» — автор проекта", "MIT; собственная"),
     CreditEntry("Музыка автомойки", "Сочинена для проекта", "собственная")
 )
 

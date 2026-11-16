@@ -417,6 +417,7 @@ fun MainAppScreen(
                                         onExit = { soundManager.play("transition"); exitGame(50) }
                                     )
                                     51 -> CookScreen(repository = repository, soundPlayer = soundPlayer)
+                                    52 -> HyperTrackScreen(repository = repository, soundPlayer = soundPlayer)
                                     23 -> BabyPhoneScreen(repository = repository, soundPlayer = soundPlayer)
                                 }
                                 }

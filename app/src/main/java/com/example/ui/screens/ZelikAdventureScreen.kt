@@ -129,6 +129,9 @@ private class ZPlat(val x: Float, val y: Float, val w: Float, val h: Float, val 
 /** Пружина-батут: подбрасывает героя на высокие площадки. */
 private class ZSpring(val x: Float, val y: Float) { var comp = 0 }
 
+/** Шипы на земле: прыгай или обходи по площадке. */
+private class ZSpike(val x: Float, val w: Float)
+
 private class ZEnemy(
     var x: Float, var y: Float, val r: Float, val tier: Int, var hp: Int, val maxHp: Int,
     val vx: Float, var dir: Float, val baseX: Float, val range: Float
@@ -363,7 +366,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     var mobsTotal = 0
 
     // «Злой дух и 10 героев»: один раз за игру, в одной случайной локации
-    private val spiritBiome = Random.nextInt(BIOME_COUNT)
+    private val spiritBiome = Random.nextInt(ZBIOME_COUNT)
     private var spiritDone = false
     var forceSpirit = false          // отладка: финал на первом же уровне
     var spiritLevel = false
@@ -372,6 +375,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
     val platforms = ArrayList<ZPlat>()
     val springs = ArrayList<ZSpring>()
+    val spikes = ArrayList<ZSpike>()
     var coyote = 0
     var dropT = 0
     val enemies = ArrayList<ZEnemy>()
@@ -440,7 +444,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         level = n
         levelDone = false
         val rng = Random(n * 1337 + Random.nextInt(99999))
-        levelLength = 6000f + n * 1200f
+        levelLength = 8200f + n * 1500f
         arenaLeft = levelLength - 700f
         arenaRight = levelLength + 150f
 
@@ -457,13 +461,14 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             }
         }
         springs.clear()
+        spikes.clear()
         val structCoins = ArrayList<ZCoin>()
         fun sc(x: Float, y: Float) { structCoins.add(ZCoin(x, y, rng.nextFloat() * 6.28f)) }
         var gx = 450f
         val endX = arenaLeft - 350f
         while (gx < endX) {
-            var pattern = rng.nextInt(4)
-            if (pattern == 0 && gx + 800f > arenaLeft - 120f) pattern = 3 // лестнице не хватает места до арены
+            var pattern = rng.nextInt(7)
+            if ((pattern == 0 || pattern == 5 || pattern == 6) && gx + 800f > arenaLeft - 120f) pattern = 3 // лестнице не хватает места до арены
             when (pattern) {
                 0 -> { // лестница вверх и вниз: герой поднимается пешком
                     val steps = 3 + rng.nextInt(3)
@@ -499,6 +504,30 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
                     for (q in 0..3) sc(gx + 140f + q * 40f, ty - 34f)
                     gx += 480f
                 }
+                4 -> { // шипы на земле + монеты дугой над ними
+                    val sw = 90f + rng.nextInt(3) * 40f
+                    spikes.add(ZSpike(gx + 60f, sw))
+                    for (i in 0..6) sc(gx + 20f + i * (sw + 80f) / 6f, GROUND_Y - 40f - sin(i / 6f * Math.PI.toFloat()) * 120f)
+                    gx += sw + 300f
+                }
+                5 -> { // колонны: перепрыгиваем стену, наверху монеты
+                    val cnt = 1 + rng.nextInt(2)
+                    var cx = gx + 40f
+                    for (i in 0 until cnt) {
+                        val ph0 = 80f + rng.nextInt(4) * 14f
+                        platforms.add(ZPlat(cx, GROUND_Y - ph0, 56f, ph0))
+                        for (q in 0..1) sc(cx + 12f + q * 32f, GROUND_Y - ph0 - 34f)
+                        cx += 56f + 190f
+                    }
+                    gx = cx + 120f
+                }
+                6 -> { // шипы и площадка над ними: можно перескочить или пройти поверху
+                    val sw = 200f
+                    spikes.add(ZSpike(gx + 40f, sw))
+                    platforms.add(ZPlat(gx + 70f, GROUND_Y - 120f, sw - 60f, 18f, true))
+                    for (q in 0..3) sc(gx + 90f + q * 36f, GROUND_Y - 154f)
+                    gx += sw + 360f
+                }
                 else -> { // дуга монет — собираем в прыжке
                     for (i in 0..6) sc(gx + i * 38f, GROUND_Y - 34f - sin(i / 6f * Math.PI.toFloat()) * 120f)
                     gx += 420f
@@ -510,6 +539,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         platforms.removeAll { it !== ground && it.x + it.w > arenaLeft - 60f }
         structCoins.removeAll { it.x > arenaLeft - 60f }
         springs.removeAll { it.x > arenaLeft - 60f }
+        spikes.removeAll { it.x + it.w > arenaLeft - 80f }
         platforms.add(ZPlat(arenaLeft + 30f, 380f, 140f, 18f, true))
         platforms.add(ZPlat(arenaRight - 160f, 380f, 140f, 18f, true))
         platforms.add(ZPlat(arenaLeft + 260f, 300f, 150f, 18f, true))
@@ -518,7 +548,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         eShots.clear()
         val biome = biomeOfLevel(n)
         spiritLevel = !spiritDone && (forceSpirit || biome == spiritBiome)
-        val base = 18 + n * 3
+        val base = ((18 + n * 3) * 1.3f).toInt()
         val total = if (diff == 0) (base * 0.6f).toInt() else base
         val tiers = MutableList(total) { 0 }
         if (diff == 1) {
@@ -587,16 +617,14 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         coins.clear()
         cured.clear()
         coins.addAll(structCoins)
-        val coinTarget = 20 + n * 3
+        val coinTarget = ((20 + n * 3) * 1.3f).toInt()
         for (i in 0 until coinTarget) { // россыпь на земле — всегда достаётся
             val cx = 250f + rng.nextFloat() * (arenaLeft - 450f)
             coins.add(ZCoin(cx, GROUND_Y - 30f - rng.nextFloat() * 30f, rng.nextFloat() * 6.28f))
         }
 
         meds.clear()
-        meds.add(ZMed(levelLength * 0.25f, GROUND_Y - 40f))
-        meds.add(ZMed(levelLength * 0.5f, GROUND_Y - 40f))
-        meds.add(ZMed(levelLength * 0.75f, GROUND_Y - 40f))
+        for (mk in 1..4) meds.add(ZMed(levelLength * 0.2f * mk, GROUND_Y - 40f))
         if (spiritLevel) { // в финале на арене лежат три аптечки
             meds.add(ZMed(arenaLeft + 120f, GROUND_Y - 40f))
             meds.add(ZMed((arenaLeft + arenaRight) / 2f, GROUND_Y - 40f))
@@ -616,7 +644,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             heroCd = 70
         } else {
             boss = ZBoss(levelLength - 300f, GROUND_Y - BOSS_H, 96f, BOSS_H, bossHp, bossHp, interval)
-            boss.kind = biome
+            boss.kind = if (biome == 4) 5 else biome
         }
         shocks.clear(); rainCoins.clear()
 
@@ -808,6 +836,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
         px += pvx
         if (px < 20f) px = 20f
+        if (px + pw > levelLength + 260f) px = levelLength + 260f - pw // за краем земли — стена, а не пропасть
         if (boss.active && !boss.dead && px + pw > arenaRight) px = arenaRight - pw
         for (p in platforms) {
             if (p.oneWay) continue
@@ -885,6 +914,14 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             onEvent("bossRoar")
             boss.shootTimer = 90
             onEvent("roar")
+        }
+        if (!dead && invuln <= 0) {
+            for (sp in spikes) {
+                if (px + pw - 10f > sp.x && px + 10f < sp.x + sp.w && py + ph > GROUND_Y - 22f) {
+                    hurtPlayer(2, sp.x + sp.w / 2f, 4f, -9f)
+                    break
+                }
+            }
         }
         if (py > GROUND_Y + 400f) killPlayer()
     }
@@ -972,6 +1009,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
             boss.deadT = 0
             shocks.clear()
             if (boss.kind != 4) enemies.clear() // герои духа продолжают бой, пока не погибнут
+            else enemies.removeAll { it.x < arenaLeft - 40f } // обычные бойцы по трассе не мешают победе
             eShots.clear()
             roster.clear()
             if (boss.kind == 4) spiritDone = true
@@ -1815,6 +1853,9 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         }
     }
 
+    /** Портал выхода появляется после победы над боссом. */
+    fun portalX(): Float = levelLength + 130f
+
     fun stepFrame() {
         animTime++
         for (sp in springs) if (sp.comp > 0) sp.comp--
@@ -1833,7 +1874,10 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         updateEnemies()
         updateFX()
         updateCamera()
-        if (!levelDone && boss.dead && !dead && boss.deadT > 300 && (boss.kind != 4 || aliveHeroes() == 0)) {
+        val heroesDone = boss.kind != 4 || aliveHeroes() == 0
+        val atPortal = px + pw / 2f > portalX() - 30f
+        if (!levelDone && boss.dead && !dead && heroesDone && (boss.deadT > 300 || (boss.deadT > 60 && atPortal)) ||
+            (!levelDone && boss.dead && !dead && boss.deadT > 2400)) {
             levelDone = true
             onEvent("levelDone")
         }
@@ -1938,7 +1982,7 @@ private fun DrawScope.drawBoss(b: ZBoss, t: Int, tx: Float) {
         drawRect(Color.Red.copy(alpha = 0.12f + 0.3f * k), Offset(zx - 95f, GROUND_Y - 16f), Size(190f, 16f))
         drawCircle(Color.Red.copy(alpha = 0.2f + 0.3f * k), 40f + 50f * k, Offset(zx, GROUND_Y - 4f), style = Stroke(5f))
     }
-    val st = BOSS_STYLES[b.kind.coerceIn(0, BOSS_STYLES.size - 1)]
+    val st = if (b.kind == 5) ICE_BOSS else BOSS_STYLES[b.kind.coerceIn(0, BOSS_STYLES.size - 1)]
     val arm = when (b.state) {
         1 -> 0.55f + 0.1f * sin(t * 0.7f)
         2 -> -0.5f
@@ -2038,6 +2082,32 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
             for (i in 0..3) drawLine(Color(0xFFB0BEC5), Offset(sp.x - 18f, sp.y - 8f - hgt * i / 4f), Offset(sp.x + 18f, sp.y - 8f - hgt * (i + 0.5f) / 4f), 4f)
             drawRoundRect(Color(0xFF455A64), Offset(sp.x - 26f, sp.y - 8f), Size(52f, 8f), CornerRadius(4f))
             drawRoundRect(Color(0xFFFF5252), Offset(sp.x - 30f, sp.y - 8f - hgt - 9f), Size(60f, 10f), CornerRadius(5f))
+        }
+        // шипы
+        for (sp in w.spikes) {
+            if (sp.x + sp.w < left || sp.x > right) continue
+            val bi2 = biomeOfLevel(w.level)
+            val col = when (bi2) { 4 -> Color(0xFFB3E5FC); 3 -> Color(0xFFFF7043); 2 -> Color(0xFFB0BEC5); else -> Color(0xFFCFD8DC) }
+            val dark = when (bi2) { 4 -> Color(0xFF4FC3F7); 3 -> Color(0xFF8E2410); else -> Color(0xFF607D8B) }
+            drawRect(dark, Offset(sp.x - 4f, GROUND_Y - 6f), Size(sp.w + 8f, 10f))
+            var sx2 = sp.x
+            while (sx2 < sp.x + sp.w - 4f) {
+                drawPath(Path().apply { moveTo(sx2, GROUND_Y - 4f); lineTo(sx2 + 13f, GROUND_Y - 34f); lineTo(sx2 + 26f, GROUND_Y - 4f); close() }, col)
+                drawPath(Path().apply { moveTo(sx2 + 13f, GROUND_Y - 34f); lineTo(sx2 + 26f, GROUND_Y - 4f); lineTo(sx2 + 15f, GROUND_Y - 4f); close() }, dark.copy(alpha = 0.55f))
+                sx2 += 26f
+            }
+        }
+        // портал выхода после победы над боссом
+        if (w.boss.dead && w.boss.deadT > 60) {
+            val pxp = w.portalX()
+            if (pxp in left - 100f..right + 100f) {
+                val pulse = 1f + 0.08f * sin(t * 0.15f)
+                drawOval(Color(0xFF7C4DFF).copy(alpha = 0.25f), Offset(pxp - 70f * pulse, GROUND_Y - 190f), Size(140f * pulse, 190f))
+                drawOval(Color(0xFFB388FF).copy(alpha = 0.8f), Offset(pxp - 44f, GROUND_Y - 160f), Size(88f, 160f), style = Stroke(7f))
+                drawOval(Color(0xFFE040FB).copy(alpha = 0.5f), Offset(pxp - 30f, GROUND_Y - 140f), Size(60f, 120f))
+                for (k in 0..4) drawCircle(Color.White.copy(alpha = 0.7f), 3.5f, Offset(pxp + sin(t * 0.08f + k * 1.3f) * 26f, GROUND_Y - 20f - ((t * 1.4f + k * 34f) % 140f)))
+                drawLine(Color(0xFFFFEB3B), Offset(pxp - 120f, GROUND_Y - 220f), Offset(pxp - 80f, GROUND_Y - 220f), 6f)
+            }
         }
         // барашки-декорация (позади монет, монстров и героя)
         for (sh in w.sheep) {
@@ -2498,7 +2568,7 @@ fun ZelikAdventureScreen(
                     Spacer(Modifier.width(88.dp))
                     Surface(shape = RoundedCornerShape(14.dp), color = Color.White.copy(alpha = 0.75f)) {
                         Text(
-                            "Уровень ${hud.level} ${BIOME_NAMES[biomeOfLevel(hud.level)]} · монстров: ${hud.mobsLeft}",
+                            "Уровень ${hud.level} ${ZBIOME_NAMES[biomeOfLevel(hud.level)]} · монстров: ${hud.mobsLeft}",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -2612,10 +2682,10 @@ fun ZelikAdventureScreen(
                     )
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        for (i in 0 until BIOME_COUNT) {
+                        for (i in 0 until ZBIOME_COUNT) {
                             KitLongButton(
-                                if (i == 0) R.drawable.ui_btn_long_green else if (i == 1) R.drawable.ui_btn_long_blue else if (i == 2) R.drawable.ui_btn_long_red else R.drawable.ui_btn_long_red,
-                                BIOME_NAMES[i], 76.dp, 10.sp, selected = startBiome == i
+                                if (i == 0) R.drawable.ui_btn_long_green else if (i == 1) R.drawable.ui_btn_long_blue else if (i == 2) R.drawable.ui_btn_long_red else if (i == 3) R.drawable.ui_btn_long_red else R.drawable.ui_btn_long_blue,
+                                ZBIOME_NAMES[i], 62.dp, 9.sp, selected = startBiome == i
                             ) { startBiome = i; soundPlayer.playPop(1.2f) }
                         }
                     }

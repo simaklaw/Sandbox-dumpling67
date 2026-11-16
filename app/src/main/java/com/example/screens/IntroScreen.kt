@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,8 +45,13 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 
-private const val INTRO_LETTER_START = 0.7f
-private const val INTRO_LETTER_STEP = 0.16f
+private const val INTRO_LETTER_START = 0.6f
+private const val INTRO_LETTER_STEP = 0.17f
+
+/** Нота звучит на каждой второй букве: файл длится 0,33 с, поэтому ноты идут встык и не накладываются. */
+private const val INTRO_NOTE_EVERY = 2
+/** Финальный сигнал — после последней ноты, одним звуком. */
+private const val INTRO_FINALE_GAP = 0.45f
 private const val INTRO_TOTAL = 4.6f
 private const val INTRO_FADE = 0.45f
 
@@ -67,6 +73,7 @@ fun IntroScreen(soundManager: SoundManager, onFinished: () -> Unit) {
     var t by remember { mutableFloatStateOf(0f) }
     var played by remember { mutableFloatStateOf(0f) } // сколько букв уже «прозвучало»
     var finishedCalled by remember { mutableFloatStateOf(0f) }
+    var finale by remember { mutableStateOf(false) }
     val totalLetters = INTRO_WORDS.sumOf { it.length }
 
     LaunchedEffect(Unit) {
@@ -77,15 +84,19 @@ fun IntroScreen(soundManager: SoundManager, onFinished: () -> Unit) {
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
                 last = now
                 t += dt
-                // ноты букв
+                // ноты: одна на две буквы, поднимаются по радуге, а на втором круге — октавой выше
                 while (played.toInt() < totalLetters && t >= introLetterTime(played.toInt())) {
                     val n = played.toInt()
-                    soundManager.play(INTRO_NOTES[n % INTRO_NOTES.size], 0.75f)
-                    played += 1f
-                    if (n == totalLetters - 1) {
-                        soundManager.play("chime", 0.9f)
-                        soundManager.play("fanfare_short", 0.8f)
+                    if (n % INTRO_NOTE_EVERY == 0) {
+                        val m = n / INTRO_NOTE_EVERY
+                        soundManager.play(INTRO_NOTES[m % INTRO_NOTES.size], 0.7f, if (m >= INTRO_NOTES.size) 2f else 1f)
                     }
+                    played += 1f
+                }
+                // финал: один сигнал, когда последняя нота уже отзвучала
+                if (!finale && t >= introLetterTime(totalLetters - 1) + INTRO_FINALE_GAP) {
+                    finale = true
+                    soundManager.play("fanfare_short", 0.8f)
                 }
                 if (t >= INTRO_TOTAL && finishedCalled < 1f) {
                     finishedCalled = 1f
@@ -113,6 +124,30 @@ fun IntroScreen(soundManager: SoundManager, onFinished: () -> Unit) {
             val w = size.width
             val h = size.height
             val d = density
+            // солнечные лучи за героями: медленно вращаются
+            run {
+                val c = Offset(w * 0.5f, h * 0.52f)
+                val rr = maxOf(w, h)
+                val k = 16
+                for (i in 0 until k step 2) {
+                    val a0 = (i.toFloat() / k + t * 0.015f) * 2f * PI.toFloat()
+                    val a1 = ((i + 1).toFloat() / k + t * 0.015f) * 2f * PI.toFloat()
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(c.x, c.y)
+                        lineTo(c.x + kotlin.math.cos(a0) * rr, c.y + sin(a0) * rr)
+                        lineTo(c.x + kotlin.math.cos(a1) * rr, c.y + sin(a1) * rr)
+                        close()
+                    }
+                    drawPath(path, Color.White.copy(alpha = 0.22f))
+                }
+            }
+            // искорки, мерцающие по всему небу
+            for (i in 0 until 14) {
+                val sx = (i * 0.137f + 0.05f) % 1f * w
+                val sy = ((i * 0.291f + 0.08f) % 0.7f) * h
+                val tw = (0.5f + 0.5f * sin(t * 3f + i * 1.9f))
+                drawCircle(Color.White.copy(alpha = 0.25f + 0.6f * tw), (1.5f + 2.5f * tw) * d, Offset(sx, sy))
+            }
             // мягкие облака
             for (i in 0 until 3) {
                 val cx = ((i * 0.4f + 0.05f + t * 0.02f) % 1.4f - 0.2f) * w

@@ -2061,7 +2061,7 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
             if (p.x > right || p.x + p.w < left) continue
             if (bio != null) {
                 val bi = biomeOfLevel(w.level)
-                if (idx == 0) drawBiomeGround(bio, bi, max(p.x, left), min(p.x + p.w, right), p.y, p.h)
+                if (idx == 0) drawBiomeGround(bio, bi, max(p.x, left), min(p.x + p.w, right), p.y, p.h, t)
                 else drawBiomePlatform(bi, p.x, p.y, p.w, p.h)
                 continue
             }
@@ -2512,6 +2512,7 @@ fun ZelikAdventureScreen(
                 w.vw = size.width / density
                 w.vh = size.height / density
                 drawWorld(w, frames, density, fireA, fireB, wingsFx, waterFx, helperGfx, biomeGfx)
+                drawBiomeForeground(biomeOfLevel(w.level), w.camX, density, w.animTime)
                 // красная виньетка: вспышка при ударе и пульс при малом здоровье
                 val lowHp = !w.dead && w.hp in 1..3
                 val flash = if (w.hurtAnim > 0) w.hurtAnim / 24f else 0f

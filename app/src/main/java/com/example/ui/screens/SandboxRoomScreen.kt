@@ -539,7 +539,7 @@ fun SandboxRoomScreen(
             if (d < r) {
                 val k = 1f - d / r
                 val idx = j * SB_GW + i
-                m.moist[idx] = (m.moist[idx] + amount * k * k).coerceIn(0f, 1f)
+                m.moist[idx] = (m.moist[idx] + amount * k).coerceIn(0f, 1f)
             }
         }
         m.moistDirty = true
@@ -553,6 +553,9 @@ fun SandboxRoomScreen(
         }
         return if (n == 0) 0f else sum / n
     }
+
+    /** Влажность под формочкой: берём только её «пятно», а не широкий круг (раньше среднее по кругу ×(1/6) требовало ~5 поливов). */
+    fun moldMoist(mo: SbMold) = moistAt(mo.x, mo.y, moldS() * 0.6f)
 
     fun readyThreshold() = if (toddler) 0.3f else 0.45f
 
@@ -984,7 +987,9 @@ fun SandboxRoomScreen(
                 }
                 1 -> {
                     mo.fill = 1f
-                    if (moistAt(mo.x, mo.y, W() * 0.095f) >= readyThreshold()) {
+                    val wet = moldMoist(mo)
+                    mo.glow = (wet / readyThreshold()).coerceIn(0f, 1f) * 0.25f // подсказка: сколько ещё поливать
+                    if (wet >= readyThreshold()) {
                         mo.phase = 2
                         mo.t = 0f
                         burst(2, mo.x, mo.y - moldS() * 0.3f, 8, Color(0xFFFFF3A0), moldS() * 2.5f, moldS() * 0.2f, life = 0.7f)
@@ -995,7 +1000,7 @@ fun SandboxRoomScreen(
                 2 -> {
                     mo.fill = 1f
                     mo.glow = 0.35f + 0.3f * sin(clock * 6f)
-                    if (moistAt(mo.x, mo.y, W() * 0.095f) < readyThreshold() * 0.6f) { mo.phase = 1; mo.glow = 0f }
+                    if (moldMoist(mo) < readyThreshold() * 0.6f) { mo.phase = 1; mo.glow = 0f }
                     if (Random.nextFloat() < 0.04f) burst(2, mo.x + (Random.nextFloat() - 0.5f) * moldS() * 1.6f, mo.y - moldS() * 0.6f, 1, Color(0xFFFFF3A0), moldS() * 0.3f, moldS() * 0.15f, life = 0.6f)
                 }
                 else -> {

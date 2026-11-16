@@ -194,6 +194,9 @@ fun MainAppScreen(
         mutableStateOf<AppScreenState>(AppScreenState.Home)
     }
     LaunchedEffect(Unit) { soundManager.preloadSpeech() }
+    // Прокрутка папок живёт здесь, выше смены экранов: вышел из игры — вернулся на то же место списка
+    val gamesGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val kitchenGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
     var showParentLock by remember { mutableStateOf(false) }
@@ -341,7 +344,8 @@ fun MainAppScreen(
                                 },
                                 soundManager = soundManager,
                                 haptics = haptics,
-                                canPlay = canPlay
+                                canPlay = canPlay,
+                                gridState = if (screenState.folderType == FolderType.KITCHEN) kitchenGridState else gamesGridState
                             )
                         }
                         is AppScreenState.Game -> {
@@ -408,7 +412,10 @@ fun MainAppScreen(
                                     47 -> PetYardScreen(repository = repository, soundPlayer = soundPlayer)
                                     48 -> BlockPuzzleScreen(repository = repository, soundPlayer = soundPlayer)
                                     49 -> ClawGameScreen(repository = repository, soundPlayer = soundPlayer)
-                                    50 -> JetBotScreen(repository = repository, soundPlayer = soundPlayer)
+                                    50 -> JetBotScreen(
+                                        repository = repository, soundPlayer = soundPlayer,
+                                        onExit = { soundManager.play("transition"); exitGame(50) }
+                                    )
                                     51 -> CookScreen(repository = repository, soundPlayer = soundPlayer)
                                     23 -> BabyPhoneScreen(repository = repository, soundPlayer = soundPlayer)
                                 }

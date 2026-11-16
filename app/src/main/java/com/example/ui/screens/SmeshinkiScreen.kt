@@ -55,6 +55,7 @@ import com.example.audio.SoundEffectPlayer
 import com.example.data.GameRepository
 import com.example.shared.SoundManager
 import com.example.shared.rememberHaptics
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -431,6 +432,7 @@ private class SmWorld(val dp: Float) {
     }
 
     fun pointerDown(x: Float, y: Float) {
+        sq.v += 1.6f // мгновенный отклик на касание: тело чуть приседает, пока идёт реакция
         idleT = 0f
         lookTX = ((x - cx) / R).coerceIn(-1f, 1f); lookTY = ((y - cy) / R).coerceIn(-1f, 1f); lookHold = 1.2f
     }
@@ -469,9 +471,18 @@ private class SmWorld(val dp: Float) {
         burst(cx, cy + oy, 14, 300f)
     }
 
+    /** Шаг мира с подшагами: на редких кадрах время не замедляется (раньше dt обрезался до 25 мс, и анимация отставала от звука). */
     fun step(dtRaw: Float) {
         if (w <= 0f) return
-        val dt = dtRaw.coerceIn(0.001f, 0.025f)
+        var left = dtRaw.coerceIn(0.001f, 0.12f)
+        while (left > 0.0001f) {
+            val d = min(left, 0.016f)
+            stepOnce(d)
+            left -= d
+        }
+    }
+
+    private fun stepOnce(dt: Float) {
         time += dt
         fxT += dt
 
@@ -595,19 +606,20 @@ fun SmeshinkiScreen(
     val recent = remember { ArrayList<Long>() }
     val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER } }
 
-    LaunchedEffect(Unit) {
+    remember(soundManager) {
         soundManager.preloadRaw(
             listOf("sm_sneeze", "sm_inflate", "sm_pop", "sm_blah", "sm_whirl", "sm_thud", "sm_hic", "sm_wee", "sm_boing",
                 "sm_smooch", "sm_giggle", "sm_gasp", "sm_tada", "sm_note1", "sm_note2", "sm_note3", "sm_bubble",
                 "sm_tickle", "sm_yawn", "sm_snore", "sm_party", "sm_honk", "sm_oops")
         )
+        true
     }
 
     world.sfx = { name, rate ->
-        // не больше 4 звуков за 0,6 секунды — быстрые тапы не копят «хвост» из звуков
+        // не больше 6 звуков за 0,6 секунды — быстрые тапы не копят «хвост» из звуков
         val now = System.currentTimeMillis()
         recent.removeAll { now - it > 600L }
-        if (recent.size < 4) {
+        if (recent.size < 6) {
             recent.add(now)
             soundManager.play(name, volume = 0.9f, rate = rate)
         }
@@ -637,8 +649,11 @@ fun SmeshinkiScreen(
                         var last = down.position
                         var travel = 0f
                         var moved = false
+                        var fired = false
                         while (true) {
-                            val ev = awaitPointerEvent()
+                            // не ждём отпускания пальца: если палец не двигается 70 мс, реакция стартует сразу (звук без запаздывания)
+                            val ev = if (!moved && !fired) withTimeoutOrNull(70L) { awaitPointerEvent() } else awaitPointerEvent()
+                            if (ev == null) { world.tap(down.position.x, down.position.y); fired = true; continue }
                             val ch = ev.changes.firstOrNull() ?: break
                             if (!ch.pressed) break
                             travel += (ch.position - last).getDistance()
@@ -649,7 +664,7 @@ fun SmeshinkiScreen(
                             }
                             ch.consume()
                         }
-                        if (!moved) world.tap(down.position.x, down.position.y) else world.pointerUp()
+                        if (!moved && !fired) world.tap(down.position.x, down.position.y) else world.pointerUp()
                     }
                 }
         ) {

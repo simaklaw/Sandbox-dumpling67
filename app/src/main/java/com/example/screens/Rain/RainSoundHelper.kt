@@ -19,7 +19,7 @@ class RainSoundHelper(
 
     init {
         // Грузим заранее: первый тап не должен упасть в запасной «поп».
-        soundManager.preloadRaw((1..4).map { "rain_drop$it" } + "rain_splash")
+        soundManager.preloadRaw((1..4).map { "rain_drop$it" } + "rain_splash" + "rain_loop")
     }
 
     /**
@@ -39,6 +39,16 @@ class RainSoundHelper(
         if (now - lastSplashTimestamp < 420L) return
         lastSplashTimestamp = now
         soundManager.playFxRaw("rain_splash", volume = 0.4f, rate = 0.96f + Random.nextFloat() * 0.08f)
+    }
+
+    private var lastGrassTimestamp = 0L
+
+    /** Капля шлёпнулась на траву: совсем тихий, высокий «пат», не чаще 4 раз в секунду. */
+    fun playGrassPat() {
+        val now = System.currentTimeMillis()
+        if (now - lastGrassTimestamp < 260L) return
+        lastGrassTimestamp = now
+        soundManager.playFxRaw("rain_splash", volume = 0.16f, rate = 1.25f + Random.nextFloat() * 0.2f)
     }
 
     fun playRainbowChime() {

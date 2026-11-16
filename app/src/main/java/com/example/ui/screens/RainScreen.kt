@@ -299,6 +299,7 @@ private class RainWorld {
                 sounds.playDuck()
             }
         } else {
+            sounds.playGrassPat()
             spawnSplash(d.x, groundY, Color(0xFF7BD88F), 2, cap)
             // На траве вырастает цветок
             if (Random.nextFloat() < (if (toddler) 0.55f else 0.35f)) {
@@ -333,6 +334,11 @@ fun RainScreen(
     val soundManager = remember(soundPlayer) { SoundManager.getInstance(context, soundPlayer) }
     val sounds = remember(soundPlayer) { RainSoundHelper(context, soundPlayer, soundManager) }
     val world = remember { RainWorld() }
+    // Тихий фон дождя: громкость следует за «мокростью» (тучка включилась — шум плавно нарастает, ушла — стихает)
+    val rainBed = remember { arrayOfNulls<com.example.shared.LoopHandle>(1) }
+    DisposableEffect(soundManager) {
+        onDispose { rainBed[0]?.let { soundManager.stopLoop(it, 60) }; rainBed[0] = null }
+    }
 
     var sizeDp by remember { mutableStateOf(Size.Zero) }
     var frame by remember { mutableLongStateOf(0L) }
@@ -366,6 +372,15 @@ fun RainScreen(
                     sounds = sounds,
                     demoDelaySec = age.autoDemoIdleDelaySeconds
                 )
+                if (frame % 6L == 0L) {
+                    val bed = rainBed[0]
+                    if (world.wet > 0.05f) {
+                        if (bed == null) rainBed[0] = soundManager.startLoop("rain_loop")
+                        else soundManager.setLoopVolume(bed, (world.wet * 0.26f).coerceIn(0f, 0.26f))
+                    } else if (bed != null) {
+                        soundManager.stopLoop(bed, 500); rainBed[0] = null
+                    }
+                }
                 frame++
             }
         }
@@ -438,6 +453,32 @@ fun RainScreen(
             }
 
             drawRainMeadow(w, h, d, t, wet)
+
+            // Дымка над лужайкой в дождь + мягкая тень от тучки на траве
+            if (wet > 0.02f) {
+                drawRect(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.White.copy(alpha = 0.22f * wet), Color.Transparent),
+                        startY = h * 0.55f, endY = h * 0.84f
+                    ),
+                    topLeft = Offset(0f, h * 0.55f), size = Size(w, h * 0.29f)
+                )
+                val shw = 150f * d
+                drawOval(Color.Black.copy(alpha = 0.10f * wet), Offset(world.cloudX * d - shw / 2f, h * 0.835f), Size(shw, 22f * d))
+            }
+            // Полоса дождя прямо под тучкой, пока идёт полив
+            if (wet > 0.3f) {
+                val bx = world.cloudX * d
+                drawRect(
+                    Brush.verticalGradient(
+                        listOf(Color(0x405AB4FF), Color(0x005AB4FF)),
+                        startY = world.cloudY * d + 30f * d, endY = h * 0.84f
+                    ),
+                    topLeft = Offset(bx - 55f * d, world.cloudY * d + 30f * d),
+                    size = Size(110f * d, h * 0.84f - world.cloudY * d - 30f * d),
+                    alpha = (wet - 0.3f) / 0.7f
+                )
+            }
 
             // 🌙 Ночь: плавно темнеет небо, мерцают звёзды, летают светлячки
             if (world.nightTimer > 0f) {
@@ -521,6 +562,10 @@ fun RainScreen(
             for (f in world.flowers) {
                 drawFlower(f.xDp * d, f.yDp * d, d, f.progress, f.color, (f.id % 97L).toInt(), t)
             }
+            // 🦋 Бабочки порхают над расцветшими цветами
+            for (f in world.flowers) {
+                if (f.isFullyGrown && f.id % 2L == 0L) drawButterfly(f.xDp * d, (f.yDp - 70f) * d, d, t, (f.id % 31L).toInt(), f.color)
+            }
             // Тени зверушек
             for (a in world.animals) {
                 drawOval(Color(0x33000000), Offset((a.xDp - 20f) * d, (a.yDp - 5f) * d), Size(40f * d, 10f * d))
@@ -587,6 +632,20 @@ fun RainScreen(
 }
 
 // ───────────────────────── рисование сцены ─────────────────────────
+
+/** Бабочка: два крыла хлопают, летит по «восьмёрке» над цветком. */
+private fun DrawScope.drawButterfly(x: Float, y: Float, d: Float, t: Float, seed: Int, color: Color) {
+    val bx = x + sin(t * 1.3f + seed) * 26f * d
+    val by = y + sin(t * 2.6f + seed * 1.7f) * 12f * d
+    val flap = 0.25f + 0.75f * abs(sin(t * 11f + seed))
+    val wing = lerp(color, Color.White, 0.35f)
+    val ww = 9f * d * flap
+    drawOval(wing, Offset(bx - ww - 1.5f * d, by - 7f * d), Size(ww, 8f * d))
+    drawOval(wing, Offset(bx + 1.5f * d, by - 7f * d), Size(ww, 8f * d))
+    drawOval(wing.copy(alpha = 0.8f), Offset(bx - ww * 0.8f - 1.5f * d, by), Size(ww * 0.8f, 6f * d))
+    drawOval(wing.copy(alpha = 0.8f), Offset(bx + 1.5f * d, by), Size(ww * 0.8f, 6f * d))
+    drawLine(Color(0xFF4A3B32), Offset(bx, by - 6f * d), Offset(bx, by + 6f * d), strokeWidth = 2.2f * d, cap = StrokeCap.Round)
+}
 
 /** Небо: ясное голубое ↔ пасмурное серо-синее (wet), одно солнце, которое прячется под дождём. */
 private fun DrawScope.drawRainSky(w: Float, h: Float, d: Float, t: Float, wet: Float) {

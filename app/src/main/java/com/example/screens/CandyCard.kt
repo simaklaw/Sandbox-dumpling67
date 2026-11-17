@@ -45,6 +45,10 @@ fun CandyCard(
     phaseOffset: Int,
     iconSize: Dp = 52.dp,
     titleSize: Int = 18,
+    /** Эмодзи нескольких игр внутри (подсказка, что в этом мире). */
+    peek: List<String> = emptyList(),
+    /** Число в кружке в углу (сколько игр внутри). */
+    badge: String? = null,
     soundManager: SoundManager,
     haptics: Haptics,
     onClick: () -> Unit
@@ -153,6 +157,26 @@ fun CandyCard(
                         .background(Color.White.copy(alpha = 0.38f), RoundedCornerShape(14.dp))
                         .padding(horizontal = 10.dp, vertical = 2.dp)
                 )
+                if (peek.isNotEmpty()) {
+                    Spacer(Modifier.height(5.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) { peek.forEach { Text(it, fontSize = 15.sp) } }
+                }
+            }
+            if (badge != null) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 10.dp, end = 12.dp)
+                        .size(28.dp)
+                        .background(Color.White, CircleShape)
+                        .border(BorderStroke(2.dp, ColorInk), CircleShape)
+                ) { Text(badge, fontSize = 13.sp, fontWeight = FontWeight.Black, color = ColorInk) }
             }
         }
     }

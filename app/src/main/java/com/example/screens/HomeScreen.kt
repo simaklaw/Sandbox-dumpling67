@@ -104,11 +104,14 @@ fun HomeScreen(
                         )
                     } else Modifier
                 ) {
-                    Text(
-                        text = "🧸",
-                        fontSize = 32.sp,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(46.dp)
+                            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White, ColorYellow)), CircleShape)
+                            .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
+                    ) { Text(text = "🧸", fontSize = 26.sp) }
                     Text(
                         text = "Детская площадка",
                         style = PlayTypography.titleLarge,
@@ -123,6 +126,7 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
                             .clip(CircleShape)
                             .background(if (musicOn) Color(0xFFFFF8E1) else Color(0xFFE0E0E0))
                             .clickable { onToggleMusic() },
@@ -134,6 +138,7 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
                             .clip(CircleShape)
                             .background(Color(0xFFE3F2FD))
                             .clickable {

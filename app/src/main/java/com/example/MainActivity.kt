@@ -280,7 +280,8 @@ fun MainAppScreen(
         activeScreenState = AppScreenState.Game(index, title)
     }
     val exitGame: (Int) -> Unit = { pageIndex ->
-        activeScreenState = if (gameReturnsToMine) AppScreenState.Mine else parentStateForGame(pageIndex)
+        activeScreenState = parentStateForGame(pageIndex)
+        if (gameReturnsToMine) activeScreenState = AppScreenState.Mine
         gameReturnsToMine = false
         adContext.findActivity()?.let { adManager.tryShow(it, com.example.ads.AdTrigger.EXIT) }
     }

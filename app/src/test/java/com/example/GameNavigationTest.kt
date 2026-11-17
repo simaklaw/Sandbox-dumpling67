@@ -30,19 +30,30 @@ class GameNavigationTest {
     }
 
     @Test
-    fun newStep14GamesAreInGamesFolder() {
-        listOf(24, 26, 27, 28, 30, 31, 32, 34, 35).forEach { assertEquals(FolderType.GAMES, folderTypeForPage(it)) }
+    fun allWorldsAreFilledAndEveryGameIsInAWorld() {
+        // Шесть миров, в каждом хотя бы одна игра; в каталоге ровно 40 игр.
+        assertEquals(6, FolderType.values().size)
+        FolderType.values().forEach { assertTrue("Мир $it пуст", FOLDER_ITEMS.getValue(it).isNotEmpty()) }
+        assertEquals(40, FOLDER_ITEMS.values.flatten().size)
+        // игры, которые раньше висели на главном экране, теперь лежат в мирах
+        assertEquals(FolderType.HOME, folderTypeForPage(1))      // Кормление
+        assertEquals(FolderType.SHOOTING, folderTypeForPage(7))  // Шарики
+        assertEquals(FolderType.CREATIVE, folderTypeForPage(9))  // Рисование
+        assertEquals(FolderType.CALM, folderTypeForPage(21))     // Смешинки
+        assertEquals(FolderType.CALM, folderTypeForPage(23))     // Телефончик
     }
 
     @Test
-    fun kitchenGamesReturnToKitchen() {
-        listOf(6).forEach { assertEquals(FolderType.KITCHEN, folderTypeForPage(it)) }
-        assertEquals(AppScreenState.Folder("Кухня", FolderType.KITCHEN), parentStateForGame(6))
+    fun backFromGameReturnsToItsWorld() {
+        assertEquals(AppScreenState.Folder("Дом и кухня", FolderType.HOME), parentStateForGame(6))
+        assertEquals(AppScreenState.Folder("Приключения", FolderType.ADVENTURE), parentStateForGame(52))
+        assertEquals(AppScreenState.Folder("Антистресс", FolderType.CALM), parentStateForGame(10))
     }
 
     @Test
-    fun homeLevelGamesReturnHome() {
-        listOf(1, 7, 9).forEach {
+    fun gamesOutsideTheCatalogReturnHome() {
+        // 11 («Сюрпризы») открывается только из родительских настроек и в каталоге не лежит.
+        listOf(11, 3, 33).forEach {
             assertNull(folderTypeForPage(it))
             assertEquals(AppScreenState.Home, parentStateForGame(it))
         }
@@ -56,13 +67,12 @@ class GameNavigationTest {
     }
 
     @Test
-    fun formerHomeSectionGamesMovedToGames() {
-        // Раздел «Кухня → Дом» упразднён: все его игры живут в «Играх», в кухне остаются только кухонные.
-        listOf(38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 52).forEach {
-            assertEquals("Игра $it должна быть в «Играх»", FolderType.GAMES, folderTypeForPage(it))
-        }
-        assertEquals(listOf(37, 36, 6, 51), FOLDER_ITEMS[FolderType.KITCHEN]!!.map { it.pageIndex })
-        assertEquals(AppScreenState.Folder("Игры", FolderType.GAMES), parentStateForGame(38))
+    fun mineScreenStateSurvivesSaveAndRestore() {
+        val raw = AppScreenStateSaver.run { androidx.compose.runtime.saveable.SaverScope { true }.save(AppScreenState.Mine) }
+        assertEquals("M", raw)
+        assertEquals(AppScreenState.Mine, AppScreenStateSaver.restore("M"))
+        // состояние старой версии («F|GAMES|Игры») не роняет приложение
+        assertEquals(AppScreenState.Home, AppScreenStateSaver.restore("F|GAMES|Игры"))
     }
 
     @Test

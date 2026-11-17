@@ -27,7 +27,10 @@ import com.example.monetization.GameAccess
 import com.example.monetization.MonetizationServices
 import com.example.screens.FOLDER_ITEMS
 import com.example.screens.FolderScreen
+import com.example.screens.FOLDER_INFO
 import com.example.screens.FolderType
+import com.example.screens.MineScreen
+import com.example.screens.RecentGames
 import com.example.screens.folderTypeForPage
 import com.example.screens.HomeScreen
 import com.example.shared.*
@@ -41,6 +44,8 @@ import kotlinx.coroutines.isActive
 
 sealed class AppScreenState {
     object Home : AppScreenState()
+    /** «Моё»: коллекции и награды ребёнка. */
+    object Mine : AppScreenState()
     data class Folder(val title: String, val folderType: FolderType) : AppScreenState()
     data class Game(val pageIndex: Int, val title: String) : AppScreenState()
 }
@@ -50,6 +55,7 @@ val AppScreenStateSaver: Saver<AppScreenState, String> = Saver(
     save = { st ->
         when (st) {
             is AppScreenState.Home -> "H"
+            is AppScreenState.Mine -> "M"
             is AppScreenState.Folder -> "F|${st.folderType.name}|${st.title}"
             is AppScreenState.Game -> "G|${st.pageIndex}|${st.title}"
         }
@@ -60,6 +66,7 @@ val AppScreenStateSaver: Saver<AppScreenState, String> = Saver(
             when (parts[0]) {
                 "F" -> AppScreenState.Folder(parts[2], FolderType.valueOf(parts[1]))
                 "G" -> AppScreenState.Game(parts[1].toInt(), parts[2])
+                "M" -> AppScreenState.Mine
                 else -> AppScreenState.Home
             }
         } catch (e: Exception) {
@@ -73,11 +80,8 @@ val AppScreenStateSaver: Saver<AppScreenState, String> = Saver(
  * Папка определяется по единому списку [FOLDER_ITEMS]; игра с главного экрана возвращает на главный.
  */
 fun parentStateForGame(pageIndex: Int): AppScreenState {
-    return when (folderTypeForPage(pageIndex)) {
-        FolderType.GAMES -> AppScreenState.Folder("Игры", FolderType.GAMES)
-        FolderType.KITCHEN -> AppScreenState.Folder("Кухня", FolderType.KITCHEN)
-        null -> AppScreenState.Home
-    }
+    val type = folderTypeForPage(pageIndex) ?: return AppScreenState.Home
+    return AppScreenState.Folder(FOLDER_INFO.getValue(type).title, type)
 }
 
 class MainActivity : ComponentActivity() {
@@ -195,8 +199,7 @@ fun MainAppScreen(
     }
     LaunchedEffect(Unit) { soundManager.preloadSpeech() }
     // Прокрутка папок живёт здесь, выше смены экранов: вышел из игры — вернулся на то же место списка
-    val gamesGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-    val kitchenGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val worldGridStates = FolderType.values().associateWith { androidx.compose.foundation.lazy.grid.rememberLazyGridState() }
     var musicOn by remember { mutableStateOf(prefs.getBoolean("pref_music_enabled", true)) }
     var showParentSettings by remember { mutableStateOf(false) }
     var showParentLock by remember { mutableStateOf(false) }
@@ -220,7 +223,6 @@ fun MainAppScreen(
     val canPlay: (Int) -> Boolean = remember(unlockedSet) {
         { index -> GameAccess.canPlay(index, BuildConfig.MONETIZATION_ENABLED, unlockedSet) }
     }
-    val kitchenVisible = remember(canPlay) { FOLDER_ITEMS.getValue(FolderType.KITCHEN).any { canPlay(it.pageIndex) } }
     val toggleMusic: () -> Unit = {
         val on = !musicOn
         musicOn = on
@@ -270,8 +272,17 @@ fun MainAppScreen(
 
     // Общий выход из игры (кнопка «Назад» внутри экранов со своей верхней панелью)
     // Единственное место выхода из игры: реклама (если AdManager разрешит) показывается ПОСЛЕ выхода, на экране папки/главном.
+    // Игра, открытая из «Моё», возвращает туда же, а не в её мир
+    var gameReturnsToMine by remember { mutableStateOf(false) }
+    val openGame: (Int, String) -> Unit = { index, title ->
+        RecentGames.push(adContext.applicationContext, index)
+        gameReturnsToMine = activeScreenState is AppScreenState.Mine
+        activeScreenState = AppScreenState.Game(index, title)
+    }
     val exitGame: (Int) -> Unit = { pageIndex ->
         activeScreenState = parentStateForGame(pageIndex)
+        if (gameReturnsToMine) activeScreenState = AppScreenState.Mine
+        gameReturnsToMine = false
         adContext.findActivity()?.let { adManager.tryShow(it, com.example.ads.AdTrigger.EXIT) }
     }
     // Подгрузка рекламы заранее (не в onCreate): пока идёт заставка. AdManager сам не пустит при remove_ads/офлайне/первых запусках.
@@ -297,7 +308,7 @@ fun MainAppScreen(
                 is AppScreenState.Home -> {
                     showExitProtectionDialog = true
                 }
-                is AppScreenState.Folder -> {
+                is AppScreenState.Folder, is AppScreenState.Mine -> {
                     activeScreenState = AppScreenState.Home
                 }
                 is AppScreenState.Game -> {
@@ -325,9 +336,9 @@ fun MainAppScreen(
                     when (screenState) {
                         is AppScreenState.Home -> {
                             HomeScreen(
-                                onNavigateToGame = { index, title ->
-                                    activeScreenState = AppScreenState.Game(index, title)
-                                },
+                                onNavigateToGame = openGame,
+                                onOpenMine = { activeScreenState = AppScreenState.Mine },
+                                canPlay = canPlay,
                                 onNavigateToFolder = { title, type ->
                                     activeScreenState = AppScreenState.Folder(title, type)
                                 },
@@ -335,24 +346,30 @@ fun MainAppScreen(
                                 musicOn = musicOn,
                                 onToggleMusic = toggleMusic,
                                 soundManager = soundManager,
+                                haptics = haptics
+                            )
+                        }
+                        is AppScreenState.Mine -> {
+                            MineScreen(
+                                repository = repository,
+                                soundManager = soundManager,
                                 haptics = haptics,
-                                kitchenVisible = kitchenVisible
+                                onGoBack = { activeScreenState = AppScreenState.Home },
+                                onOpenGame = openGame
                             )
                         }
                         is AppScreenState.Folder -> {
                             FolderScreen(
                                 title = screenState.title,
                                 folderType = screenState.folderType,
-                                onNavigateToGame = { index, title ->
-                                    activeScreenState = AppScreenState.Game(index, title)
-                                },
+                                onNavigateToGame = openGame,
                                 onGoBack = {
                                     activeScreenState = AppScreenState.Home
                                 },
                                 soundManager = soundManager,
                                 haptics = haptics,
                                 canPlay = canPlay,
-                                gridState = if (screenState.folderType == FolderType.KITCHEN) kitchenGridState else gamesGridState
+                                gridState = worldGridStates.getValue(screenState.folderType)
                             )
                         }
                         is AppScreenState.Game -> {

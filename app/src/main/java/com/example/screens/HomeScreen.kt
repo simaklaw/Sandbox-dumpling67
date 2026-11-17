@@ -44,7 +44,8 @@ fun HomeScreen(
     onToggleMusic: () -> Unit = {},
     soundManager: SoundManager,
     haptics: Haptics = rememberHaptics(),
-    kitchenVisible: Boolean = true
+    canPlay: (Int) -> Boolean = { true },
+    onOpenMine: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -72,15 +73,14 @@ fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFFFFFBF1), ColorBg, ColorBgSoft)))
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
+        PlayBackdrop(Modifier.matchParentSize())
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Header Row: App logo/title & settings gear
@@ -104,11 +104,14 @@ fun HomeScreen(
                         )
                     } else Modifier
                 ) {
-                    Text(
-                        text = "🧸",
-                        fontSize = 32.sp,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(46.dp)
+                            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White, ColorYellow)), CircleShape)
+                            .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
+                    ) { Text(text = "🧸", fontSize = 26.sp) }
                     Text(
                         text = "Детская площадка",
                         style = PlayTypography.titleLarge,
@@ -123,6 +126,7 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
                             .clip(CircleShape)
                             .background(if (musicOn) Color(0xFFFFF8E1) else Color(0xFFE0E0E0))
                             .clickable { onToggleMusic() },
@@ -134,6 +138,7 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .border(BorderStroke(2.5.dp, ColorInk), CircleShape)
                             .clip(CircleShape)
                             .background(Color(0xFFE3F2FD))
                             .clickable {
@@ -148,172 +153,91 @@ fun HomeScreen(
                 }
             }
 
-            // Grid of 6 interactive cards
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                    // ==========================================
-                    // 🧸 3-5 YEARS OLD LAYOUT (With Folders)
-                    // ==========================================
-                    // Row 1: Кормление (одна широкая карточка)
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        HomeScreenCard(
+            val canPlayNow = canPlay
+            val worlds = remember(canPlayNow) { visibleWorlds(canPlayNow) }
+            val recents = remember(canPlayNow) { RecentGames.load(context).filter { canPlayNow(it) }.take(3) }
+
+            // «Продолжить»: последние игры одним касанием (пока ничего не играли — полоски нет)
+            if (recents.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("▶", fontSize = 20.sp, color = ColorInk, fontWeight = FontWeight.Black)
+                    recents.forEach { idx ->
+                        val item = findFolderItem(idx) ?: return@forEach
+                        RecentChip(
+                            item = item,
                             modifier = Modifier.weight(1f),
-                            title = "Кормление",
-                            icon = "🍎",
-                            cardColor = ColorPink,
-                            phaseOffset = 0,
                             soundManager = soundManager,
                             haptics = haptics,
-                            onClick = {
-                                if (isFirstLaunch) {
-                                    isFirstLaunch = false
-                                    prefs.edit().putBoolean("first_launch_step1", false).apply()
-                                }
-                                onNavigateToGame(1, "Кормление")
+                            onClick = { onNavigateToGame(item.pageIndex, item.title) }
+                        )
+                    }
+                    repeat(3 - recents.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+
+            // Шесть миров 2×3: большие тайлы, внутри видно, какие игры там живут
+            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                val rows = (worlds.size + 1) / 2
+                val gap = 14.dp
+                val tileH = (maxHeight - gap * (rows - 1)) / rows.coerceAtLeast(1)
+                val showPeek = tileH >= 150.dp
+                Column(verticalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.fillMaxSize()) {
+                    worlds.chunked(2).forEachIndexed { ri, pair ->
+                        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                            pair.forEachIndexed { ci, type ->
+                                val info = FOLDER_INFO.getValue(type)
+                                val games = visibleSections(type, canPlayNow).flatMap { it.items }
+                                CandyCard(
+                                    modifier = Modifier.weight(1f).fillMaxHeight().testTag("world_${type.name.lowercase()}"),
+                                    title = info.title,
+                                    icon = info.icon,
+                                    cardColor = info.color,
+                                    phaseOffset = (ri * 2 + ci) * 220,
+                                    iconSize = if (showPeek) 56.dp else 46.dp,
+                                    titleSize = 19,
+                                    peek = if (showPeek) games.take(4).map { it.icon } else emptyList(),
+                                    badge = games.size.toString(),
+                                    soundManager = soundManager,
+                                    haptics = haptics,
+                                    onClick = {
+                                        if (isFirstLaunch) {
+                                            prefs.edit().putBoolean("first_launch_step1", false).apply()
+                                            isFirstLaunch = false
+                                        }
+                                        onNavigateToFolder(info.title, type)
+                                    }
+                                )
                             }
-                        )
+                            if (pair.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
-
-                    // Row 2: Рисование, Шарики
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        HomeScreenCard(
-                            modifier = Modifier.weight(1f),
-                            title = "Рисование",
-                            icon = "🎨",
-                            cardColor = ColorGreen,
-                            phaseOffset = 800,
-                            soundManager = soundManager,
-                            haptics = haptics,
-                            onClick = { onNavigateToGame(9, "Рисование") }
-                        )
-                        HomeScreenCard(
-                            modifier = Modifier.weight(1f),
-                            title = "Шарики",
-                            icon = "🎈",
-                            cardColor = ColorBlue,
-                            phaseOffset = 1200,
-                            soundManager = soundManager,
-                            haptics = haptics,
-                            onClick = { onNavigateToGame(7, "Шарики") }
-                        )
-                    }
-
-                    // Row 3: Игры, Кухня
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        HomeScreenCard(
-                            modifier = Modifier.weight(1f),
-                            title = "Игры",
-                            icon = "🎪",
-                            cardColor = ColorOrange,
-                            phaseOffset = 1600,
-                            soundManager = soundManager,
-                            haptics = haptics,
-                            onClick = { onNavigateToFolder("Игры", FolderType.GAMES) }
-                        )
-                        if (kitchenVisible) HomeScreenCard(
-                            modifier = Modifier.weight(1f),
-                            title = "Кухня",
-                            icon = "🫖",
-                            cardColor = ColorPurple,
-                            phaseOffset = 2000,
-                            soundManager = soundManager,
-                            haptics = haptics,
-                            onClick = { onNavigateToFolder("Кухня", FolderType.KITCHEN) }
-                        )
-                    }
+                }
             }
 
-            // Bottom quick launch row for "Смешинки 😜" and "Телефончик 📱"
+            // Нижняя полоса: «Моё» (коллекции и награды) и вход для родителей
+            Spacer(modifier = Modifier.height(12.dp))
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Surface(
-                    onClick = {
-                        soundManager.play("tap")
-                        haptics.vibratePop()
-                        onNavigateToGame(21, "Смешинки")
-                    },
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                    color = ColorYellow,
-                    shadowElevation = 6.dp,
-                    border = BorderStroke(2.dp, ColorInk),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .testTag("smeshinki_home_button")
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text("😜", fontSize = 24.sp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "Смешинки",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = ColorInk
-                        )
-                    }
-                }
-
-                Surface(
-                    onClick = {
-                        soundManager.play("tap")
-                        haptics.vibratePop()
-                        onNavigateToGame(23, "Телефончик")
-                    },
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                    color = ColorPink,
-                    shadowElevation = 6.dp,
-                    border = BorderStroke(2.dp, ColorInk),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .testTag("baby_phone_home_button")
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text("📱", fontSize = 24.sp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "Телефончик",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = ColorInk
-                        )
-                    }
-                }
+                MineButton(
+                    modifier = Modifier.weight(1f),
+                    soundManager = soundManager,
+                    haptics = haptics,
+                    onClick = onOpenMine
+                )
+                ParentGearButton(
+                    showLabel = true,
+                    onTrigger = onOpenSettings,
+                    soundManager = soundManager,
+                    haptics = haptics
+                )
             }
-
-            // Настройки для родителей: видимая подписанная кнопка внизу (раньше была безымянная шестерёнка в углу)
-            Spacer(modifier = Modifier.height(10.dp))
-            ParentGearButton(
-                showLabel = true,
-                onTrigger = onOpenSettings,
-                soundManager = soundManager,
-                haptics = haptics
-            )
         }
 
         // Animated Guide Hand over "Кормление" for first launch or idle
@@ -404,4 +328,57 @@ fun HomeScreenCard(
         haptics = haptics,
         onClick = onClick
     )
+}
+
+
+/** Мини-карточка «Продолжить»: значок и название последней игры. */
+@Composable
+private fun RecentChip(
+    item: FolderItem,
+    modifier: Modifier,
+    soundManager: SoundManager,
+    haptics: Haptics,
+    onClick: () -> Unit
+) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = modifier
+            .height(52.dp)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(item.color, Color.White, 0.5f), item.color)), shape)
+            .border(BorderStroke(2.5.dp, ColorInk), shape)
+            .plasticineClickable(haptics = haptics) {
+                soundManager.play("pop")
+                onClick()
+            }
+            .padding(horizontal = 6.dp)
+    ) {
+        Text(item.icon, fontSize = 24.sp)
+        Spacer(Modifier.width(4.dp))
+        Text(item.title, fontSize = 11.sp, fontWeight = FontWeight.Black, color = ColorInk, maxLines = 2, lineHeight = 12.sp)
+    }
+}
+
+/** Большая кнопка «Моё»: коллекция монстриков, стикеры, монетки. */
+@Composable
+private fun MineButton(modifier: Modifier, soundManager: SoundManager, haptics: Haptics, onClick: () -> Unit) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = modifier
+            .height(48.dp)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFFFFF59D), ColorYellow)), shape)
+            .border(BorderStroke(3.dp, ColorInk), shape)
+            .plasticineClickable(haptics = haptics) {
+                soundManager.play("chime")
+                onClick()
+            }
+            .testTag("mine_button")
+    ) {
+        Text("⭐", fontSize = 24.sp)
+        Spacer(Modifier.width(8.dp))
+        Text("Моё", fontSize = 20.sp, fontWeight = FontWeight.Black, color = ColorInk)
+    }
 }

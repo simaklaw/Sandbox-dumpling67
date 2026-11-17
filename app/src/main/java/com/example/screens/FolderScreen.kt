@@ -1,33 +1,45 @@
 package com.example.screens
 
-import androidx.compose.animation.core.*
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import com.example.shared.i18n.Text
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.shared.*
+import com.example.shared.i18n.Text
 
+/** Шесть «миров» главного экрана: игры сгруппированы по тому, что делает ребёнок. */
 enum class FolderType {
-    GAMES, KITCHEN
+    ADVENTURE, SHOOTING, CREATIVE, HOME, NATURE, CALM
 }
+
+/** Как мир выглядит на главном экране и в шапке папки. */
+data class FolderInfo(val title: String, val icon: String, val color: Color)
+
+val FOLDER_INFO: Map<FolderType, FolderInfo> = mapOf(
+    FolderType.ADVENTURE to FolderInfo("Приключения", "🗺️", ColorGreen),
+    FolderType.SHOOTING to FolderInfo("Меткость", "🎯", ColorOrange),
+    FolderType.CREATIVE to FolderInfo("Творчество", "🎨", ColorPink),
+    FolderType.HOME to FolderInfo("Дом и кухня", "🍳", ColorYellow),
+    FolderType.NATURE to FolderInfo("Зверята", "🐾", ColorBlue),
+    FolderType.CALM to FolderInfo("Антистресс", "🫧", ColorPurple)
+)
 
 data class FolderItem(
     val title: String,
@@ -37,7 +49,7 @@ data class FolderItem(
     val iconRes: Int? = null
 )
 
-/** Раздел внутри папки: игры одного жанра лежат рядом под общим заголовком. */
+/** Раздел внутри мира: игры одного жанра лежат рядом под общим заголовком. */
 data class FolderSection(
     val title: String,
     val icon: String,
@@ -48,63 +60,74 @@ data class FolderSection(
 private val DUMPLING_ICON = com.example.R.drawable.pelmen_icon
 
 /**
- * Единый источник правды: какие игры лежат в каких папках и в каких разделах.
+ * Единый источник правды: какие игры лежат в каких мирах и разделах.
  * Индексы 25 («Кто в коробке?») и 45 («Гардероб героев») выведены из использования: их здесь нет и быть не должно.
  */
 val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
-    FolderType.GAMES to listOf(
-        FolderSection("Бегалки и приключения", "🏃", ColorGreen, listOf(
+    FolderType.ADVENTURE to listOf(
+        FolderSection("Приключения", "🗺️", ColorGreen, listOf(
             FolderItem("Зелик: Приключение", "🔫", 28, ColorGreen),
             FolderItem("Комната Зелика", "👽", 27, ColorGreen),
+            FolderItem("Монстрики и забег", "👾", 32, ColorOrange),
             FolderItem("Бешеный Дамплинг 67", "🥟", 5, ColorYellow, DUMPLING_ICON),
             FolderItem("Жадная акула", "🦈", 35, ColorBlue),
             FolderItem("Птичка-летунья", "🐦", 44, ColorGreen),
             FolderItem("Ракетный робот", "🤖", 50, ColorBlue),
             FolderItem("Гипертрасса", "🚀", 52, ColorPurple)
-        )),
-        FolderSection("Меткость и аркады", "🎯", ColorOrange, listOf(
+        ))
+    ),
+    FolderType.SHOOTING to listOf(
+        FolderSection("Меткость", "🎯", ColorOrange, listOf(
             FolderItem("Тир", "🦆", 31, ColorOrange),
             FolderItem("Лук", "🏹", 4, ColorPink),
+            FolderItem("Шарики", "🎈", 7, ColorBlue),
             FolderItem("Пинбол", "🔮", 12, ColorYellow),
             FolderItem("Пиньята с Конфетами", "🪅", 17, ColorPink),
             FolderItem("Блок-пазл", "🧱", 48, ColorBlue),
             FolderItem("Хваталка", "🕹️", 49, ColorPurple)
-        )),
-        FolderSection("Кнопочки, поп-иты, бизиборд", "🔴", ColorPink, listOf(
-            FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
-            FolderItem("Поп-ит Антистресс", "🟣", 16, ColorPurple),
-            FolderItem("Пузырчатая пленка", "📦", 20, ColorBlue),
-            FolderItem("Бизиборд", "🎛️", 10, ColorGreen),
-            FolderItem("Детский телефончик", "📱", 23, ColorPink)
-        )),
-        FolderSection("Зверята и природа", "🐾", ColorBlue, listOf(
-            FolderItem("Зверята", "🐮", 0, ColorPurple),
-            FolderItem("Аквариум", "🐠", 30, ColorBlue),
-            FolderItem("Дождик", "🌧️", 24, ColorBlue),
-            FolderItem("Погодная комната", "🌦️", 43, ColorBlue),
-            FolderItem("Пушистики", "🐹", 47, ColorPink)
-        )),
-        FolderSection("Творчество и забавы", "🎨", ColorPurple, listOf(
-            FolderItem("Монстрики и забег", "👾", 32, ColorOrange),
-            FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
-            FolderItem("Кинетический песок", "🏖️", 22, ColorOrange),
-            FolderItem("Смешинки", "😜", 21, ColorYellow),
-            FolderItem("Песочница с формочками", "🏖️", 40, ColorYellow),
-            FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange)
-        )),
-        FolderSection("Хозяйство и магазин", "🧺", ColorBlue, listOf(
-            FolderItem("Пузырьковая стиралка", "🫧", 38, ColorBlue),
-            FolderItem("Автомойка для игрушек", "🚗", 41, ColorOrange),
-            FolderItem("Магазин пельменей", "🛒", 42, ColorPink),
-            FolderItem("Музыкальная колыбелька", "🌙", 39, ColorPurple)
         ))
     ),
-    FolderType.KITCHEN to listOf(
+    FolderType.CREATIVE to listOf(
+        FolderSection("Творчество", "🎨", ColorPink, listOf(
+            FolderItem("Рисование", "🎨", 9, ColorGreen),
+            FolderItem("Кинетический песок", "🏖️", 22, ColorOrange),
+            FolderItem("Песочница с формочками", "🏖️", 40, ColorYellow),
+            FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
+            FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange)
+        ))
+    ),
+    FolderType.HOME to listOf(
         FolderSection("Кухня", "🍳", ColorPurple, listOf(
+            FolderItem("Кормление", "🍎", 1, ColorPink),
             FolderItem("Кастрюля чудес", "🍲", 37, ColorOrange),
             FolderItem("Нарезка овощей", "🔪", 36, ColorGreen),
             FolderItem("Сыпучести", "🌾", 6, ColorYellow),
             FolderItem("Поваренок", "👨‍🍳", 51, ColorPink)
+        )),
+        FolderSection("Хозяйство и магазин", "🧺", ColorBlue, listOf(
+            FolderItem("Пузырьковая стиралка", "🫧", 38, ColorBlue),
+            FolderItem("Автомойка для игрушек", "🚗", 41, ColorOrange),
+            FolderItem("Магазин пельменей", "🛒", 42, ColorPink)
+        ))
+    ),
+    FolderType.NATURE to listOf(
+        FolderSection("Зверята", "🐾", ColorBlue, listOf(
+            FolderItem("Зверята", "🐮", 0, ColorPurple),
+            FolderItem("Пушистики", "🐹", 47, ColorPink),
+            FolderItem("Аквариум", "🐠", 30, ColorBlue),
+            FolderItem("Дождик", "🌧️", 24, ColorBlue),
+            FolderItem("Погодная комната", "🌦️", 43, ColorBlue)
+        ))
+    ),
+    FolderType.CALM to listOf(
+        FolderSection("Антистресс", "🫧", ColorPurple, listOf(
+            FolderItem("Смешинки", "😜", 21, ColorYellow),
+            FolderItem("Детский телефончик", "📱", 23, ColorPink),
+            FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
+            FolderItem("Поп-ит Антистресс", "🟣", 16, ColorPurple),
+            FolderItem("Пузырчатая пленка", "📦", 20, ColorBlue),
+            FolderItem("Бизиборд", "🎛️", 10, ColorGreen),
+            FolderItem("Музыкальная колыбелька", "🌙", 39, ColorPurple)
         ))
     )
 )
@@ -112,15 +135,42 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
 val FOLDER_ITEMS: Map<FolderType, List<FolderItem>> =
     FOLDER_SECTIONS.mapValues { (_, secs) -> secs.flatMap { it.items } }
 
-/** Секции папки только с теми играми, которые доступны; пустые секции скрыты (ребёнок не видит «закрытого»). */
+/** Секции мира только с теми играми, которые доступны; пустые секции скрыты (ребёнок не видит «закрытого»). */
 fun visibleSections(folderType: FolderType, canPlay: (Int) -> Boolean): List<FolderSection> =
     FOLDER_SECTIONS.getValue(folderType)
         .map { sec -> sec.copy(items = sec.items.filter { canPlay(it.pageIndex) }) }
         .filter { it.items.isNotEmpty() }
 
-/** В какой папке лежит игра с этим индексом (null — игра открывается прямо с главного экрана). */
+/** Миры, в которых есть хотя бы одна доступная игра (порядок — как на главном экране). */
+fun visibleWorlds(canPlay: (Int) -> Boolean): List<FolderType> =
+    FolderType.values().filter { visibleSections(it, canPlay).isNotEmpty() }
+
+/** В каком мире лежит игра с этим индексом (null — игры нет в каталоге). */
 fun folderTypeForPage(pageIndex: Int): FolderType? =
     FOLDER_ITEMS.entries.firstOrNull { (_, list) -> list.any { it.pageIndex == pageIndex } }?.key
+
+/** Карточка игры из каталога по индексу (для «Продолжить»). */
+fun findFolderItem(pageIndex: Int): FolderItem? =
+    FOLDER_ITEMS.values.flatten().firstOrNull { it.pageIndex == pageIndex }
+
+/** Последние игры ребёнка: хранятся в настройках, самая свежая первой. */
+object RecentGames {
+    private const val KEY = "recent_games"
+    private const val MAX = 4
+
+    fun load(ctx: Context): List<Int> = try {
+        (ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE).getString(KEY, "") ?: "")
+            .split(";").mapNotNull { it.toIntOrNull() }.filter { findFolderItem(it) != null }.distinct().take(MAX)
+    } catch (e: Exception) { emptyList() }
+
+    fun push(ctx: Context, pageIndex: Int) {
+        if (findFolderItem(pageIndex) == null) return
+        try {
+            val list = (listOf(pageIndex) + load(ctx)).distinct().take(MAX)
+            ctx.getSharedPreferences("playground_prefs", Context.MODE_PRIVATE).edit().putString(KEY, list.joinToString(";")).apply()
+        } catch (e: Exception) { /* не критично */ }
+    }
+}
 
 @Composable
 fun FolderScreen(
@@ -132,49 +182,45 @@ fun FolderScreen(
     soundManager: SoundManager,
     haptics: Haptics = rememberHaptics(),
     canPlay: (Int) -> Boolean = { true },
-    // Состояние прокрутки приходит снаружи: экран папки пересоздаётся при входе в игру и обратно,
+    // Состояние прокрутки приходит снаружи: экран мира пересоздаётся при входе в игру и обратно,
     // а позиция должна остаться (раньше список возвращался в самое начало).
     gridState: LazyGridState = rememberLazyGridState()
 ) {
     val sections = remember(folderType, canPlay) { visibleSections(folderType, canPlay) }
+    val info = FOLDER_INFO.getValue(folderType)
+    val count = sections.sumOf { it.items.size }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFFFFFBF1), ColorBg, ColorBgSoft)))
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
+        PlayBackdrop(Modifier.matchParentSize(), tint = info.color)
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header zone with Back/Home button & Folder Icon (No text)
+            // Шапка: «домой» и баннер мира цвета этого мира
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
+                    .padding(bottom = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Home Button at top left (80 dp)
                 HomeButton(
-                    modifier = Modifier.size(80.dp),
+                    modifier = Modifier.size(72.dp),
+                    size = 72.dp,
                     haptics = haptics,
                     onClick = {
                         soundManager.play("transition")
                         onGoBack()
                     }
                 )
-
-                Spacer(modifier = Modifier.width(20.dp))
-
-                // Folder Icon without text title
-                Text(
-                    text = if (folderType == FolderType.GAMES) "🎪" else "🍯",
-                    fontSize = 38.sp
-                )
+                Spacer(modifier = Modifier.width(14.dp))
+                WorldBanner(info, count, Modifier.weight(1f))
             }
 
             LazyVerticalGrid(
@@ -206,6 +252,27 @@ fun FolderScreen(
                 }
                 item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(12.dp)) }
             }
+        }
+    }
+}
+
+/** Баннер мира: крупный значок, название и сколько игр внутри. */
+@Composable
+fun WorldBanner(info: FolderInfo, count: Int, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(28.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .height(72.dp)
+            .background(Brush.verticalGradient(listOf(lerp(info.color, Color.White, 0.45f), info.color)), shape)
+            .border(BorderStroke(3.dp, ColorInk), shape)
+            .padding(horizontal = 14.dp)
+    ) {
+        Text(info.icon, fontSize = 38.sp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(info.title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = ColorInk, maxLines = 1)
+            Text("игр: $count", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ColorInk.copy(alpha = 0.7f))
         }
     }
 }

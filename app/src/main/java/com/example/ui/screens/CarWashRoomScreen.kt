@@ -3,6 +3,7 @@ package com.example.ui.screens
 import com.example.shared.withFrameNanosEco
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -22,10 +23,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -33,7 +36,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
@@ -72,7 +75,7 @@ import kotlin.random.Random
 // Грязная игрушка въезжает на мойку -> губка (пена стирает грязь) -> душ (смывает пену) -> фен (сушит и наводит блеск)
 // -> игрушка сигналит и ТАНЦУЕТ под музыку (качается с боку на бок, поднимая то один, то другой бок, прыгает, крутится),
 // потом танцуя уезжает. Награды: наклейки альбома «Главный мойщик» и тюнинг (диски, корона, неон).
-// Музыка — три оригинальные мелодии cw2_dance_*.ogg (generate_carwash_music.py), по одной на машинку, автобус и паровоз.
+// Музыка — три оригинальные мелодии cw2_dance_*.ogg (generate_carwash_music.py); на пять машинок они чередуются.
 
 private const val CW_PREFS = "carwash_prefs"
 private const val CW_GX = 36
@@ -86,24 +89,16 @@ private const val CW_SPONGE = 0
 private const val CW_SHOWER = 1
 private const val CW_DRYER = 2
 
-private const val TY_CAR = 0
-private const val TY_BUS = 1
-private const val TY_TRAIN = 2
 
 // Танец чистой игрушки. Темп каждой мелодии (cw2_dance_*.ogg), 6 тактов по 4 доли:
 // 16 долей игрушка танцует на месте, ещё 8 долей танцуя уезжает; меняя темп, перегенерируй музыку.
-private val CW_BPM = floatArrayOf(130f, 120f, 126f)
+// порядок как в CW_CARS: спорткар, мороженщик, монстр-трак, полиция, пожарная
+private val CW_BPM = floatArrayOf(130f, 126f, 120f, 130f, 126f)
 private const val CW_LEAD = 0.5f          // пауза перед музыкой: успевают прозвучать «ура» и гудок
 private const val CW_SHOW_BEATS = 16f
 private const val CW_GO_BEATS = 8f
-private val CW_DANCE_RES = intArrayOf(R.raw.cw2_dance_car, R.raw.cw2_dance_bus, R.raw.cw2_dance_train)
+private val CW_DANCE_RES = intArrayOf(R.raw.cw2_dance_car, R.raw.cw2_dance_train, R.raw.cw2_dance_bus, R.raw.cw2_dance_car, R.raw.cw2_dance_train)
 
-// Точки касания земли левого и правого колеса (u, v): вокруг них игрушка наклоняется, приподнимая другой бок
-private val CW_PIV = arrayOf(
-    floatArrayOf(-0.58f, 0.75f, 0.58f, 0.75f),
-    floatArrayOf(-0.6f, 0.75f, 0.6f, 0.75f),
-    floatArrayOf(-0.65f, 0.79f, 0.62f, 0.79f)
-)
 private val CW_CHEER = listOf("Блестит!", "Чистюля!", "Красота!", "Ура!")
 private val CW_NOTE_COLORS = listOf(Color(0xFFFF4DA6), Color(0xFF3FD0FF), Color(0xFFFFC21A), Color(0xFF3FD07A), Color(0xFF9B6BFF))
 private val CW_CONFETTI = listOf(Color(0xFFFF4DA6), Color(0xFF3FD0FF), Color(0xFFFFD54A), Color(0xFF3FD07A), Color(0xFFFF7A3C), Color(0xFF9B6BFF))
@@ -140,6 +135,7 @@ private class CwModel {
     var handDown = false
 
     var toyType = 0
+    var sprites: CwSprites? = null
     var toyIdx = 0
     var phase = 0          // 0 въезжает, 1 моется, 2 радуется, 3 уезжает
     var phaseT = 0f
@@ -231,42 +227,62 @@ private fun cwEase(t: Float): Float { val k = t.coerceIn(0f, 1f); return k * k *
 private fun cwLerp(a: Float, b: Float, t: Float) = a + (b - a) * t
 private fun Color.cwA(a: Float): Color = copy(alpha = (alpha * a).coerceIn(0f, 1f))
 
-// ───────────────────────── формы игрушек ─────────────────────────
 
-private fun cwInside(type: Int, u: Float, v: Float): Boolean = when (type) {
-    TY_CAR -> {
-        val a = (u / 1.0f) * (u / 1.0f) + ((v - 0.05f) / 0.5f) * ((v - 0.05f) / 0.5f) <= 1f
-        val b = (u / 0.62f) * (u / 0.62f) + ((v + 0.25f) / 0.5f) * ((v + 0.25f) / 0.5f) <= 1f
-        a || b
+private class CwCar(
+    val body: Int, val wf: Int, val wr: Int,
+    val bx: Float, val by: Float, val bw: Float, val bh: Float,      // спрайт кузова в единицах игрушки
+    val fx: Float, val fy: Float, val fr: Float,                      // переднее колесо: центр и радиус
+    val rx: Float, val ry: Float, val rr: Float,                      // заднее колесо
+    val faceX: Float, val faceY: Float, val faceK: Float,             // где мордочка и её размер
+    val crownX: Float, val crownY: Float,                             // где корона-спойлер
+    val heavy: Float                                                  // тяжёлые машины прыгают пониже
+)
+
+/** Пять игрушечных машинок (модели Popyca Studio, CC0), отрисованные в боковые спрайты: tools/carwash_cars. */
+private val CW_CARS = listOf(
+    CwCar(R.drawable.cw3_muscle_body, R.drawable.cw3_muscle_wf, R.drawable.cw3_muscle_wr,
+        -1.066f, -0.060f, 2.132f, 0.876f,
+        0.593f, 0.539f, 0.223f, -0.549f, 0.511f, 0.251f,
+        -0.050f, 0.160f, 0.450f, -0.192f, 0.036f, 1.000f),
+    CwCar(R.drawable.cw3_icecream_body, R.drawable.cw3_icecream_wf, R.drawable.cw3_icecream_wr,
+        -1.065f, -0.863f, 2.129f, 1.677f,
+        0.570f, 0.535f, 0.224f, -0.559f, 0.535f, 0.224f,
+        0.450f, 0.220f, 0.420f, 0.323f, -0.110f, 0.850f),
+    CwCar(R.drawable.cw3_monster_body, R.drawable.cw3_monster_wf, R.drawable.cw3_monster_wr,
+        -1.057f, -0.589f, 2.113f, 1.396f,
+        0.567f, 0.394f, 0.370f, -0.567f, 0.394f, 0.370f,
+        0.000f, -0.080f, 0.380f, -0.213f, -0.385f, 0.800f),
+    CwCar(R.drawable.cw3_police_body, R.drawable.cw3_police_wf, R.drawable.cw3_police_wr,
+        -1.062f, -0.122f, 2.124f, 0.934f,
+        0.561f, 0.549f, 0.209f, -0.585f, 0.549f, 0.209f,
+        0.050f, 0.200f, 0.450f, -0.155f, -0.086f, 1.000f),
+    CwCar(R.drawable.cw3_fire_body, R.drawable.cw3_fire_wf, R.drawable.cw3_fire_wr,
+        -1.055f, -0.229f, 2.110f, 1.034f,
+        0.660f, 0.539f, 0.220f, -0.513f, 0.539f, 0.220f,
+        -0.450f, 0.070f, 0.550f, 0.437f, -0.124f, 0.800f)
+)
+
+private class CwSprites(val body: ImageBitmap, val wf: ImageBitmap, val wr: ImageBitmap, val bodyBmp: Bitmap)
+
+private fun cwLoadSprites(ctx: Context, car: CwCar): CwSprites? = try {
+    val res = ctx.resources
+    val body = BitmapFactory.decodeResource(res, car.body)
+    val wf = BitmapFactory.decodeResource(res, car.wf)
+    val wr = BitmapFactory.decodeResource(res, car.wr)
+    if (body == null || wf == null || wr == null) null else CwSprites(body.asImageBitmap(), wf.asImageBitmap(), wr.asImageBitmap(), body)
+} catch (e: Exception) { null }
+
+/** Клетка сетки мытья принадлежит машинке, если под ней достаточно непрозрачных пикселей спрайта. */
+private fun cwCellInside(car: CwCar, bmp: Bitmap, u0: Float, v0: Float, u1: Float, v1: Float): Boolean {
+    var hit = 0
+    for (a in 0..2) for (b in 0..2) {
+        val u = u0 + (u1 - u0) * (a + 0.5f) / 3f
+        val v = v0 + (v1 - v0) * (b + 0.5f) / 3f
+        val px = ((u - car.bx) / car.bw * bmp.width).toInt()
+        val py = ((v - car.by) / car.bh * bmp.height).toInt()
+        if (px in 0 until bmp.width && py in 0 until bmp.height && (bmp.getPixel(px, py) ushr 24) > 128) hit++
     }
-    TY_BUS -> u in -1.0f..1.0f && v in -0.7f..0.45f
-    else -> (u in -1.0f..0.25f && v in -0.35f..0.45f) || (u in 0.2f..1.0f && v in -0.75f..0.45f) || (u in -0.8f..-0.5f && v in -0.6f..-0.35f)
-}
-
-private val CW_SHAPES: Map<Int, Path> by lazy {
-    val car = Path().apply {
-        addOval(Rect(Offset(-1.0f, -0.45f), Size(2.0f, 1.0f)))
-        addOval(Rect(Offset(-0.62f, -0.75f), Size(1.24f, 1.0f)))
-    }
-    val bus = Path().apply { addRoundRect(RoundRect(-1.0f, -0.7f, 1.0f, 0.45f, CornerRadius(0.18f))) }
-    val train = Path().apply {
-        addRect(Rect(Offset(-1.0f, -0.35f), Size(1.25f, 0.8f)))
-        addRect(Rect(Offset(0.2f, -0.75f), Size(0.8f, 1.2f)))
-        addRect(Rect(Offset(-0.8f, -0.6f), Size(0.3f, 0.25f)))
-    }
-    mapOf(TY_CAR to car, TY_BUS to bus, TY_TRAIN to train)
-}
-
-private fun cwBodyColor(t: Int): Color = when (t) {
-    TY_CAR -> Color(0xFFFFD166)
-    TY_BUS -> Color(0xFF06D6A0)
-    else -> Color(0xFF2FA8E0)
-}
-
-private fun cwAccent(t: Int): Color = when (t) {
-    TY_CAR -> Color(0xFFEF476F)
-    TY_BUS -> Color(0xFFFFD166)
-    else -> Color(0xFFEF476F)
+    return hit >= 5
 }
 
 private fun cwUpgrades(washed: Int) = when {
@@ -287,17 +303,6 @@ private fun DrawScope.cwStar(c: Offset, r: Float, color: Color, rot: Float) {
     }
     p.close()
     drawPath(p, color)
-}
-
-private fun DrawScope.cwWheel(x: Float, y: Float, r: Float, rot: Float, upg: Int) {
-    drawCircle(Color(0xFF1E293B), r, Offset(x, y))
-    val rim = if (upg >= 1) Color(0xFFFF4DA6) else Color(0xFF9FB0C4)
-    drawCircle(rim, r * 0.58f, Offset(x, y))
-    for (i in 0 until 5) {
-        val a = rot + i * 2f * PI.toFloat() / 5f
-        drawLine(Color(0xFF1E293B).cwA(0.55f), Offset(x, y), Offset(x + cos(a) * r * 0.55f, y + sin(a) * r * 0.55f), r * 0.1f, StrokeCap.Round)
-    }
-    drawCircle(Color.White.cwA(0.8f), r * 0.14f, Offset(x, y))
 }
 
 private fun DrawScope.cwFace(x: Float, y: Float, k: Float, mood: Int, blink: Float, shake: Float) {
@@ -333,9 +338,7 @@ private fun DrawScope.cwFace(x: Float, y: Float, k: Float, mood: Int, blink: Flo
     }
 }
 
-private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake: Float, wheelRot: Float, clock: Float, beat: Float = 0f, shadow: Boolean = true) {
-    val body = cwBodyColor(type)
-    val acc = cwAccent(type)
+private fun DrawScope.cwToy(car: CwCar, sp: CwSprites, upg: Int, mood: Int, blink: Float, shake: Float, wheelRot: Float, clock: Float, beat: Float = 0f, shadow: Boolean = true) {
     val outline = Color(0xFF334155)
     // неон
     if (upg >= 3) {
@@ -343,70 +346,49 @@ private fun DrawScope.cwToy(type: Int, upg: Int, mood: Int, blink: Float, shake:
         drawOval(Brush.radialGradient(listOf(Color(0xFF3CF0FF).cwA(glow), Color(0x003CF0FF)), Offset(0f, 0.75f), 1.3f), Offset(-1.3f, 0.45f), Size(2.6f, 0.7f))
     }
     if (shadow) drawOval(Color(0x44000000), Offset(-1.05f, 0.62f), Size(2.1f, 0.3f))
-    val shape = CW_SHAPES[type] ?: return
-    when (type) {
-        TY_CAR -> {
-            // кабина (цветная) и кузов
-            drawOval(acc, Offset(-0.62f, -0.75f), Size(1.24f, 1.0f))
-            drawOval(Color(0xFFD6F0FF), Offset(-0.5f, -0.66f), Size(1.0f, 0.82f))
-            drawOval(body, Offset(-1.0f, -0.45f), Size(2.0f, 1.0f))
-            drawOval(outline, Offset(-1.0f, -0.45f), Size(2.0f, 1.0f), style = Stroke(0.06f))
-            drawArc(outline, 190f, 160f, false, Offset(-0.62f, -0.75f), Size(1.24f, 1.0f), style = Stroke(0.06f, cap = StrokeCap.Round))
-            drawOval(Color.White.cwA(0.35f), Offset(-0.75f, -0.32f), Size(0.55f, 0.16f))
-            drawCircle(Color(0xFFFFF3A0), 0.1f, Offset(0.88f, 0.08f))
-            if (beat > 0.02f) drawCircle(Color(0xFFFFF3A0).cwA(0.55f * beat), 0.28f, Offset(0.88f, 0.08f))
-            drawCircle(Color(0xFFEF476F), 0.07f, Offset(-0.9f, 0.1f))
-            drawCircle(Color.White.cwA(0.7f), 0.04f, Offset(0.86f, 0.05f))
-            cwFace(0f, -0.28f, 1f, mood, blink, shake)
-            cwWheel(-0.58f, 0.5f, 0.25f, wheelRot, upg)
-            cwWheel(0.58f, 0.5f, 0.25f, wheelRot, upg)
-            if (upg >= 2) cwCrown(0f, -0.76f, 0.3f)
-        }
-        TY_BUS -> {
-            drawPath(shape, outline, style = Stroke(0.14f, join = StrokeJoin.Round))
-            drawPath(shape, Brush.verticalGradient(listOf(body, Color(0xFF05B58A)), -0.7f, 0.45f))
-            drawRect(acc, Offset(-1.0f, 0.18f), Size(2.0f, 0.1f))
-            for (i in 0 until 3) {
-                val wx = -0.85f + i * 0.5f
-                drawRoundRect(Color(0xFFD6F0FF), Offset(wx, -0.55f), Size(0.4f, 0.38f), CornerRadius(0.06f))
-                drawRoundRect(outline, Offset(wx, -0.55f), Size(0.4f, 0.38f), CornerRadius(0.06f), style = Stroke(0.035f))
+    // кузов
+    val sc = car.bw / sp.body.width
+    withTransform({ translate(car.bx, car.by); scale(sc, sc, Offset.Zero) }) {
+        drawImage(sp.body, filterQuality = FilterQuality.Medium)
+    }
+    // колёса крутятся; с яркими дисками на них розовый диск
+    for (front in listOf(false, true)) {
+        val wx = if (front) car.fx else car.rx
+        val wy = if (front) car.fy else car.ry
+        val wr = if (front) car.fr else car.rr
+        val img = if (front) sp.wf else sp.wr
+        val k = 2f * wr / img.width
+        withTransform({ translate(wx, wy); rotate(wheelRot * 57.2958f, Offset.Zero) }) {
+            withTransform({ scale(k, k, Offset.Zero) }) {
+                drawImage(img, dstOffset = IntOffset(-img.width / 2, -img.height / 2), filterQuality = FilterQuality.Medium)
             }
-            drawRoundRect(Color(0xFFD6F0FF), Offset(0.6f, -0.58f), Size(0.35f, 0.5f), CornerRadius(0.08f))
-            drawOval(Color(0xFFFF9F43), Offset(0.88f, -0.05f), Size(0.36f, 0.22f))
-            drawOval(outline, Offset(0.88f, -0.05f), Size(0.36f, 0.22f), style = Stroke(0.035f))
-            cwFace(0.775f, -0.34f, 0.6f, mood, blink, shake)
-            drawCircle(Color(0xFFFFF3A0), 0.07f, Offset(0.92f, 0.28f))
-            if (beat > 0.02f) drawCircle(Color(0xFFFFF3A0).cwA(0.55f * beat), 0.22f, Offset(0.92f, 0.28f))
-            cwWheel(-0.6f, 0.5f, 0.25f, wheelRot, upg)
-            cwWheel(0.6f, 0.5f, 0.25f, wheelRot, upg)
-            if (upg >= 2) cwCrown(-0.2f, -0.7f, 0.3f)
-        }
-        else -> {
-            drawPath(shape, outline, style = Stroke(0.14f, join = StrokeJoin.Round))
-            drawRect(body, Offset(-1.0f, -0.35f), Size(1.25f, 0.8f))
-            drawRect(acc, Offset(0.2f, -0.75f), Size(0.8f, 1.2f))
-            drawRect(Color(0xFFFFD166), Offset(0.15f, -0.82f), Size(0.9f, 0.1f))
-            drawRect(Color(0xFF334155), Offset(-0.8f, -0.6f), Size(0.3f, 0.25f))
-            drawRect(Color(0xFFFFD166), Offset(-0.84f, -0.66f), Size(0.38f, 0.08f))
-            drawCircle(Color(0xFFFFF3A0), 0.12f, Offset(-0.95f, 0.05f))
-            if (beat > 0.02f) drawCircle(Color(0xFFFFF3A0).cwA(0.55f * beat), 0.3f, Offset(-0.95f, 0.05f))
-            drawRoundRect(Color(0xFFD6F0FF), Offset(0.3f, -0.62f), Size(0.55f, 0.4f), CornerRadius(0.07f))
-            cwFace(0.575f, -0.4f, 0.6f, mood, blink, shake)
-            drawRect(Color.White.cwA(0.3f), Offset(-0.9f, -0.28f), Size(1.0f, 0.1f))
-            cwWheel(-0.65f, 0.55f, 0.24f, wheelRot, upg)
-            cwWheel(-0.05f, 0.55f, 0.24f, wheelRot, upg)
-            cwWheel(0.62f, 0.55f, 0.24f, wheelRot, upg)
-            if (upg >= 2) cwCrown(0.6f, -0.82f, 0.3f)
+            if (upg >= 1) {
+                drawCircle(Color(0xFFFF4DA6).cwA(0.85f), wr * 0.5f, Offset.Zero)
+                for (i in 0 until 5) {
+                    val a = i * 2f * PI.toFloat() / 5f
+                    drawLine(Color.White.cwA(0.7f), Offset.Zero, Offset(cos(a) * wr * 0.48f, sin(a) * wr * 0.48f), wr * 0.09f, StrokeCap.Round)
+                }
+                drawCircle(Color.White.cwA(0.85f), wr * 0.12f, Offset.Zero)
+            }
         }
     }
+    // фара мигает в такт
+    if (beat > 0.02f) {
+        drawCircle(Color(0xFFFFF3A0).cwA(0.55f * beat), 0.28f, Offset(car.bx + car.bw - 0.14f, car.fy - 0.12f))
+    }
+    // мордочка на «наклейке»
+    val fk = car.faceK
+    drawOval(Color(0xFFFFF6E5).cwA(0.93f), Offset(car.faceX - 0.36f * fk, car.faceY - 0.33f * fk), Size(0.72f * fk, 0.78f * fk))
+    drawOval(outline, Offset(car.faceX - 0.36f * fk, car.faceY - 0.33f * fk), Size(0.72f * fk, 0.78f * fk), style = Stroke(0.03f * fk))
+    cwFace(car.faceX, car.faceY, fk, mood, blink, shake)
+    if (upg >= 2) cwCrown(car.crownX, car.crownY, 0.3f)
 }
 
-/** Поза танца на доле bt (0..24): качание с боку на бок вокруг опорного колеса, прыжки, поворот, шаг «чух-чух». */
-private fun cwDancePose(m: CwModel, type: Int, bt: Float) {
-    val pv = CW_PIV[type]
+/** Поза танца на доле bt (0..24): качание с боку на бок вокруг опорного колеса, прыжки, поворот. */
+private fun cwDancePose(m: CwModel, car: CwCar, bt: Float) {
     val fr = bt - floor(bt)
     val lift = sin(PI.toFloat() * bt)          // больше нуля — приподнят левый бок, меньше — правый
-    val heavy = if (type == 1) 0.8f else 1f    // автобус потяжелее
+    val heavy = car.heavy
     var amp = 0f
     var hop = 0f
     var sq = 1f
@@ -417,7 +399,7 @@ private fun cwDancePose(m: CwModel, type: Int, bt: Float) {
         bt < 12f -> {                          // такт 3: прыгает на каждую долю
             amp = 5f
             hop = 0.17f * sin(PI.toFloat() * fr) * heavy
-            sq = 1f + 0.09f * cos(2f * PI.toFloat() * fr) * (if (type == 1) 1.4f else 1f)
+            sq = 1f + 0.09f * cos(2f * PI.toFloat() * fr) * (if (heavy < 1f) 1.4f else 1f)
         }
         bt < 14f -> amp = 12f
         bt < 16f -> {                          // разворот вокруг себя
@@ -430,10 +412,10 @@ private fun cwDancePose(m: CwModel, type: Int, bt: Float) {
             hop = 0.03f * abs(lift)
         }
     }
-    m.dShift = if (type == 2) 0.06f * lift else 0f   // паровозик ещё и «чухает» вперёд-назад
-    if (type == 2) amp *= 0.6f
+    m.dShift = 0f
     m.dAng = amp * lift
-    if (lift >= 0f) { m.dPivU = pv[2]; m.dPivV = pv[3] } else { m.dPivU = pv[0]; m.dPivV = pv[1] }
+    // опора: точка касания земли заднего (левого) или переднего (правого) колеса
+    if (lift >= 0f) { m.dPivU = car.rx; m.dPivV = 0.75f } else { m.dPivU = car.fx; m.dPivV = 0.75f }
     m.dHop = hop
     m.dSq = sq
     m.dFlip = flip
@@ -625,6 +607,7 @@ fun CarWashRoomScreen(
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
     var frame by remember { mutableIntStateOf(0) }
     val m = remember { CwModel() }
+    val sprites = remember { HashMap<Int, CwSprites?>() }
     val dirtBmp = remember { Bitmap.createBitmap(CW_GX * 2, CW_GY * 2, Bitmap.Config.ARGB_8888) }
     val foamBmp = remember { Bitmap.createBitmap(CW_GX * 2, CW_GY * 2, Bitmap.Config.ARGB_8888) }
     val wetBmp = remember { Bitmap.createBitmap(CW_GX * 2, CW_GY * 2, Bitmap.Config.ARGB_8888) }
@@ -703,11 +686,16 @@ fun CarWashRoomScreen(
 
     fun loadToy(idx: Int) {
         m.toyIdx = idx
-        m.toyType = idx % 3
+        m.toyType = idx % CW_CARS.size
+        val car = CW_CARS[m.toyType]
+        val sp = sprites.getOrPut(m.toyType) { cwLoadSprites(context, car) }
+        m.sprites = sp
+        val half = CW_UW / CW_GX / 2f
+        val halfV = CW_VH / CW_GY / 2f
         var n = 0
         for (j in 0 until CW_GY) for (i in 0 until CW_GX) {
             val k = j * CW_GX + i
-            val inside = cwInside(m.toyType, cellU(i), cellV(j))
+            val inside = sp != null && cwCellInside(car, sp.bodyBmp, cellU(i) - half, cellV(j) - halfV, cellU(i) + half, cellV(j) + halfV)
             m.mask[k] = inside
             if (inside) n++
             m.dirt[k] = if (inside) 1f else 0f
@@ -787,9 +775,6 @@ fun CarWashRoomScreen(
                     )
                 )
             }
-        }
-        if (m.toyType == TY_TRAIN) { // дым из трубы
-            m.parts.add(CwPart(7, toyPx(-0.65f), toyPy(-0.65f), W() * 0.01f, -H() * 0.08f, 1.4f, 1.4f, s * 0.12f, Color(0xFFF1F5F9), 0f, 0f, 1e9f))
         }
         if (bi in 8..11) burst(2, toyPx(0f), toyPy(0.6f), 4, Color(0xFFFFF3A0), s * 0.5f, s * 0.1f, life = 0.6f) // искры при приземлении
     }
@@ -1107,7 +1092,7 @@ fun CarWashRoomScreen(
                 val bt = (m.phaseT - CW_LEAD) / spb
                 if (!m.musicStarted && m.phaseT >= CW_LEAD) { m.musicStarted = true; startDanceMusic() }
                 if (bt >= 0f) {
-                    cwDancePose(m, m.toyType, bt)
+                    cwDancePose(m, CW_CARS[m.toyType], bt)
                     danceBeatFx(bt)
                 } else { // «ура»: радостный прыжок до начала музыки
                     m.dAng = 0f; m.dFlip = 1f; m.dSq = 1f; m.dShift = 0f; m.dBeat = 0f
@@ -1126,7 +1111,7 @@ fun CarWashRoomScreen(
                 m.wheelRot += dt * 14f * (k + 0.2f)
                 m.barrier = if (m.phaseT > 0.1f) 1f else 0f
                 val bt = CW_SHOW_BEATS + m.phaseT / spb
-                cwDancePose(m, m.toyType, bt)
+                cwDancePose(m, CW_CARS[m.toyType], bt)
                 if (bt < CW_SHOW_BEATS + CW_GO_BEATS) danceBeatFx(bt) // пока ждём награду, игрушка уже уехала — праздник не сыплем
                 hopY = -m.dHop * toyS()
                 if (m.phaseT >= d) {
@@ -1458,10 +1443,13 @@ fun CarWashRoomScreen(
                     scale(m.dFlip * m.dSq, 1f / m.dSq, Offset(0f, 0.75f))
                 }
             }) {
-                cwToy(m.toyType, upg, mood, if (m.blink > 0f) 1f else 0f, m.sadShake, m.wheelRot, t, if (m.phase >= 2) m.dBeat else 0f, m.phase < 2)
-                val body = CW_SHAPES[m.toyType]
-                if (body != null) {
-                    clipPath(body) {
+                val car = CW_CARS[m.toyType]
+                val sp = m.sprites
+                if (sp != null) {
+                    cwToy(car, sp, upg, mood, if (m.blink > 0f) 1f else 0f, m.sadShake, m.wheelRot, t, if (m.phase >= 2) m.dBeat else 0f, m.phase < 2)
+                    // грязь, пена и капли лежат только на самой машинке: слой обрезается по её силуэту
+                    drawIntoCanvas { cv ->
+                        cv.saveLayer(Rect(car.bx - 0.05f, car.by - 0.05f, car.bx + car.bw + 0.05f, car.by + car.bh + 0.05f), Paint())
                         withTransform({ scale(1f / s, 1f / s, Offset.Zero) }) {
                             val dst = IntSize((CW_UW * s).toInt() + 1, (CW_VH * s).toInt() + 1)
                             val off = IntOffset((CW_U0 * s).toInt(), (CW_V0 * s).toInt())
@@ -1489,6 +1477,12 @@ fun CarWashRoomScreen(
                                 drawCircle(Color.White.cwA(0.9f * wv), dd[2] * 0.35f, Offset(dd[0] - dd[2] * 0.3f, dd[1] - dd[2] * 0.3f))
                             }
                         }
+                        // силуэт машинки вырезает слой
+                        val sc = car.bw / sp.body.width
+                        withTransform({ translate(car.bx, car.by); scale(sc, sc, Offset.Zero) }) {
+                            drawImage(sp.body, blendMode = BlendMode.DstIn, filterQuality = FilterQuality.Medium)
+                        }
+                        cv.restore()
                     }
                 }
             }

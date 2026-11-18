@@ -2494,7 +2494,7 @@ fun ZelikAdventureScreen(
             "boom" -> soundPlayer.playCatapultCrashLand()
             "boom_small" -> soundManager.play("zb_boom", volume = 0.7f)
             "hit" -> soundPlayer.playPop(1.3f)
-            "coin" -> soundManager.play("zb_coin", volume = 0.7f, rate = 0.9f + Random.nextFloat() * 0.3f)
+            "coin" -> soundManager.play("zb_coin", volume = 0.7f, rate = 0.95f + Random.nextFloat() * 0.13f)
             "heal" -> soundPlayer.playSparkleChime()
             "hurt" -> { soundManager.play("zb_ouch", volume = 0.9f); soundPlayer.vibrateSquishDeform() }
             "fall" -> soundPlayer.playComicalFallWobble()
@@ -2507,12 +2507,12 @@ fun ZelikAdventureScreen(
             "bossDash" -> soundManager.play("zb_dash", volume = 0.9f)
             "bossSlam" -> { soundManager.play("zb_slam", volume = 1f); soundManager.play("zb_shock", volume = 0.7f) }
             "bossSummon" -> soundManager.play("zb_summon", volume = 0.9f)
-            "spiritAir" -> { soundManager.play("zb_dash", volume = 0.8f, rate = 1.5f); soundPlayer.playMagicSparkle() }
+            "spiritAir" -> { soundManager.play("zb_dash", volume = 0.8f, rate = 1.1f); soundPlayer.playMagicSparkle() }
             "foeShoot" -> soundPlayer.playBowShot()
-            "foeSwing" -> soundManager.play("zb_dash", volume = 0.3f, rate = 1.7f)
+            "foeSwing" -> soundManager.play("zb_dash", volume = 0.3f, rate = 1.2f)
             "bossPhase" -> soundManager.play("zb_phase", volume = 1f)
             "bossCoinRain" -> soundManager.play("zb_coinrain", volume = 1f)
-            "bossDead" -> { soundManager.play("zb_down", volume = 1f); soundManager.play("zb_victory", volume = 0.9f); confettiTrig++ }
+            "bossDead" -> { soundManager.play("zb_down", volume = 0.5f); soundManager.play("zb_victory", volume = 0.85f); confettiTrig++ }
             "pickup" -> soundPlayer.playChime(1.4f)
             "bloom" -> soundPlayer.playChime(0.9f + 0.07f * (w.bloomsAwake % 8))
             "helperShoot" -> { soundPlayer.playPop(1.7f); helperAnim.jump(220f); helperAnim.squash = 0.4f }

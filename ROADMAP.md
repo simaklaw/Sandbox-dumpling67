@@ -147,3 +147,4 @@
 - [x] PR1 откат платности: все игры бесплатны (флаг, код сохранён).
 - [x] PR2 ads/: AdConfig, AdManager, NoopProvider, тесты. [x] PR3 триггер «при выходе». [x] PR4 «при входе» + AdCard.
 - [x] PR6 реальный SDK: Yandex Mobile Ads 8.6.0 (`ads/yandex/`), проверить на устройстве. [x] PR7 продукт remove_ads + UI + связка с AdManager (adsRemoved из entitlements).
+- [x] Чистка звука: клиппинг и громкость (`generate_soft_replacements.py`), мягкие Смешинки/Зелик/награды, мелодия меню `menu_music`; ждёт прослушивания на телефоне (см. DEVICE_CHECKLIST)

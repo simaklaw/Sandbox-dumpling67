@@ -322,9 +322,9 @@ class RunnerSoundEffectsManager(
      * lively pop acoustics and ascending combo progression.
      */
     fun playBubblyItemCollect(comboStreak: Int = 0) {
-        val pitchStep = (comboStreak % 8) * 0.05f
+        val pitchStep = (comboStreak % 8) * 0.03f
         val pitchJitter = (Random.nextFloat() * 0.16f - 0.08f) // +/- 8% organic bubbly variation
-        val highPitchRate = (1.36f + pitchStep + pitchJitter).coerceIn(1.15f, 1.85f)
+        val highPitchRate = (1.2f + pitchStep + pitchJitter).coerceIn(1.05f, 1.30f)
         playRaw("bubble", baseVolume = 1.0f, rate = highPitchRate, pitchJitterAmount = 0.05f)
         vibrateCollectTap()
     }
@@ -338,8 +338,8 @@ class RunnerSoundEffectsManager(
         playBubblyItemCollect(comboStreak)
 
         // Pentatonic-like progressive pitch step (C, D, E, G, A, C...)
-        val pitchStep = (comboStreak % 8) * 0.065f
-        val comboRate = (1.0f + pitchStep).coerceIn(1.0f, 1.62f)
+        val pitchStep = (comboStreak % 8) * 0.04f
+        val comboRate = (1.0f + pitchStep).coerceIn(1.0f, 1.25f)
 
         val coinSounds = listOf("star_collect", "pickup", "chime")
         playRandom(coinSounds, baseVolume = 0.85f, rate = comboRate, pitchJitterAmount = 0.04f)
@@ -370,7 +370,6 @@ class RunnerSoundEffectsManager(
         // Distinct high-pitched bubbly collect trigger on item collision
         playBubblyItemCollect(comboStreak)
 
-        playRaw("star_burst", baseVolume = 1.0f, rate = 1.1f)
         playRaw("rainbow_chime", baseVolume = 0.85f, rate = 1.15f)
 
         // Funny delicious toddler "Yum!" reaction
@@ -435,7 +434,6 @@ class RunnerSoundEffectsManager(
     fun playSpeedBoost() {
         playRaw("whoosh", baseVolume = 1.0f, rate = 1.25f)
         playRaw("fanfare_short", baseVolume = 0.9f, rate = 1.15f)
-        playRaw("firework", baseVolume = 0.8f, rate = 1.2f)
         vibrateSpeedBoostRumble()
     }
 
@@ -487,7 +485,6 @@ class RunnerSoundEffectsManager(
      */
     fun playMilestone(distanceMeters: Int) {
         playRaw("rainbow_salute", baseVolume = 1.0f, rate = 1.05f)
-        playRaw("fanfare_short", baseVolume = 0.95f, rate = 1.1f)
         vibrateRewardBurst()
     }
 
@@ -523,8 +520,6 @@ class RunnerSoundEffectsManager(
      */
     fun playStickerUnlockCelebration() {
         playRaw("confetti_rain", baseVolume = 1.0f, rate = 1.1f)
-        playRaw("fanfare_short", baseVolume = 0.95f, rate = 1.2f)
-        playRaw("rainbow_salute", baseVolume = 0.9f, rate = 1.1f)
         vibrateRewardBurst()
     }
 

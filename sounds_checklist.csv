@@ -95,7 +95,7 @@ rainbow_chime.ogg,P2,Дождик,1.2,радуга появилась,rainbow ma
 sling_fire.ogg,P2,Катапульта,0.4,выстрел из рогатки,slingshot launch whoosh,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 parachute_open.ogg,P2,Катапульта,0.5,раскрылся парашют,parachute open flap,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 land_bounce.ogg,P2,Катапульта,0.3,мягкое приземление,soft landing bounce,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
-star_collect.ogg,P2,Катапульта,0.3,звезда собрана,collect star sparkle,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
+star_collect.ogg,P2,Катапульта,0.3,звезда собрана,collect star sparkle,generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
 cloud_bounce.ogg,P2,Катапульта,0.4,облако-батут,trampoline boing soft,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 box_shake.ogg,P2,Коробки,0.8,коробка гремит,toy box rattle shake,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
 box_pop.ogg,P2,Коробки,0.3,крышка подпрыгнула,pop lid cute,Procedural synthesis (Python wave gen + ffmpeg),CC0 / Generated,да
@@ -228,3 +228,41 @@ phone_hi_horse.ogg,P2,Голос,1.0,«Привет!» от друга по те
 phone_hi_pig.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (pig): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
 phone_hi_rooster.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (rooster): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
 phone_hi_sheep.ogg,P2,Голос,1.0,«Привет!» от друга по телефону (sheep): мотив из трёх нот вместо слов (см. VOICES.md),(записать самим),generate_polish_sounds.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",заглушка (ждёт запись)
+btn_cymbal.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+btn_tada.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+cw2_reward.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+lw2_reward.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+lw2_success.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+pet_mouse_1.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+pet_mouse_2.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+pet_mouse_3.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_blah.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_boing.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_gasp.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_giggle.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_hic.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_honk.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_inflate.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_note1.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_note2.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_note3.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_oops.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_party.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_smooch.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_sneeze.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_tada.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_tickle.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_wee.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_whirl.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+sm_yawn.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_boom.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_charge.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_coin.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_coinrain.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_dash.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_down.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_fire.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_roar.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_summon.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+zb_victory.ogg,P2,Эффект,до 1.5,мягкая замена: мелодичный звук вместо резкого,(синтез),generate_soft_replacements.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да
+menu_music.ogg,P2,Музыка,29.5,фоновая мелодия меню (луп),(синтез),generate_menu_music.py (синтез numpy + ffmpeg; оригинал),"Оригинал, CC0",да

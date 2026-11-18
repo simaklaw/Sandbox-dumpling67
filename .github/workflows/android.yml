@@ -51,6 +51,12 @@ jobs:
             exit 1
           }
 
+      - name: Проверка громкости звуков
+        run: |
+          pip install numpy scipy
+          sudo apt-get install -y ffmpeg
+          python3 generate_soft_replacements.py --verify
+
       - name: Debug APK
         run: gradle :app:assembleDebug --stacktrace
 

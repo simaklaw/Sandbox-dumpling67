@@ -446,7 +446,7 @@ private class SmWorld(val dp: Float) {
         if (over && !sleeping && fxT > 0.8f && partyT <= 0f) {
             if (tickleT <= 0f) { eyes = 4; mouth = 1; blush.target = 0.7f }
             tickleT = 0.35f
-            if (time - tickleSfx > 0.17f) {
+            if (time - tickleSfx > 0.28f) {
                 tickleSfx = time
                 sfx("sm_tickle", rnd(0.9f, 1.35f))
                 sq.v += rnd(-3f, 3f)
@@ -616,12 +616,12 @@ fun SmeshinkiScreen(
     }
 
     world.sfx = { name, rate ->
-        // не больше 6 звуков за 0,6 секунды — быстрые тапы не копят «хвост» из звуков
+        // не больше 4 звуков за 0,6 секунды — быстрые тапы не копят «хвост» из звуков
         val now = System.currentTimeMillis()
         recent.removeAll { now - it > 600L }
-        if (recent.size < 6) {
+        if (recent.size < 4) {
             recent.add(now)
-            soundManager.play(name, volume = 0.9f, rate = rate)
+            soundManager.play(name, volume = 0.7f, rate = rate)
         }
     }
     world.haptic = { k -> if (k == 0) haptics.vibrateShort() else haptics.vibratePop() }

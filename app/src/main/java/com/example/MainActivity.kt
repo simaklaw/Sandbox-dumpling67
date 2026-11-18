@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) com.example.ads.AdServices.manager(this).onAppLaunch()
         soundPlayer = SoundEffectPlayer(this)
         soundManager = SoundManager.getInstance(this, soundPlayer)
-        musicManager = BackgroundMusicManager()
+        musicManager = BackgroundMusicManager(applicationContext)
         try {
             val on = getSharedPreferences("playground_prefs", MODE_PRIVATE).getBoolean("pref_music_enabled", true)
             musicManager.setMusicEnabled(on)
@@ -283,7 +283,7 @@ fun MainAppScreen(
         activeScreenState = parentStateForGame(pageIndex)
         if (gameReturnsToMine) activeScreenState = AppScreenState.Mine
         gameReturnsToMine = false
-        adContext.findActivity()?.let { adManager.tryShow(it, com.example.ads.AdTrigger.EXIT) }
+        adContext.findActivity()?.let { if (adManager.tryShow(it, com.example.ads.AdTrigger.EXIT)) viewModel.musicManager.pauseMusic() } // на время рекламы музыка молчит; вернётся в onResume
     }
     // Подгрузка рекламы заранее (не в onCreate): пока идёт заставка. AdManager сам не пустит при remove_ads/офлайне/первых запусках.
     LaunchedEffect(unlockedState) {
@@ -292,7 +292,7 @@ fun MainAppScreen(
     LaunchedEffect(showIntro, activeScreenState) {
         if (!launchAdTried && !showIntro && activeScreenState is AppScreenState.Home) {
             launchAdTried = true
-            adContext.findActivity()?.let { adManager.tryShow(it, com.example.ads.AdTrigger.LAUNCH) }
+            adContext.findActivity()?.let { if (adManager.tryShow(it, com.example.ads.AdTrigger.LAUNCH)) viewModel.musicManager.pauseMusic() }
         }
     }
     val leaveGame: (Int) -> Unit = { pageIndex ->
@@ -420,7 +420,14 @@ fun MainAppScreen(
                                     36 -> VeggieCuttingScreen(repository = repository, soundPlayer = soundPlayer)
                                     37 -> KastrulyaScreen(repository = repository, soundPlayer = soundPlayer)
                                     38 -> LaundryScreen(repository = repository, soundPlayer = soundPlayer)
-                                    39 -> CradleRoomScreen(repository = repository, soundPlayer = soundPlayer)
+                                    39 -> {
+                                        // Колыбелька играет свою колыбельную: фоновую мелодию на это время ставим на паузу
+                                        DisposableEffect(Unit) {
+                                            viewModel.musicManager.pauseMusic()
+                                            onDispose { viewModel.musicManager.resumeMusic() }
+                                        }
+                                        CradleRoomScreen(repository = repository, soundPlayer = soundPlayer)
+                                    }
                                     40 -> SandboxRoomScreen(repository = repository, soundPlayer = soundPlayer)
                                     41 -> CarWashRoomScreen(
                                         repository = repository,

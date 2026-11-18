@@ -116,4 +116,21 @@ class SoundResourcesTest {
         val missing = keys.filter { !File(rawDir, "$it.ogg").isFile }
         assertEquals("Нет встроенного звука для: $missing", emptyList<String>(), missing)
     }
+
+    @Test
+    fun softenedSoundFamiliesExistAndAreShort() {
+        // Чистка звука (generate_soft_replacements.py): Смешинки, Зелик, награды, фоновая мелодия меню.
+        // Пик и RMS проверяет шаг CI «Проверка громкости звуков» (нужен декодер), здесь — состав и длина.
+        val names = rawDir.listFiles().orEmpty().map { it.name }
+            .filter { it.endsWith(".ogg") && (it.startsWith("sm_") || it.startsWith("zb_")) }
+            .map { it.removeSuffix(".ogg") }
+        assertTrue("Не нашли sm_*/zb_* в res/raw", names.size >= 40)
+        for (n in names + listOf("fx_fanfare", "fx_chime", "fx_legendary_fanfare", "fx_magic_sparkle", "fx_sparkle_chime",
+            "fanfare_short", "star_burst", "cw2_reward", "lw2_reward", "lw2_success", "btn_tada")) {
+            val d = durationSec(n)
+            assertTrue("$n: ${"%.2f".format(d)} с, ожидалось до 3 с", d in 0.05..3.0)
+        }
+        val m = durationSec("menu_music")
+        assertTrue("menu_music: ${"%.1f".format(m)} с, ожидалось 20–40 с", m in 20.0..40.0)
+    }
 }

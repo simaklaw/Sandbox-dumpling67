@@ -42,6 +42,7 @@ Android-приложение (Kotlin, Compose, Room, JBox2D), офлайн, дл
 - Состояние Flow в Compose читать через `collectAsStateWithLifecycle()`.
 - Работа с `SharedPreferences`, звуком и вибрацией — best-effort: сбой не должен ронять игру. В остальном пустой `catch` не писать.
 - Звуки — через `SoundManager`/`SoundCatalog`; новые файлы называть как в `sounds_checklist.csv`.
+- Стандарт звука: моно 44,1 кГц OGG, пик не выше 0,72, RMS около -18 дБ, без клиппинга. Резкие и громкие файлы чинит `generate_soft_replacements.py` (списки `RECIPES`/`NORMALIZE` внутри, оригиналы в `app/src/main/raw_backup`, `--verify` идёт в CI); погоду, лупы, `bb2_*`, зверей и голоса он не трогает. Новый звук не загружать клиппующим: добавить имя в скрипт и прогнать. Фоновая музыка — `menu_music.ogg` через MediaPlayer (`BackgroundMusicManager`, мелодия делается `generate_menu_music.py`); на рекламе и в Колыбельке она на паузе. Для зверей, похвалы и «ку-ку» процедурного fallback нет: пока файл не загружен, тишина.
 - WebView-игры (Хваталка): только локальные ассеты через `shouldInterceptRequest`, файловый и content-доступ выключены, на паузе приложения WebView ставить на паузу.
 
 ## Удаление мёртвого кода

@@ -222,7 +222,7 @@ class SoundManager(
                     if (!isSoundPoolSupported) break
                     if (soundIdMap.containsKey(fileName)) continue
                     loadRawSoundFile(fileName)
-                    delay(200L) // Safe pacing prevents Codec2 decoder exhaustion
+                    delay(25L) // короткий интервал между загрузками: достаточно, чтобы не перегружать декодер, и не тянет старт
                 }
             }
         }
@@ -521,6 +521,9 @@ class SoundManager(
 
     private fun playProceduralFallback(name: String) {
         val player = soundEffectPlayer ?: return
+        // Звери и живые голоса (похвала, «ку-ку»): пока нет файла, лучше тишина, чем синтезированный «робот».
+        val low = name.lowercase().trim()
+        if (low.startsWith("animal") || low.startsWith("praise") || low.startsWith("peekaboo")) return
         try {
             when (name.lowercase().trim()) {
                 "tap", "click" -> player.playBubblePop()
@@ -542,21 +545,7 @@ class SoundManager(
                 "carrot_hit" -> player.playDullHeavyArrowImpact("CARROT")
                 "star_hit", "star_collect" -> player.playSparkleChime()
                 "fanfare_short", "fanfare", "rainbow_salute" -> player.playFanfare()
-                "animal_dog", "animal_dog_1", "animal_dog_2", "animal_dog_happy" -> player.playAnimalSound("dog")
-                "animal_cat", "animal_cat_1", "animal_cat_2", "animal_cat_happy" -> player.playAnimalSound("cat")
-                "animal_cow", "animal_cow_1", "animal_cow_2" -> player.playAnimalSound("cow")
-                "animal_horse", "animal_horse_1", "animal_horse_2" -> player.playAnimalSound("horse")
-                "animal_pig", "animal_pig_1", "animal_pig_2" -> player.playAnimalSound("pig")
-                "animal_sheep", "animal_sheep_1", "animal_sheep_2" -> player.playAnimalSound("sheep")
-                "animal_goose", "animal_goose_1", "animal_goose_2" -> player.playAnimalSound("goose")
-                "animal_rooster", "animal_rooster_1", "animal_rooster_2" -> player.playAnimalSound("rooster")
-                "animal_frog", "animal_frog_1", "animal_frog_2" -> player.playAnimalSound("frog")
-                "animal_crow", "animal_crow_1", "animal_crow_2" -> player.playAnimalSound("crow")
-                "animal_duck", "animal_duck_1", "animal_duck_2" -> player.playAnimalSound("goose")
-                "animal_bunny", "animal_bunny_1", "animal_bunny_2", "animal_bunny_happy" -> player.playBunnyHop()
                 "balloon_pop", "balloon_pop_1", "balloon_pop_2", "balloon_pop_3" -> player.playPop()
-                "praise", "praise_1", "praise_2", "praise_3" -> player.playBabyGiggle()
-                "peekaboo", "peekaboo_1", "peekaboo_2" -> player.playCuteCharacterSound()
                 "yum", "yum_voice" -> player.playMunchCrunchSound()
                 "eat_in", "chew", "chew_1", "chew_2" -> player.playEatCrunch()
                 "pickup", "open" -> player.playBubblePop()

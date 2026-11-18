@@ -42,7 +42,8 @@ internal class ZBiomeGfx(
     val casGround: ImageBitmap, val arch1: ImageBitmap, val arch3: ImageBitmap, val torch: ImageBitmap,
     val shield: ImageBitmap, val crystal: ImageBitmap,
     val barrel: ImageBitmap, val crate: ImageBitmap, val vase: ImageBitmap, val chest: ImageBitmap,
-    val pillar: ImageBitmap
+    val pillar: ImageBitmap,
+    val nat: ZNatureGfx
 )
 
 @Composable
@@ -56,7 +57,8 @@ internal fun rememberZBiomeGfx(): ZBiomeGfx = ZBiomeGfx(
     ImageBitmap.imageResource(R.drawable.cas_shield), ImageBitmap.imageResource(R.drawable.cas_crystal),
     ImageBitmap.imageResource(R.drawable.cas_barrel), ImageBitmap.imageResource(R.drawable.cas_crate),
     ImageBitmap.imageResource(R.drawable.cas_vase), ImageBitmap.imageResource(R.drawable.cas_chest),
-    ImageBitmap.imageResource(R.drawable.cas_pillar1)
+    ImageBitmap.imageResource(R.drawable.cas_pillar1),
+    rememberZNatureGfx()
 )
 
 internal fun DrawScope.pxImg(im: ImageBitmap, x: Float, y: Float, w: Float, h: Float, alpha: Float = 1f) {
@@ -109,8 +111,6 @@ private fun DrawScope.drawBiomeBackdropBase(b: ZBiomeGfx, biome: Int, camX: Floa
             tileX(b.fb0, camX * z * 0.03f, 0f, w, sh)
             tileX(b.fb1, camX * z * 0.10f, 0f, w, sh)
             tileX(b.fb2, camX * z * 0.22f, 0f, w, sh)
-            val sc = 2.0f * z
-            parallaxItems(760f * z, camX * z * 0.5f, { i -> if (i % 3 == 0) b.fTreeBig else if (i % 3 == 1) b.fTreeSmall else null }, sc, baseY + 6f * z)
         }
         1 -> {
             val s = sh / 144f
@@ -129,6 +129,7 @@ private fun DrawScope.drawBiomeBackdropBase(b: ZBiomeGfx, biome: Int, camX: Floa
             parallaxItems(330f * z, camX * z * 0.28f - 165f * z, { i -> if (i % 3 == 0) b.crystal else b.torch }, sc * 0.9f, baseY - 60f * z)
         }
     }
+    drawNatureBackdrop(b.nat, biome, camX, z, baseY, t)
 }
 
 /** Земля (платформа №0). Координаты — мировые (внутри translate/scale). */
@@ -185,6 +186,7 @@ internal fun DrawScope.drawBiomeGround(b: ZBiomeGfx, biome: Int, x0: Float, x1: 
         }
     }
     drawGroundDetail(biome, x0, x1, y, t)
+    drawNatureGround(b.nat, biome, x0, x1, y, t)
     // мягкая тень под кромкой земли и светлая линия сверху: земля «лежит» объёмнее
     drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.32f), Color.Transparent), startY = y, endY = y + 46f), Offset(x0, y), Size(w, 46f))
     drawRect(Color.White.copy(alpha = 0.18f), Offset(x0, y), Size(w, 2f))

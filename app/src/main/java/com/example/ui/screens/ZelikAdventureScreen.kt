@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -163,6 +164,9 @@ private class ZCured(val x: Float, val bottom: Float, val h: Float) { var age = 
 private class ZCoin(val x: Float, val y: Float, val phase: Float) { var taken = false }
 private class ZMed(val x: Float, val y: Float) { var taken = false }
 
+/** Уснувшее растение: Зелик «оживляет» его, пробегая рядом. */
+private class ZBloom(val x: Float, val key: String) { var awake = false; var age = 0 }
+
 private class ZBoss(
     var x: Float, var y: Float, val w: Float, val h: Float, var hp: Int, val maxHp: Int, val shootInterval: Int
 ) {
@@ -254,7 +258,11 @@ private data class ZHud(
     val mobsLeft: Int = 0,
     val level: Int = 1,
     val bossKind: Int = 0,
-    val heroesLeft: Int = 0
+    val heroesLeft: Int = 0,
+    val blooms: Int = 0,
+    val bloomsTotal: Int = 0,
+    val bloomBonus: Boolean = false,
+    val intro: Int = 0
 )
 
 /**
@@ -383,6 +391,10 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
     val cured = ArrayList<ZCured>()
     val sheep = ArrayList<ZSheep>()
     val meds = ArrayList<ZMed>()
+    val blooms = ArrayList<ZBloom>()
+    var bloomsAwake = 0
+    var bloomBonus = false
+    var introT = 0
     var boss = ZBoss(0f, 0f, 70f, 110f, 1, 1, 200)
 
     val bolts = ArrayList<ZBolt>()
@@ -621,6 +633,24 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         for (i in 0 until coinTarget) { // россыпь на земле — всегда достаётся
             val cx = 250f + rng.nextFloat() * (arenaLeft - 450f)
             coins.add(ZCoin(cx, GROUND_Y - 30f - rng.nextFloat() * 30f, rng.nextFloat() * 6.28f))
+        }
+
+        blooms.clear()
+        bloomsAwake = 0
+        bloomBonus = false
+        introT = 300
+        run {
+            val keys = znBloomKeys(biomeOfLevel(n))
+            val cnt = 9 + min(n, 6)
+            val from = 420f
+            val to = arenaLeft - 380f
+            for (i in 0 until cnt) {
+                var bx = from + (to - from) * (i + 0.2f + rng.nextFloat() * 0.6f) / cnt
+                // не ставим на шипы и пружины
+                for (sp in spikes) if (bx > sp.x - 70f && bx < sp.x + sp.w + 70f) bx = sp.x + sp.w + 80f
+                for (sg in springs) if (abs(bx - sg.x) < 60f) bx += 90f
+                if (bx < to + 40f) blooms.add(ZBloom(bx, keys[rng.nextInt(keys.size)]))
+            }
         }
 
         meds.clear()
@@ -906,6 +936,23 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
                 hp = min(PLAYER_MAX_HP, hp + 4)
                 healT = 0
                 onEvent("heal")
+            }
+        }
+        // оживление растений: надо пробежать рядом по земле или невысоко прыгая
+        for (b in blooms) {
+            if (b.awake) continue
+            if (abs(cx - b.x) < 38f && py + ph > GROUND_Y - 90f) {
+                b.awake = true
+                b.age = 0
+                bloomsAwake++
+                coinCount += 2
+                onEvent("bloom")
+                val cols = intArrayOf(0xFFFF80AB.toInt(), 0xFFFFF176.toInt(), 0xFF80D8FF.toInt(), 0xFFB9F6CA.toInt(), 0xFFFFFFFF.toInt())
+                repeat(12) {
+                    val a = Random.nextFloat() * 6.28f
+                    parts.add(ZPart(b.x, GROUND_Y - 24f, cos(a) * 2.4f, sin(a) * 2.4f - 1.6f, 1f, 0.04f, 3f, Color(cols[Random.nextInt(cols.size)])))
+                }
+                waves.add(ZWave(b.x, GROUND_Y - 6f, 6f, 60f, 1f, Color(0xFFFFF59D)))
             }
         }
 
@@ -1768,6 +1815,8 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
 
     private fun updateFX() {
         for (c in cured) c.age++
+        for (b in blooms) if (b.awake) b.age++
+        if (introT > 0) introT--
         if (wingT >= 0) { wingT++; if (wingT > 26) wingT = -1 }
         if (healT >= 0) { healT++; if (healT > 48) healT = -1 }
         val pi = parts.iterator()
@@ -1879,6 +1928,7 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         if (!levelDone && boss.dead && !dead && heroesDone && (boss.deadT > 300 || (boss.deadT > 60 && atPortal)) ||
             (!levelDone && boss.dead && !dead && boss.deadT > 2400)) {
             levelDone = true
+            if (blooms.isNotEmpty() && bloomsAwake >= blooms.size) { coinCount += 25; bloomBonus = true }
             onEvent("levelDone")
         }
     }
@@ -1887,7 +1937,9 @@ private class ZelikWorld(val diff: Int, val input: ZInput) {
         hp = max(0, hp), lives = lives, coins = coinCount, ammo = ammo, weapon = weapon,
         bossHp = max(0, boss.hp), bossPhase = boss.phase, bossMax = boss.maxHp, bossActive = boss.active && !boss.dead,
         mobsLeft = enemies.size, level = level,
-        bossKind = boss.kind, heroesLeft = if (spiritLevel) aliveHeroes() + roster.size else 0
+        bossKind = boss.kind, heroesLeft = if (spiritLevel) aliveHeroes() + roster.size else 0,
+        blooms = bloomsAwake, bloomsTotal = blooms.size, bloomBonus = bloomBonus,
+        intro = if (introT > 0) introT / 10 + 1 else 0
     )
 }
 
@@ -2137,6 +2189,13 @@ private fun DrawScope.drawWorld(w: ZelikWorld, f: ZFrames, z: Float, fa: FireShe
             val cy = c.y + sin(t * 0.05f + c.phase) * 3f
             drawOval(Color(0xFFFFC107), Offset(c.x - 10f * squash - 2f, cy - 11f), Size(20f * squash + 4f, 22f))
             drawOval(Color(0xFFFFF176), Offset(c.x - 5f * squash, cy - 7f), Size(8f * squash + 1f, 12f))
+        }
+        // уснувшие растения
+        bio?.let { bg ->
+            for (b in w.blooms) {
+                if (b.x < left - 70f || b.x > right + 70f) continue
+                znBloom(bg.nat, b.key, b.x, GROUND_Y + 4f, znBloomHeight(b.key), b.awake, b.age, t)
+            }
         }
         // аптечки-сердечки
         for (m in w.meds) {
@@ -2455,6 +2514,7 @@ fun ZelikAdventureScreen(
             "bossCoinRain" -> soundManager.play("zb_coinrain", volume = 1f)
             "bossDead" -> { soundManager.play("zb_down", volume = 1f); soundManager.play("zb_victory", volume = 0.9f); confettiTrig++ }
             "pickup" -> soundPlayer.playChime(1.4f)
+            "bloom" -> soundPlayer.playChime(0.9f + 0.07f * (w.bloomsAwake % 8))
             "helperShoot" -> { soundPlayer.playPop(1.7f); helperAnim.jump(220f); helperAnim.squash = 0.4f }
             "wings" -> soundPlayer.playMagicSparkle()
             "switch" -> soundPlayer.playArcadeButton()
@@ -2561,6 +2621,8 @@ fun ZelikAdventureScreen(
                             Text("🪙${hud.coins}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF37474F))
                             Spacer(Modifier.width(8.dp))
                             Text("⭐×${hud.ammo}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF37474F))
+                            Spacer(Modifier.width(8.dp))
+                            Text("🌸${hud.blooms}/${hud.bloomsTotal}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFAD1457))
                         }
                     }
                 }
@@ -2642,6 +2704,22 @@ fun ZelikAdventureScreen(
                     ZRoundButton(R.drawable.ui_btn_sq_red, "💥", 94) { input.attack = it }
                 }
             }
+            // Что делать на этой карте: показывается в начале уровня
+            if (hud.intro > 0 && hud.bossActive.not()) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = 118.dp)
+                        .graphicsLayer { alpha = (hud.intro / 6f).coerceIn(0f, 1f) },
+                    shape = RoundedCornerShape(16.dp), color = Color(0xE6FFF8E1), shadowElevation = 4.dp
+                ) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(ZBIOME_NAMES[biomeOfLevel(hud.level)], fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color(0xFF5D4037))
+                        Text("Оживи серые растения 🌸 и победи босса!", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFAD1457))
+                    }
+                }
+            }
             // Пауза.
             Box(
                 Modifier
@@ -2678,7 +2756,7 @@ fun ZelikAdventureScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Беги вправо, прыгай (два раза — на крыльях), собирай монеты и победи босса!\nПрисядь и жми 💥 — звёздная ракета.\nСкелеты и герои с оружием — берегись!",
+                        "Злой дух усыпил природу! Беги вправо и оживляй серые растения 🌸 — просто пробеги рядом.\nПрыгай (два раза — на крыльях), собирай монеты и победи босса!\nПрисядь и жми 💥 — звёздная ракета. Скелеты и герои с оружием — берегись!",
                         fontSize = 12.sp, color = Color(0xFF6A1B4D), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(6.dp))
@@ -2750,6 +2828,15 @@ fun ZelikAdventureScreen(
                         "🪙 ${hud.coins}" + if (won) "   ·   монстров: ${(world?.mobsTotal ?: 0) - hud.mobsLeft}/${world?.mobsTotal ?: 0}" else "",
                         fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6D4C41)
                     )
+                    if (hud.bloomsTotal > 0) {
+                        Text(
+                            "🌸 Оживлено: ${hud.blooms}/${hud.bloomsTotal}",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFAD1457)
+                        )
+                        if (won && hud.bloomBonus) {
+                            Text("✨ Весь мир ожил! +25 🪙", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                        }
+                    }
                     Spacer(Modifier.height(4.dp))
                     KitLongButton(R.drawable.ui_btn_long_green, if (won) "Дальше ▶" else "Ещё раз ↻", 160.dp, 14.sp) {
                         val cur = world

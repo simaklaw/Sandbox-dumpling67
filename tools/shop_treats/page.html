@@ -1,0 +1,76 @@
+<!doctype html><html><body style="margin:0"><script src="three.min.js"></script><script>
+async function loadGLB(url,keep){
+  const buf=await (await fetch(url)).arrayBuffer();
+  const dv=new DataView(buf);
+  const jl=dv.getUint32(12,true);
+  const json=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,20,jl)));
+  const bin=buf.slice(20+jl+8);
+  const acc=(i)=>{const a=json.accessors[i],bv=json.bufferViews[a.bufferView];
+    const n={SCALAR:1,VEC2:2,VEC3:3,VEC4:4}[a.type];
+    const off=(bv.byteOffset||0)+(a.byteOffset||0);
+    const T={5126:Float32Array,5123:Uint16Array,5125:Uint32Array,5121:Uint8Array}[a.componentType];
+    return {arr:new T(bin,off,a.count*n),n};};
+  const texCache={};
+  async function tex(ti,srgb){
+    const k=ti+':'+srgb; if(texCache[k])return texCache[k];
+    const im=json.images[json.textures[ti].source];const bv=json.bufferViews[im.bufferView];
+    const blob=new Blob([new Uint8Array(bin,bv.byteOffset||0,bv.byteLength)],{type:im.mimeType});
+    const bmp=await createImageBitmap(blob,{imageOrientation:'none'});
+    const t=new THREE.Texture(bmp);t.flipY=false;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;
+    if(srgb&&THREE.sRGBEncoding)t.encoding=THREE.sRGBEncoding;t.needsUpdate=true;texCache[k]=t;return t;}
+  const mats=[];
+  for(const m of json.materials){
+    const pb=m.pbrMetallicRoughness||{};const o={roughness:0.65,metalness:0.0,side:THREE.DoubleSide};
+    if(pb.baseColorTexture)o.map=await tex(pb.baseColorTexture.index,true);
+    if(m.normalTexture)o.normalMap=await tex(m.normalTexture.index,false);
+    if(pb.baseColorFactor&&!pb.baseColorTexture){o.color=new THREE.Color().setRGB(pb.baseColorFactor[0],pb.baseColorFactor[1],pb.baseColorFactor[2]);}
+    if(pb.roughnessFactor!=null)o.roughness=Math.max(0.35,pb.roughnessFactor);
+    mats.push(new THREE.MeshStandardMaterial(o));}
+  const nodes=json.nodes.map(n=>{
+    const o=new THREE.Object3D();o.name=n.name||'';
+    if(n.mesh!=null&&(!keep||keep(o.name))){
+      for(const p of json.meshes[n.mesh].primitives){
+        const g=new THREE.BufferGeometry();
+        g.setAttribute('position',new THREE.BufferAttribute(acc(p.attributes.POSITION).arr,3));
+        if(p.attributes.NORMAL)g.setAttribute('normal',new THREE.BufferAttribute(acc(p.attributes.NORMAL).arr,3));else g.computeVertexNormals();
+        if(p.attributes.TEXCOORD_0)g.setAttribute('uv',new THREE.BufferAttribute(acc(p.attributes.TEXCOORD_0).arr,2));
+        const I=acc(p.indices);g.setIndex(new THREE.BufferAttribute(I.arr,1));
+        o.add(new THREE.Mesh(g,mats[p.material||0]));}
+    }
+    if(n.matrix)o.matrix.fromArray(n.matrix),o.matrix.decompose(o.position,o.quaternion,o.scale);
+    if(n.translation)o.position.fromArray(n.translation);
+    if(n.rotation)o.quaternion.fromArray(n.rotation);
+    if(n.scale)o.scale.fromArray(n.scale);
+    return o;});
+  json.nodes.forEach((n,i)=>(n.children||[]).forEach(c=>nodes[i].add(nodes[c])));
+  const root=new THREE.Group();json.scenes[0].nodes.forEach(i=>root.add(nodes[i]));
+  root.updateMatrixWorld(true);return root;
+}
+async function renderOne(url,px,yawDeg,pitchDeg,inc,exc){
+  const re=inc?new RegExp(inc):null,rx=exc?new RegExp(exc):null;
+  const root=await loadGLB(url,(n)=>(!re||re.test(n))&&(!rx||!rx.test(n)));
+  const canvas=document.createElement('canvas');
+  const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,preserveDrawingBuffer:true});
+  if(THREE.sRGBEncoding)renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.setClearColor(0x000000,0);
+  const scene=new THREE.Scene();scene.add(root);
+  scene.add(new THREE.HemisphereLight(0xffffff,0xc8b8a8,1.05));
+  const d=new THREE.DirectionalLight(0xffffff,0.9);d.position.set(-4,7,5);scene.add(d);
+  const f=new THREE.DirectionalLight(0xfff0e0,0.35);f.position.set(5,2,-3);scene.add(f);
+  const bb=new THREE.Box3();root.traverse(o=>{if(o.isMesh)bb.expandByObject(o);});
+  const c=new THREE.Vector3();bb.getCenter(c);
+  const yaw=yawDeg*Math.PI/180,pitch=pitchDeg*Math.PI/180;
+  const dir=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
+  const cam=new THREE.OrthographicCamera(-1,1,1,-1,0.01,200);
+  const R=Math.max(bb.max.x-bb.min.x,bb.max.y-bb.min.y,bb.max.z-bb.min.z)*3+1;
+  cam.position.copy(c).addScaledVector(dir,R);cam.up.set(0,1,0);cam.lookAt(c);cam.updateMatrixWorld(true);
+  const inv=cam.matrixWorldInverse;let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  for(const x of [bb.min.x,bb.max.x])for(const y of [bb.min.y,bb.max.y])for(const z of [bb.min.z,bb.max.z]){
+    const v=new THREE.Vector3(x,y,z).applyMatrix4(inv);mnx=Math.min(mnx,v.x);mxx=Math.max(mxx,v.x);mny=Math.min(mny,v.y);mxy=Math.max(mxy,v.y);}
+  const pad=0.03*Math.max(mxx-mnx,mxy-mny);mnx-=pad;mxx+=pad;mny-=pad;mxy+=pad;
+  const w=mxx-mnx,h=mxy-mny,ppm=px/Math.max(w,h);const W=Math.ceil(w*ppm),H=Math.ceil(h*ppm);
+  cam.left=mnx;cam.right=mxx;cam.top=mxy;cam.bottom=mny;cam.updateProjectionMatrix();
+  canvas.width=W;canvas.height=H;renderer.setSize(W,H,false);renderer.render(scene,cam);
+  return canvas.toDataURL('image/png');
+}
+</script></body></html>

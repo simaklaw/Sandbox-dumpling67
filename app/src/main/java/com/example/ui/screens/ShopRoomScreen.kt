@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -31,9 +32,14 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,6 +71,21 @@ private const val SH_STAR = 1
 private const val SH_TRI = 2
 private const val SH_HEART = 3
 private const val SH_CROWN = 4
+
+// «Сладкая витрина»: угощения к пельменям (3D-модели, отрисованные в спрайты tools/shop_treats)
+private const val SH_ICE = 5
+private const val SH_DONUT = 6
+private const val SH_PIZZA = 7
+private const val SH_SUSHI = 8
+private const val SH_CHOCO = 9
+private val SH_TREATS = listOf(SH_ICE, SH_DONUT, SH_PIZZA, SH_SUSHI, SH_CHOCO)
+private const val SH_TYPES = 10
+private val SH_TR_RES = intArrayOf(R.drawable.sw_ice, R.drawable.sw_donut, R.drawable.sw_pizza, R.drawable.sw_sushi, R.drawable.sw_choco)
+private val SH_TR_SIZE = floatArrayOf(2.7f, 2.2f, 2.2f, 2.2f, 2.1f)           // размер в радиусах
+private val SH_TR_BYW = booleanArrayOf(false, true, true, true, false)         // true — размер по ширине, иначе по высоте
+private val SH_TR_EX = floatArrayOf(0.2f, 0.45f, 0.3f, 0.36f, 0.24f)          // глазки
+private val SH_TR_EY = floatArrayOf(-0.35f, 0.15f, 0.12f, -0.1f, 0.3f)
+private var shTreatImgs: List<ImageBitmap> = emptyList()
 
 private const val PH_ARRIVE = 0
 private const val PH_ORDER = 1
@@ -263,26 +284,53 @@ private fun DrawScope.shPelmen(type: Int, cx: Float, cy: Float, r: Float, mood: 
                 drawRect(Color(0xFFB87400), Offset(-1f, 0.6f), Size(2f, 0.08f))
             }
         }
-        val ex = SH_EX[type]
-        val ey = SH_EY[type]
-        val blinking = ((t * 0.55f + ph) % 3.1f) > 3.0f
-        val dark = Color(0xFF3A1F0A)
-        for (sgn in listOf(-1f, 1f)) {
-            drawCircle(Color(0xFFFF7FA8).shA(0.45f), 0.12f, Offset(sgn * (ex + 0.2f), ey + 0.2f))
-            if (blinking) {
-                drawLine(dark, Offset(sgn * ex - 0.09f, ey), Offset(sgn * ex + 0.09f, ey), 0.05f, StrokeCap.Round)
-            } else {
-                drawCircle(dark, 0.11f, Offset(sgn * ex, ey))
-                drawCircle(Color.White, 0.04f, Offset(sgn * ex - 0.04f, ey - 0.04f))
-            }
-        }
-        if (mood == 1) {
-            drawArc(dark, 0f, 180f, true, Offset(-0.2f, ey + 0.1f), Size(0.4f, 0.3f))
-            drawArc(Color(0xFFFF7F8F), 20f, 140f, true, Offset(-0.1f, ey + 0.22f), Size(0.2f, 0.12f))
+        shFace(SH_EX[type], SH_EY[type], mood, t, ph)
+    }
+}
+
+/** Живые глазки и улыбка в системе координат предмета (радиус = 1). */
+private fun DrawScope.shFace(ex: Float, ey: Float, mood: Int, t: Float, ph: Float) {
+    val blinking = ((t * 0.55f + ph) % 3.1f) > 3.0f
+    val dark = Color(0xFF3A1F0A)
+    for (sgn in listOf(-1f, 1f)) {
+        drawCircle(Color(0xFFFF7FA8).shA(0.45f), 0.12f, Offset(sgn * (ex + 0.2f), ey + 0.2f))
+        if (blinking) {
+            drawLine(dark, Offset(sgn * ex - 0.09f, ey), Offset(sgn * ex + 0.09f, ey), 0.05f, StrokeCap.Round)
         } else {
-            drawArc(dark, 20f, 140f, false, Offset(-0.16f, ey + 0.08f), Size(0.32f, 0.24f), style = Stroke(0.05f, cap = StrokeCap.Round))
+            drawCircle(dark, 0.11f, Offset(sgn * ex, ey))
+            drawCircle(Color.White, 0.04f, Offset(sgn * ex - 0.04f, ey - 0.04f))
         }
     }
+    if (mood == 1) {
+        drawArc(dark, 0f, 180f, true, Offset(-0.2f, ey + 0.1f), Size(0.4f, 0.3f))
+        drawArc(Color(0xFFFF7F8F), 20f, 140f, true, Offset(-0.1f, ey + 0.22f), Size(0.2f, 0.12f))
+    } else {
+        drawArc(dark, 20f, 140f, false, Offset(-0.16f, ey + 0.08f), Size(0.32f, 0.24f), style = Stroke(0.05f, cap = StrokeCap.Round))
+    }
+}
+
+/** Угощение: картинка с тем же личиком, что у пельмешков. */
+private fun DrawScope.shTreat(type: Int, cx: Float, cy: Float, r: Float, mood: Int, t: Float, ph: Float, squash: Float = 0f, rot: Float = 0f) {
+    val k = type - SH_ICE
+    val im = shTreatImgs.getOrNull(k) ?: return
+    val asp = im.width.toFloat() / im.height
+    val h = if (SH_TR_BYW[k]) SH_TR_SIZE[k] / asp else SH_TR_SIZE[k]
+    val w = h * asp
+    withTransform({
+        translate(cx, cy)
+        rotate(rot, Offset.Zero)
+        scale(r * (1f + squash * 0.16f), r * (1f - squash * 0.16f), Offset.Zero)
+    }) {
+        drawOval(Color(0x2A000000), Offset(-0.85f, 0.66f), Size(1.7f, 0.3f))
+        withTransform({ translate(-w / 2f, -h / 2f); scale(w / im.width, h / im.height, Offset.Zero) }) {
+            drawImage(im, filterQuality = FilterQuality.Medium)
+        }
+        shFace(SH_TR_EX[k], SH_TR_EY[k], mood, t, ph)
+    }
+}
+
+private fun DrawScope.shItem(type: Int, cx: Float, cy: Float, r: Float, mood: Int, t: Float, ph: Float, squash: Float = 0f, rot: Float = 0f) {
+    if (type >= SH_ICE) shTreat(type, cx, cy, r, mood, t, ph, squash, rot) else shPelmen(type, cx, cy, r, mood, t, ph, squash, rot)
 }
 
 private fun DrawScope.shCoin(x: Float, y: Float, r: Float, col: Int, t: Float, flip: Float = 1f) {
@@ -434,6 +482,11 @@ fun ShopRoomScreen(
     var frame by remember { mutableIntStateOf(0) }
     val m = remember { ShModel() }
     var served by remember { mutableIntStateOf(prefs.getInt("served", 0)) }
+    var tab by remember { mutableIntStateOf(0) }
+    shTreatImgs = remember {
+        SH_TR_RES.map { id -> (try { BitmapFactory.decodeResource(context.resources, id) } catch (e: Exception) { null })?.asImageBitmap() }
+            .filterNotNull()
+    }
     var hintText by remember { mutableStateOf("") }
     var progressPct by remember { mutableIntStateOf(0) }
     var showAlbum by remember { mutableStateOf(false) }
@@ -460,19 +513,29 @@ fun ShopRoomScreen(
     fun walletX() = W() * 0.585f
     fun walletY() = H() * 0.86f
     fun goodsUnlocked() = served >= 5
-    fun shelfTypes(): List<Int> {
+    fun treatsUnlocked() = served >= 3
+    fun pelmeniTypes(): List<Int> {
         val l = ArrayList<Int>()
         l.add(SH_CLASSIC); l.add(SH_STAR); l.add(SH_TRI)
         if (!toddler) l.add(SH_HEART)
         if (goodsUnlocked()) l.add(SH_CROWN)
         return l
     }
+    // на витрине сейчас либо пельмени, либо сладкое: переключается кнопками под стеклом
+    fun shelfTypes(): List<Int> = if (tab == 1 && treatsUnlocked()) SH_TREATS else pelmeniTypes()
+    fun tabX(i: Int) = W() * 0.5f + (i - 0.5f) * r() * 2.4f
+    fun tabY() = shelfY() + r() * 2.05f
+    fun hitTab(x: Float, y: Float): Int {
+        if (!treatsUnlocked()) return -1
+        for (i in 0..1) if (hypot(x - tabX(i), y - tabY()) < r() * 1.1f) return i
+        return -1
+    }
     fun slotX(i: Int, n: Int): Float {
         val sp = min(W() * 0.17f, r() * 3.3f)
         return W() * 0.5f + (i - (n - 1) / 2f) * sp
     }
     fun slotOf(type: Int): Offset {
-        val l = shelfTypes()
+        val l = if (type >= SH_ICE) SH_TREATS else pelmeniTypes()
         val i = l.indexOf(type).coerceAtLeast(0)
         return Offset(slotX(i, l.size), shelfY())
     }
@@ -496,11 +559,11 @@ fun ShopRoomScreen(
     fun countPlate(t: Int): Int = m.plate.count { it.type == t }
     fun isReady(): Boolean {
         if (m.plate.size != m.order.size || m.order.isEmpty()) return false
-        for (t in 0..4) if (countOrder(t) != countPlate(t)) return false
+        for (t in 0 until SH_TYPES) if (countOrder(t) != countPlate(t)) return false
         return true
     }
     fun extraIndex(): Int {
-        val have = IntArray(5)
+        val have = IntArray(SH_TYPES)
         for (i in m.plate.indices) {
             val t = m.plate[i].type
             have[t]++
@@ -509,16 +572,21 @@ fun ShopRoomScreen(
         return -1
     }
     fun missingType(): Int {
-        for (t in 0..4) if (countOrder(t) > countPlate(t)) return t
+        for (t in 0 until SH_TYPES) if (countOrder(t) > countPlate(t)) return t
         return -1
     }
 
     fun genOrder(): ArrayList<Int> {
-        val types = ArrayList(shelfTypes().filter { it != SH_CROWN })
+        val types = ArrayList(pelmeniTypes().filter { it != SH_CROWN })
         val n = if (toddler) 1 else (1 + (if (served >= 2) 1 else 0) + (if (served >= 6 && Random.nextFloat() < 0.6f) 1 else 0))
         val res = ArrayList<Int>()
         if (goodsUnlocked() && Random.nextFloat() < 0.25f) res.add(SH_CROWN)
         while (res.size < n) res.add(types[Random.nextInt(types.size)])
+        // к пельменям иногда просят что-нибудь сладкое
+        if (treatsUnlocked() && Random.nextFloat() < 0.35f) {
+            if (res.size > 1) res.removeAt(res.size - 1)
+            res.add(SH_TREATS[Random.nextInt(SH_TREATS.size)])
+        }
         res.sort()
         return res
     }
@@ -639,6 +707,11 @@ fun ShopRoomScreen(
     fun onDown(x: Float, y: Float, real: Boolean) {
         if (real) m.real = true
         m.downX = x; m.downY = y; m.downT = m.clock
+        val ht = hitTab(x, y)
+        if (ht >= 0) {
+            if (tab != ht && m.carry < 0) { tab = ht; snd("fx_sh_pick", 0.6f, 1.25f); if (real) haptics.vibrateShort() }
+            return
+        }
         when (m.phase) {
             PH_COINS -> {
                 for (c in m.coins) if (c.state == 1 && hypot(x - c.x, y - c.y) < r() * 1.5f) collectCoin(c, real)
@@ -712,6 +785,7 @@ fun ShopRoomScreen(
         PH_ORDER -> when {
             extraIndex() >= 0 -> "Лишний пельмешек — верни его на витрину"
             isReady() -> "Заказ готов! Нажми на кассу"
+            missingType() >= SH_ICE && tab == 0 && m.plate.size >= m.order.count { it < SH_ICE } -> "Ещё просят сладкое! Открой витрину с мороженым 🍨"
             m.plate.isEmpty() -> if (toddler) "Положи на тарелку то, что в облачке" else "Собери заказ: положи на тарелку пельмешки из облачка"
             else -> "Отлично! Добавь ещё пельмешки из облачка"
         }
@@ -911,6 +985,7 @@ fun ShopRoomScreen(
                                 if (moveHand(regX(), regY(), dt)) { tapRegister(false); m.dWait = 0.3f }
                             } else {
                                 val s = slotOf(mt)
+                                tab = if (mt >= SH_ICE) 1 else 0
                                 if (moveHand(s.x, s.y, dt)) {
                                     m.carry = mt; m.carryPlate = false; m.cx = s.x; m.cy = s.y
                                     snd("fx_sh_pick", 0.5f)
@@ -1035,16 +1110,16 @@ fun ShopRoomScreen(
                     drawRoundRect(Color(0x22000000), Offset(bx + 3f, by + 5f), Size(bw, bh), CornerRadius(cs() * 0.45f))
                     drawRoundRect(Color.White, Offset(bx, by), Size(bw, bh), CornerRadius(cs() * 0.45f))
                     drawRoundRect(Color(0xFFFFB3CC), Offset(bx, by), Size(bw, bh), CornerRadius(cs() * 0.45f), style = Stroke(cs() * 0.04f))
-                    val have = IntArray(5)
+                    val have = IntArray(SH_TYPES)
                     for (it in m.plate) have[it.type]++
-                    val used = IntArray(5)
+                    val used = IntArray(SH_TYPES)
                     for (i in 0 until n) {
                         val ty = m.order[i]
                         val ix = bx + cs() * 0.35f + cs() * 0.72f * i
                         val iy = by + bh * 0.5f
                         used[ty]++
                         val done = used[ty] <= have[ty]
-                        shPelmen(ty, ix, iy + sin(t * 3f + i) * cs() * 0.02f, cs() * 0.29f, if (done) 1 else 0, t, i.toFloat())
+                        shItem(ty, ix, iy + sin(t * 3f + i) * cs() * 0.02f, cs() * 0.29f, if (done) 1 else 0, t, i.toFloat())
                         if (done) {
                             val cc = Offset(ix + cs() * 0.2f, iy + cs() * 0.2f)
                             drawCircle(Color(0xFF3FD07A), cs() * 0.15f, cc)
@@ -1079,9 +1154,25 @@ fun ShopRoomScreen(
                 val need = m.phase == PH_ORDER && toddler && missingType() == ty
                 val pul = if (need) 1f + 0.07f * sin(t * 6f) else 1f
                 if (need) drawCircle(Color(0x66FFF3A0), rr * 1.45f * pul, Offset(px, shelfY()))
-                shPelmen(ty, px, shelfY() + sin(t * 2f + i) * rr * 0.03f, rr * pul, 0, t, i * 1.3f)
+                shItem(ty, px, shelfY() + sin(t * 2f + i) * rr * 0.03f, rr * pul, 0, t, i * 1.3f)
             }
             drawRoundRect(Color.White.shA(0.35f), Offset(gl + rr * 0.2f, gt + rr * 0.15f), Size(rr * 1.2f, gh * 0.8f), CornerRadius(rr * 0.2f))
+
+            // кнопки витрины: пельмени / сладкое
+            if (treatsUnlocked()) {
+                val want = if (m.phase == PH_ORDER) missingType().let { if (it < 0) -1 else if (it >= SH_ICE) 1 else 0 } else -1
+                for (i in 0..1) {
+                    val bx = tabX(i)
+                    val by = tabY()
+                    val sel = tab == i
+                    val pulse = if (want == i && !sel) 1f + 0.12f * sin(t * 7f) else 1f
+                    if (want == i && !sel) drawCircle(Color(0x88FFF3A0), rr * 0.95f * pulse, Offset(bx, by))
+                    drawCircle(Color(0x33000000), rr * 0.68f, Offset(bx + 3f, by + 5f))
+                    drawCircle(if (sel) Color(0xFFFFE08A) else Color(0xFFFFF6E5), rr * 0.68f * pulse, Offset(bx, by))
+                    drawCircle(Color(0xFF8E5628), rr * 0.68f * pulse, Offset(bx, by), style = Stroke(if (sel) rr * 0.14f else rr * 0.08f))
+                    if (i == 0) shPelmen(SH_CLASSIC, bx, by, rr * 0.36f, 1, t, 0f) else shTreat(SH_ICE, bx, by, rr * 0.28f, 1, t, 0f)
+                }
+            }
 
             // тарелка
             val px = plateX(); val py = plateY()
@@ -1096,7 +1187,7 @@ fun ShopRoomScreen(
             for (i in m.plate.indices) {
                 val p = plateItemPos(i, m.plate.size)
                 val it = m.plate[i]
-                shPelmen(it.type, p.x, p.y, rr * 0.95f, 1, t, it.ph, it.squash)
+                shItem(it.type, p.x, p.y, rr * 0.95f, 1, t, it.ph, it.squash)
             }
 
             // касса
@@ -1137,12 +1228,12 @@ fun ShopRoomScreen(
             }
 
             // летящие обратно на витрину
-            for (f in m.flies) shPelmen(f.type, f.x, f.y, rr, 0, t, 0f)
+            for (f in m.flies) shItem(f.type, f.x, f.y, rr, 0, t, 0f)
 
             // пельмешек в руке
             if (m.carry >= 0) {
                 val wob = sin(t * 12f) * 4f
-                shPelmen(m.carry, m.cx, m.cy - rr * 0.4f, rr * 1.12f, 1, t, 0f, 0f, wob)
+                shItem(m.carry, m.cx, m.cy - rr * 0.4f, rr * 1.12f, 1, t, 0f, 0f, wob)
             }
 
             // частицы

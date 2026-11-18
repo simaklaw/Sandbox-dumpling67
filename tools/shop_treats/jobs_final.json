@@ -1,0 +1,5 @@
+[{"name":"ice","file":"145_icecream_lod0.glb","pitch":12,"px":900},
+ {"name":"donut","file":"141_donuts_lod0.glb","inc":"^(Donut_2|Icing_2)","pitch":35,"px":900},
+ {"name":"pizza","file":"140_pizza_lod0.glb","inc":"^Slice_","pitch":50,"yaw":200,"px":900},
+ {"name":"sushi","file":"143_sushi_lod0.glb","inc":"^Nigiri_(fish|rice_core)_0","pitch":30,"px":900},
+ {"name":"choco","file":"149_chocolate_lod0.glb","pitch":45,"px":900}]

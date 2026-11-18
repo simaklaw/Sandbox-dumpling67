@@ -1,227 +1,356 @@
 package com.example.screens
 
-import com.example.shared.withFrameNanosEco
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import com.example.R
-import com.example.shared.ColorInk
 import com.example.shared.SoundManager
+import com.example.shared.withFrameNanosEco
 import kotlin.math.PI
-import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
-
-private const val INTRO_LETTER_START = 0.6f
-private const val INTRO_LETTER_STEP = 0.17f
-
-/** Нота звучит на каждой второй букве: файл длится 0,33 с, поэтому ноты идут встык и не накладываются. */
-private const val INTRO_NOTE_EVERY = 2
-/** Финальный сигнал — после последней ноты, одним звуком. */
-private const val INTRO_FINALE_GAP = 0.45f
-private const val INTRO_TOTAL = 4.6f
-private const val INTRO_FADE = 0.45f
-
-private val INTRO_WORDS = listOf("ДЕТСКАЯ", "ПЛОЩАДКА")
-private val INTRO_COLORS = listOf(
-    Color(0xFFFF8FB1), Color(0xFFFFC93C), Color(0xFF7BD88F), Color(0xFF7FC8FF), Color(0xFFB69CFF), Color(0xFFFF9F68)
-)
-private val INTRO_NOTES = listOf("rb_red", "rb_orange", "rb_yellow", "rb_green", "rb_blue", "rb_purple")
-
-/** Время появления буквы с глобальным номером [n] (по обоим словам подряд). */
-internal fun introLetterTime(n: Int): Float = INTRO_LETTER_START + n * INTRO_LETTER_STEP
+import kotlin.random.Random
 
 /**
- * Заставка при запуске: буквы «ДЕТСКАЯ ПЛОЩАДКА» выпрыгивают по одной, каждая со своей нотой,
- * пельмешек подпрыгивает и машет, в конце — колокольчик и конфетти. Нажатие пропускает заставку.
+ * Заставка при запуске (рендеры «Детской площадки»): колыбелька с пельмешком → золотой вихрь →
+ * взрыв конфетти → сборка логотипа → финал с героями. Кадры — готовые картинки, поверх рисуются
+ * вихрь, конфетти, звёзды и пузыри. Нажатие пропускает заставку. Все времена в секундах от старта.
  */
+private const val INTRO_SPEED = 0.8f // 1.0 — исходные 9,6 с; меньше — быстрее
+
+internal const val INTRO_SWIRL_START = 2.2f * INTRO_SPEED
+internal const val INTRO_BURST = 3.4f * INTRO_SPEED
+internal const val INTRO_ASSEMBLY = 4.1f * INTRO_SPEED
+internal const val INTRO_FINAL = 6.4f * INTRO_SPEED
+internal const val INTRO_TOTAL = 9.6f * INTRO_SPEED
+private const val INTRO_FADE = 0.5f
+
+private val CONFETTI = listOf(
+    Color(0xFFFF4D5E), Color(0xFFFF9F1C), Color(0xFFFFD23F), Color(0xFF5BD75B), Color(0xFF3FA9F5), Color(0xFFFF5FA2)
+)
+private val GOLD = Color(0xFFFFD86B)
+private val GOLD_LIGHT = Color(0xFFFFF3C4)
+private val SKY_TOP = Color(0xFF7CC0F1)
+private val SKY_BOTTOM = Color(0xFFCFE9FB)
+
+/** Нота «колыбельной» в начале и взлёт нот во время сборки: имена файлов `rb_*` (радуга). */
+private val INTRO_NOTES = listOf("rb_red", "rb_orange", "rb_yellow", "rb_green", "rb_blue", "rb_purple")
+
+private class IntroParticles(seed: Int = 67) {
+    private val r = Random(seed)
+    // конфетти: угол, скорость, поворот, скорость поворота, ширина, высота, цвет, время жизни
+    val cAng = FloatArray(150) { r.nextFloat() * 6.283f }
+    val cSpd = FloatArray(150) { 140f + r.nextFloat() * 460f }
+    val cRot = FloatArray(150) { r.nextFloat() * 6.283f }
+    val cVr = FloatArray(150) { (r.nextFloat() - 0.5f) * 9f }
+    val cW = FloatArray(150) { 6f + r.nextFloat() * 8f }
+    val cH = FloatArray(150) { 9f + r.nextFloat() * 11f }
+    val cLife = FloatArray(150) { 3.6f + r.nextFloat() * 1.6f }
+    // звёзды взрыва
+    val sAng = FloatArray(60) { r.nextFloat() * 6.283f }
+    val sSpd = FloatArray(60) { 90f + r.nextFloat() * 380f }
+    val sRot = FloatArray(60) { r.nextFloat() * 6.283f }
+    val sVr = FloatArray(60) { (r.nextFloat() - 0.5f) * 6f }
+    val sSize = FloatArray(60) { 8f + r.nextFloat() * 13f }
+    val sLife = FloatArray(60) { 3f + r.nextFloat() * 1.5f }
+    // пузыри: положение по ширине, скорость, радиус, фаза, оттенок
+    val bX = FloatArray(16) { r.nextFloat() }
+    val bSpd = FloatArray(16) { 26f + r.nextFloat() * 48f }
+    val bR = FloatArray(16) { 10f + r.nextFloat() * 28f }
+    val bPh = FloatArray(16) { r.nextFloat() * 6.283f }
+    val bOff = FloatArray(16) { r.nextFloat() }
+    val bHue = FloatArray(16) { r.nextFloat() * 360f }
+    // искры финала: положение вокруг центра, фаза мерцания
+    val kX = FloatArray(16) { (r.nextFloat() - 0.5f) * 0.9f }
+    val kY = FloatArray(16) { (r.nextFloat() - 0.5f) * 0.8f }
+    val kPh = FloatArray(16) { r.nextFloat() * 6.283f }
+}
+
+private fun clamp01(v: Float) = if (v < 0f) 0f else if (v > 1f) 1f else v
+private fun easeOutCubic(v: Float): Float { val k = 1f - clamp01(v); return 1f - k * k * k }
+private fun lerp(a: Float, b: Float, k: Float) = a + (b - a) * k
+
+internal fun introFade(t: Float): Float =
+    if (t > INTRO_TOTAL - INTRO_FADE) clamp01((INTRO_TOTAL - t) / INTRO_FADE) else 1f
+
 @Composable
 fun IntroScreen(soundManager: SoundManager, onFinished: () -> Unit) {
+    val cradle = ImageBitmap.imageResource(R.drawable.intro_cradle)
+    val assembly = ImageBitmap.imageResource(R.drawable.intro_assembly)
+    val final = ImageBitmap.imageResource(R.drawable.intro_final)
+    val particles = remember { IntroParticles() }
+    val layerPaint = remember { Paint() }
+    val star = remember { starPath() }
+
     var t by remember { mutableFloatStateOf(0f) }
-    var played by remember { mutableFloatStateOf(0f) } // сколько букв уже «прозвучало»
-    var finishedCalled by remember { mutableFloatStateOf(0f) }
-    var finale by remember { mutableStateOf(false) }
-    val totalLetters = INTRO_WORDS.sumOf { it.length }
+    var fired by remember { mutableIntStateOf(0) } // какие звуки уже сыграны (по битам)
+    var finished by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         var last = 0L
-        soundManager.play("whoosh_soft", 0.7f)
         while (true) {
             withFrameNanosEco { now ->
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
                 last = now
                 t += dt
-                // ноты: одна на две буквы, поднимаются по радуге, а на втором круге — октавой выше
-                while (played.toInt() < totalLetters && t >= introLetterTime(played.toInt())) {
-                    val n = played.toInt()
-                    if (n % INTRO_NOTE_EVERY == 0) {
-                        val m = n / INTRO_NOTE_EVERY
-                        soundManager.play(INTRO_NOTES[m % INTRO_NOTES.size], 0.7f, if (m >= INTRO_NOTES.size) 2f else 1f)
+                // звуки: короткая «колыбельная» из трёх нот, вихрь, взрыв, взлёт нот при сборке, финальный сигнал
+                fun once(bit: Int, at: Float, play: () -> Unit) {
+                    if (t >= at && (fired and (1 shl bit)) == 0) {
+                        fired = fired or (1 shl bit)
+                        play()
                     }
-                    played += 1f
                 }
-                // финал: один сигнал, когда последняя нота уже отзвучала
-                if (!finale && t >= introLetterTime(totalLetters - 1) + INTRO_FINALE_GAP) {
-                    finale = true
-                    soundManager.play("fanfare_short", 0.8f)
+                once(0, 0.5f) { soundManager.play(INTRO_NOTES[0], 0.5f) }
+                once(1, 1.0f) { soundManager.play(INTRO_NOTES[2], 0.5f) }
+                once(2, 1.5f) { soundManager.play(INTRO_NOTES[4], 0.5f) }
+                once(3, INTRO_SWIRL_START) { soundManager.play("whoosh_soft", 0.7f) }
+                once(4, INTRO_BURST) { soundManager.play("confetti_rain", 0.8f) }
+                for (i in 0 until 5) {
+                    once(5 + i, INTRO_ASSEMBLY + 0.14f * i) { soundManager.play(INTRO_NOTES[i], 0.5f) }
                 }
-                if (t >= INTRO_TOTAL && finishedCalled < 1f) {
-                    finishedCalled = 1f
+                once(10, INTRO_FINAL) { soundManager.play("fanfare_short", 0.8f) }
+                if (t >= INTRO_TOTAL && !finished) {
+                    finished = true
                     onFinished()
                 }
             }
         }
     }
 
-    val fade = if (t > INTRO_TOTAL - INTRO_FADE) ((INTRO_TOTAL - t) / INTRO_FADE).coerceIn(0f, 1f) else 1f
-    val allIn = introLetterTime(totalLetters - 1) + 0.35f
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .alpha(fade)
-            .background(Brush.verticalGradient(listOf(Color(0xFF8ED3FF), Color(0xFFFFF3C4), Color(0xFFFFE0B2))))
+            .graphicsLayer { alpha = introFade(t) }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                if (t > 0.4f && finishedCalled < 1f) { finishedCalled = 1f; onFinished() }
-            },
-        contentAlignment = Alignment.Center
+                if (t > 0.4f && !finished) { finished = true; onFinished() }
+            }
     ) {
-        // Облачка, лучи и конфетти
         Canvas(Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val d = density
-            // солнечные лучи за героями: медленно вращаются
-            run {
-                val c = Offset(w * 0.5f, h * 0.52f)
-                val rr = maxOf(w, h)
-                val k = 16
-                for (i in 0 until k step 2) {
-                    val a0 = (i.toFloat() / k + t * 0.015f) * 2f * PI.toFloat()
-                    val a1 = ((i + 1).toFloat() / k + t * 0.015f) * 2f * PI.toFloat()
-                    val path = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(c.x, c.y)
-                        lineTo(c.x + kotlin.math.cos(a0) * rr, c.y + sin(a0) * rr)
-                        lineTo(c.x + kotlin.math.cos(a1) * rr, c.y + sin(a1) * rr)
-                        close()
-                    }
-                    drawPath(path, Color.White.copy(alpha = 0.22f))
-                }
-            }
-            // искорки, мерцающие по всему небу
-            for (i in 0 until 14) {
-                val sx = (i * 0.137f + 0.05f) % 1f * w
-                val sy = ((i * 0.291f + 0.08f) % 0.7f) * h
-                val tw = (0.5f + 0.5f * sin(t * 3f + i * 1.9f))
-                drawCircle(Color.White.copy(alpha = 0.25f + 0.6f * tw), (1.5f + 2.5f * tw) * d, Offset(sx, sy))
-            }
-            // мягкие облака
-            for (i in 0 until 3) {
-                val cx = ((i * 0.4f + 0.05f + t * 0.02f) % 1.4f - 0.2f) * w
-                val cy = h * (0.12f + i * 0.09f)
-                val c = Color.White.copy(alpha = 0.7f)
-                drawCircle(c, 22f * d, Offset(cx - 30f * d, cy + 6f * d))
-                drawCircle(c, 30f * d, Offset(cx, cy - 4f * d))
-                drawCircle(c, 24f * d, Offset(cx + 30f * d, cy + 4f * d))
-            }
-            // холмы
-            drawCircle(Color(0xFFA5D86E), w * 0.75f, Offset(w * 0.15f, h * 1.08f))
-            drawCircle(Color(0xFF8CCB52), w * 0.8f, Offset(w * 0.95f, h * 1.14f))
-            // конфетти после последней буквы
-            if (t > allIn) {
-                val k = t - allIn
-                for (i in 0 until 40) {
-                    val seed = i * 7919 % 1000 / 1000f
-                    val x = (seed + sin(i * 1.7f + k * 2f) * 0.04f) * w
-                    val y = (k * (0.18f + seed * 0.3f) + (i % 5) * 0.02f - 0.05f) * h
-                    drawCircle(INTRO_COLORS[i % INTRO_COLORS.size], (3f + (i % 4)) * d, Offset(x, y))
-                }
+            drawIntro(t, cradle, assembly, final, particles, layerPaint, star)
+        }
+    }
+}
+
+private fun starPath(): Path = Path().apply {
+    for (i in 0 until 10) {
+        val rr = if (i % 2 == 1) 0.45f else 1f
+        val a = i * PI.toFloat() / 5f - PI.toFloat() / 2f
+        if (i == 0) moveTo(cos(a) * rr, sin(a) * rr) else lineTo(cos(a) * rr, sin(a) * rr)
+    }
+    close()
+}
+
+private fun DrawScope.glow(c: Offset, r: Float, color: Color, a: Float) {
+    if (a <= 0f || r <= 0f) return
+    drawCircle(
+        brush = Brush.radialGradient(listOf(color.copy(alpha = a.coerceIn(0f, 1f)), Color.Transparent), center = c, radius = r),
+        radius = r, center = c, blendMode = BlendMode.Plus
+    )
+}
+
+private fun DrawScope.drawStar(star: Path, c: Offset, r: Float, rot: Float, color: Color, a: Float) {
+    if (a <= 0f) return
+    withTransform({
+        translate(c.x, c.y)
+        rotate(rot * 180f / PI.toFloat(), pivot = Offset.Zero)
+        scale(r, r, pivot = Offset.Zero)
+    }) { drawPath(star, color.copy(alpha = a.coerceIn(0f, 1f))) }
+}
+
+/** Картинка с мягкими краями: края растворяются в небе, поэтому кадры с разным фоном не дают швов. */
+private fun DrawScope.drawFeathered(
+    img: ImageBitmap, center: Offset, widthPx: Float, alpha: Float, scale: Float, dy: Float, paint: Paint
+) {
+    if (alpha <= 0.002f) return
+    val heightPx = widthPx * img.height / img.width
+    val left = center.x - widthPx / 2f
+    val top = center.y - heightPx / 2f
+    val feather = 0.12f
+    paint.alpha = alpha.coerceIn(0f, 1f)
+    withTransform({
+        translate(0f, dy)
+        scale(scale, scale, pivot = center)
+    }) {
+        drawIntoCanvas { canvas ->
+            canvas.saveLayer(Rect(left, top, left + widthPx, top + heightPx), paint)
+            drawImage(
+                image = img,
+                srcOffset = IntOffset.Zero,
+                srcSize = IntSize(img.width, img.height),
+                dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
+                dstSize = IntSize(widthPx.roundToInt(), heightPx.roundToInt()),
+                filterQuality = FilterQuality.High
+            )
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    0f to Color.Transparent, feather to Color.Black, 1f - feather to Color.Black, 1f to Color.Transparent,
+                    startX = left, endX = left + widthPx
+                ),
+                topLeft = Offset(left, top), size = Size(widthPx, heightPx), blendMode = BlendMode.DstIn
+            )
+            drawRect(
+                brush = Brush.verticalGradient(
+                    0f to Color.Transparent, feather to Color.Black, 1f - feather to Color.Black, 1f to Color.Transparent,
+                    startY = top, endY = top + heightPx
+                ),
+                topLeft = Offset(left, top), size = Size(widthPx, heightPx), blendMode = BlendMode.DstIn
+            )
+            canvas.restore()
+        }
+    }
+}
+
+private fun DrawScope.drawIntro(
+    t: Float, cradle: ImageBitmap, assembly: ImageBitmap, final: ImageBitmap,
+    p: IntroParticles, paint: Paint, star: Path
+) {
+    val w = size.width
+    val h = size.height
+    val u = min(w, h) / 760f
+    val center = Offset(w / 2f, h / 2f)
+    val imgW = min(w * 1.04f, h * 0.95f)
+
+    // небо: к финалу чуть светлеет
+    val k = clamp01(t / INTRO_FINAL)
+    drawRect(
+        Brush.verticalGradient(
+            listOf(
+                Color(
+                    lerp(SKY_TOP.red, 0.56f, k), lerp(SKY_TOP.green, 0.78f, k), lerp(SKY_TOP.blue, 0.95f, k)
+                ),
+                Color(
+                    lerp(0.58f, SKY_BOTTOM.red, k), lerp(0.80f, SKY_BOTTOM.green, k), lerp(0.94f, SKY_BOTTOM.blue, k)
+                )
+            )
+        )
+    )
+
+    // пузыри всплывают всё время
+    val fadeIn = clamp01(t / 0.8f)
+    for (i in p.bX.indices) {
+        val r = p.bR[i] * u
+        val travel = h + 2f * r + 60f * u
+        val y = h + r + 30f * u - ((t * p.bSpd[i] * u + p.bOff[i] * travel) % travel)
+        val x = p.bX[i] * w + sin(t * 0.9f + p.bPh[i]) * 16f * u
+        val c = Offset(x, y)
+        drawCircle(Color.White.copy(alpha = 0.10f * fadeIn), r, c)
+        drawCircle(
+            Color.hsv((p.bHue[i] + t * 40f) % 360f, 0.45f, 1f, 0.55f * fadeIn), r * 0.96f, c, style = Stroke(2f * u)
+        )
+        drawCircle(Color.White.copy(alpha = 0.8f * fadeIn), r * 0.16f, Offset(c.x - r * 0.35f, c.y - r * 0.35f))
+    }
+
+    // колыбелька: плавно появляется, мягко «дышит» и растворяется перед сборкой
+    val zoom = 1f + (1f - easeOutCubic(t / INTRO_FINAL)) * 0.06f
+    val cradleA = clamp01(t / 0.6f) * clamp01(1f - (t - INTRO_BURST) / (INTRO_ASSEMBLY - INTRO_BURST - 0.2f))
+    if (cradleA > 0f) {
+        val bob = sin(t * 1.4f) * 4f * u
+        drawFeathered(cradle, center, imgW, cradleA, zoom, bob, paint)
+        // золотое сияние над пельмешком, пульсирует и разгорается к вихрю
+        val gc = Offset(center.x, center.y + (0.37f - 0.5f) * imgW + bob)
+        val pulse = 0.55f + 0.25f * sin(t * 3f)
+        val rise = 1f + clamp01((t - INTRO_SWIRL_START) / (INTRO_BURST - INTRO_SWIRL_START)) * 1.4f
+        glow(gc, 170f * u * rise, GOLD, pulse * cradleA * 0.6f)
+    }
+
+    // вихрь
+    if (t >= INTRO_SWIRL_START && t < INTRO_ASSEMBLY) {
+        val prog = (t - INTRO_SWIRL_START) / (INTRO_BURST - INTRO_SWIRL_START)
+        val big = min(w, h) * 0.42f * easeOutCubic(prog)
+        val dissolve = clamp01(1f - (t - INTRO_BURST) / (INTRO_ASSEMBLY - INTRO_BURST))
+        if (big > 4f && dissolve > 0f) {
+            val n = 80
+            for (i in 0 until n) {
+                val q = i / n.toFloat()
+                val an = q * PI.toFloat() * 4f + t * 2.4f
+                val rr = big * (0.35f + 0.65f * q)
+                val c = Offset(center.x + cos(an) * rr, center.y + sin(an) * rr * 0.6f)
+                glow(c, (6f + 8f * q) * u * 2f, GOLD, 0.55f * (1f - q * 0.4f) * dissolve)
+                if (i % 6 == 0) drawStar(star, c, (4f + 4f * q) * u, an, GOLD_LIGHT, dissolve)
             }
         }
+    }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            var n = 0
-            INTRO_WORDS.forEachIndexed { wi, word ->
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    for (ch in word) {
-                        val idx = n++
-                        val k = ((t - introLetterTime(idx)) / 0.4f).coerceIn(0f, 1f)
-                        val pop = if (k <= 0f) 0f else (1f - (1f - k) * (1f - k)) * (1f + 0.35f * sin(k * PI.toFloat()))
-                        val wiggle = if (t > allIn) sin(t * 6f + idx * 0.6f) * 4f else 0f
-                        Box(
-                            modifier = Modifier
-                                .size(width = if (word.length > 7) 38.dp else 42.dp, height = if (word.length > 7) 50.dp else 54.dp)
-                                .graphicsLayer { translationY = -abs(wiggle) * 2f * density }
-                                .scale(pop)
-                                .rotate(if (k < 1f) (1f - k) * (if (idx % 2 == 0) -25f else 25f) else wiggle)
-                                .background(INTRO_COLORS[idx % INTRO_COLORS.size], RoundedCornerShape(12.dp))
-                                .border(3.dp, ColorInk, RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(ch.toString(), fontSize = 28.sp, fontWeight = FontWeight.Black, color = ColorInk)
-                        }
-                    }
-                }
-                if (wi == 0) Spacer(Modifier.height(10.dp))
-            }
+    // сборка логотипа
+    val asmA = clamp01((t - INTRO_ASSEMBLY + 0.3f) / 0.9f) * clamp01(1f - (t - INTRO_FINAL) / 0.8f)
+    if (asmA > 0f) drawFeathered(assembly, center, imgW, asmA, zoom, 0f, paint)
 
-            Spacer(Modifier.height(26.dp))
-            // Пельмешек: выпрыгивает снизу, подпрыгивает в такт и машет
-            val enter = ((t - 0.2f) / 0.6f).coerceIn(0f, 1f)
-            val hop = if (t > 0.8f) abs(sin(t * 5.2f)) * 18f else 0f
-            Image(
-                painter = painterResource(R.drawable.wl_dumpling),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(150.dp)
-                    .graphicsLayer {
-                        translationY = (1f - enter) * 260.dp.toPx() - hop.dp.toPx()
-                        rotationZ = if (t > allIn) sin(t * 7f) * 8f else 0f
-                        val sq = 1f + (if (hop < 2f && t > 0.8f) -0.06f else 0.03f)
-                        scaleX = 2f - sq
-                        scaleY = sq
-                    }
-            )
-            Text(
-                "Играем вместе!",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
-                color = ColorInk.copy(alpha = ((t - allIn) / 0.4f).coerceIn(0f, 1f)),
-                modifier = Modifier.padding(top = 12.dp)
-            )
+    // финал: логотип с героями слегка парит
+    val finA = clamp01((t - INTRO_FINAL) / 0.9f)
+    if (finA > 0f) {
+        val bob = sin(t * 1.6f) * 4f * u
+        drawFeathered(final, center, imgW, finA, 1f + (1f - finA) * 0.04f, bob, paint)
+        for (i in p.kX.indices) {
+            val tw = 0.5f + 0.5f * sin(t * 3.2f + p.kPh[i])
+            val c = Offset(center.x + p.kX[i] * imgW, center.y + p.kY[i] * imgW + bob)
+            glow(c, (10f + 14f * tw) * u, GOLD_LIGHT, 0.6f * tw * finA)
+            drawStar(star, c, (3f + 5f * tw) * u, t * 2f + i, GOLD_LIGHT, 0.9f * tw * finA)
         }
+    }
+
+    // взрыв: конфетти и звёзды разлетаются из центра и падают
+    if (t >= INTRO_BURST) {
+        val kb = t - INTRO_BURST
+        val g = 360f * u
+        for (i in p.cAng.indices) {
+            if (kb > p.cLife[i]) continue
+            val vx = cos(p.cAng[i]) * p.cSpd[i] * u
+            val vy = sin(p.cAng[i]) * p.cSpd[i] * u - 140f * u
+            val x = center.x + vx * kb
+            val y = center.y + vy * kb + 0.5f * g * kb * kb
+            if (y > h + 90f) continue
+            val a = 1f - kb / p.cLife[i]
+            withTransform({
+                translate(x, y)
+                rotate((p.cRot[i] + p.cVr[i] * kb) * 180f / PI.toFloat(), pivot = Offset.Zero)
+            }) {
+                drawRect(
+                    CONFETTI[i % CONFETTI.size].copy(alpha = a),
+                    topLeft = Offset(-p.cW[i] * u / 2f, -p.cH[i] * u / 2f),
+                    size = Size(p.cW[i] * u, p.cH[i] * u)
+                )
+            }
+        }
+        for (i in p.sAng.indices) {
+            if (kb > p.sLife[i]) continue
+            val x = center.x + cos(p.sAng[i]) * p.sSpd[i] * u * kb
+            val y = center.y + (sin(p.sAng[i]) * p.sSpd[i] * u - 100f * u) * kb + 0.5f * g * 0.6f * kb * kb
+            if (y > h + 90f) continue
+            drawStar(star, Offset(x, y), p.sSize[i] * u, p.sRot[i] + p.sVr[i] * kb, if (i % 2 == 0) GOLD else GOLD_LIGHT, 1f - kb / p.sLife[i])
+        }
+        // короткая тёплая вспышка
+        val flash = clamp01(1f - kb * 2.2f)
+        if (flash > 0f) drawRect(GOLD_LIGHT.copy(alpha = flash * 0.7f))
     }
 }

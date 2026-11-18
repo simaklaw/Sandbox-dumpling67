@@ -1,6 +1,11 @@
 package com.example
 
-import com.example.screens.introLetterTime
+import com.example.screens.INTRO_ASSEMBLY
+import com.example.screens.INTRO_BURST
+import com.example.screens.INTRO_FINAL
+import com.example.screens.INTRO_SWIRL_START
+import com.example.screens.INTRO_TOTAL
+import com.example.screens.introFade
 import com.example.shared.CustomVoices
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -28,9 +33,13 @@ class CustomVoicesTest {
     }
 
     @Test
-    fun introLettersAppearInOrder() {
-        for (i in 1 until 15) assertTrue(introLetterTime(i) > introLetterTime(i - 1))
-        assertTrue("все буквы должны появиться до конца заставки (4,6 с)", introLetterTime(14) + 0.4f < 4.6f)
+    fun introTimelineIsOrderedAndShort() {
+        val marks = listOf(INTRO_SWIRL_START, INTRO_BURST, INTRO_ASSEMBLY, INTRO_FINAL, INTRO_TOTAL)
+        for (i in 1 until marks.size) assertTrue("этапы заставки идут по порядку", marks[i] > marks[i - 1])
+        assertTrue("заставка не длиннее 9 с, иначе на запуске ждать долго", INTRO_TOTAL <= 9f)
+        assertTrue("финал успевает показаться до конца", INTRO_TOTAL - INTRO_FINAL >= 1.5f)
+        assertEquals(1f, introFade(0f), 0f)
+        assertEquals(0f, introFade(INTRO_TOTAL), 0f)
     }
 
     @Test

@@ -54,7 +54,7 @@ jobs:
       - name: Проверка громкости звуков
         run: |
           pip install numpy scipy
-          sudo apt-get install -y ffmpeg
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg; }
           python3 generate_soft_replacements.py --verify
 
       - name: Debug APK

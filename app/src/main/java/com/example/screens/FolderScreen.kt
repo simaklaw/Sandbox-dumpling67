@@ -1,5 +1,6 @@
 package com.example.screens
 
+import com.example.R
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -57,7 +58,6 @@ data class FolderSection(
     val items: List<FolderItem>
 )
 
-private val DUMPLING_ICON = com.example.R.drawable.pelmen_icon
 
 /**
  * Единый источник правды: какие игры лежат в каких мирах и разделах.
@@ -66,68 +66,68 @@ private val DUMPLING_ICON = com.example.R.drawable.pelmen_icon
 val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
     FolderType.ADVENTURE to listOf(
         FolderSection("Приключения", "🗺️", ColorGreen, listOf(
-            FolderItem("Зелик: Приключение", "🔫", 28, ColorGreen),
-            FolderItem("Комната Зелика", "👽", 27, ColorGreen),
-            FolderItem("Монстрики и забег", "👾", 32, ColorOrange),
-            FolderItem("Бешеный Дамплинг 67", "🥟", 5, ColorYellow, DUMPLING_ICON),
-            FolderItem("Жадная акула", "🦈", 35, ColorBlue),
-            FolderItem("Птичка-летунья", "🐦", 44, ColorGreen),
-            FolderItem("Ракетный робот", "🤖", 50, ColorBlue),
+            FolderItem("Зелик: Приключение", "🔫", 28, ColorGreen, R.drawable.room_28),
+            FolderItem("Комната Зелика", "👽", 27, ColorGreen, R.drawable.room_27),
+            FolderItem("Монстрики и забег", "👾", 32, ColorOrange, R.drawable.room_32),
+            FolderItem("Бешеный Дамплинг 67", "🥟", 5, ColorYellow, R.drawable.room_5),
+            FolderItem("Жадная акула", "🦈", 35, ColorBlue, R.drawable.room_35),
+            FolderItem("Птичка-летунья", "🐦", 44, ColorGreen, R.drawable.room_44),
+            FolderItem("Ракетный робот", "🤖", 50, ColorBlue, R.drawable.room_50),
             FolderItem("Гипертрасса", "🚀", 52, ColorPurple)
         ))
     ),
     FolderType.SHOOTING to listOf(
         FolderSection("Меткость", "🎯", ColorOrange, listOf(
-            FolderItem("Тир", "🦆", 31, ColorOrange),
-            FolderItem("Лук", "🏹", 4, ColorPink),
-            FolderItem("Шарики", "🎈", 7, ColorBlue),
-            FolderItem("Пинбол", "🔮", 12, ColorYellow),
-            FolderItem("Пиньята с Конфетами", "🪅", 17, ColorPink),
-            FolderItem("Блок-пазл", "🧱", 48, ColorBlue),
-            FolderItem("Хваталка", "🕹️", 49, ColorPurple)
+            FolderItem("Тир", "🦆", 31, ColorOrange, R.drawable.room_31),
+            FolderItem("Лук", "🏹", 4, ColorPink, R.drawable.room_4),
+            FolderItem("Шарики", "🎈", 7, ColorBlue, R.drawable.room_7),
+            FolderItem("Пинбол", "🔮", 12, ColorYellow, R.drawable.room_12),
+            FolderItem("Пиньята с Конфетами", "🪅", 17, ColorPink, R.drawable.room_17),
+            FolderItem("Блок-пазл", "🧱", 48, ColorBlue, R.drawable.room_48),
+            FolderItem("Хваталка", "🕹️", 49, ColorPurple, R.drawable.room_49)
         ))
     ),
     FolderType.CREATIVE to listOf(
         FolderSection("Творчество", "🎨", ColorPink, listOf(
-            FolderItem("Рисование", "🎨", 9, ColorGreen),
-            FolderItem("Кинетический песок", "🏖️", 22, ColorOrange),
-            FolderItem("Песочница с формочками", "🏖️", 40, ColorYellow),
+            FolderItem("Рисование", "🎨", 9, ColorGreen, R.drawable.room_9),
+            FolderItem("Кинетический песок", "🏖️", 22, ColorOrange, R.drawable.room_22),
+            FolderItem("Песочница с формочками", "🏖️", 40, ColorYellow, R.drawable.room_40),
             FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
-            FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange)
+            FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange, R.drawable.room_46)
         ))
     ),
     FolderType.HOME to listOf(
         FolderSection("Кухня", "🍳", ColorPurple, listOf(
-            FolderItem("Кормление", "🍎", 1, ColorPink),
-            FolderItem("Кастрюля чудес", "🍲", 37, ColorOrange),
-            FolderItem("Нарезка овощей", "🔪", 36, ColorGreen),
-            FolderItem("Сыпучести", "🌾", 6, ColorYellow),
-            FolderItem("Поваренок", "👨‍🍳", 51, ColorPink)
+            FolderItem("Кормление", "🍎", 1, ColorPink, R.drawable.room_1),
+            FolderItem("Кастрюля чудес", "🍲", 37, ColorOrange, R.drawable.room_37),
+            FolderItem("Нарезка овощей", "🔪", 36, ColorGreen, R.drawable.room_36),
+            FolderItem("Сыпучести", "🌾", 6, ColorYellow, R.drawable.room_6),
+            FolderItem("Поваренок", "👨‍🍳", 51, ColorPink, R.drawable.room_51)
         )),
         FolderSection("Хозяйство и магазин", "🧺", ColorBlue, listOf(
-            FolderItem("Пузырьковая стиралка", "🫧", 38, ColorBlue),
-            FolderItem("Автомойка для игрушек", "🚗", 41, ColorOrange),
-            FolderItem("Магазин пельменей", "🛒", 42, ColorPink)
+            FolderItem("Пузырьковая стиралка", "🫧", 38, ColorBlue, R.drawable.room_38),
+            FolderItem("Автомойка для игрушек", "🚗", 41, ColorOrange, R.drawable.room_41),
+            FolderItem("Магазин пельменей", "🛒", 42, ColorPink, R.drawable.room_42)
         ))
     ),
     FolderType.NATURE to listOf(
         FolderSection("Зверята", "🐾", ColorBlue, listOf(
-            FolderItem("Зверята", "🐮", 0, ColorPurple),
-            FolderItem("Пушистики", "🐹", 47, ColorPink),
-            FolderItem("Аквариум", "🐠", 30, ColorBlue),
-            FolderItem("Дождик", "🌧️", 24, ColorBlue),
-            FolderItem("Погодная комната", "🌦️", 43, ColorBlue)
+            FolderItem("Зверята", "🐮", 0, ColorPurple, R.drawable.room_0),
+            FolderItem("Пушистики", "🐹", 47, ColorPink, R.drawable.room_47),
+            FolderItem("Аквариум", "🐠", 30, ColorBlue, R.drawable.room_30),
+            FolderItem("Дождик", "🌧️", 24, ColorBlue, R.drawable.room_24),
+            FolderItem("Погодная комната", "🌦️", 43, ColorBlue, R.drawable.room_43)
         ))
     ),
     FolderType.CALM to listOf(
         FolderSection("Антистресс", "🫧", ColorPurple, listOf(
-            FolderItem("Смешинки", "😜", 21, ColorYellow),
-            FolderItem("Детский телефончик", "📱", 23, ColorPink),
-            FolderItem("Кнопочная радость", "🔴", 34, ColorPink),
-            FolderItem("Поп-ит Антистресс", "🟣", 16, ColorPurple),
-            FolderItem("Пузырчатая пленка", "📦", 20, ColorBlue),
+            FolderItem("Смешинки", "😜", 21, ColorYellow, R.drawable.room_21),
+            FolderItem("Детский телефончик", "📱", 23, ColorPink, R.drawable.room_23),
+            FolderItem("Кнопочная радость", "🔴", 34, ColorPink, R.drawable.room_34),
+            FolderItem("Поп-ит Антистресс", "🟣", 16, ColorPurple, R.drawable.room_16),
+            FolderItem("Пузырчатая пленка", "📦", 20, ColorBlue, R.drawable.room_20),
             FolderItem("Бизиборд", "🎛️", 10, ColorGreen),
-            FolderItem("Музыкальная колыбелька", "🌙", 39, ColorPurple)
+            FolderItem("Музыкальная колыбелька", "🌙", 39, ColorPurple, R.drawable.room_39)
         ))
     )
 )

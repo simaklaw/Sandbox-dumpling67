@@ -33,7 +33,7 @@ import com.example.shared.i18n.Text
 /**
  * «Конфетная» карточка меню: градиент, глянцевый блик, декоративные пузыри,
  * толстая объёмная кромка снизу, иконка в светлом кружке и подпись на плашке.
- * Если задан [iconRes] — вместо эмодзи рисуется картинка.
+ * Если задан [iconRes] — вместо эмодзи рисуется картинка комнаты (PNG/WebP с прозрачностью, целиком).
  */
 @Composable
 fun CandyCard(
@@ -120,14 +120,12 @@ fun CandyCard(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
                 if (iconRes != null) {
+                    // картинка комнаты с прозрачным фоном: целиком, без рамки и обрезки
                     Image(
                         painter = painterResource(id = iconRes),
                         contentDescription = title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(iconSize + 10.dp)
-                            .clip(RoundedCornerShape(22))
-                            .border(BorderStroke(2.5.dp, ColorInk), RoundedCornerShape(22))
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(iconSize + 36.dp)
                     )
                 } else {
                     Box(

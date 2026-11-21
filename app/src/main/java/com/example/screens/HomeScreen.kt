@@ -197,9 +197,9 @@ fun HomeScreen(
                                     icon = info.icon,
                                     cardColor = info.color,
                                     phaseOffset = (ri * 2 + ci) * 220,
-                                    iconSize = if (showPeek) 56.dp else 46.dp,
+                                    collage = games.mapNotNull { it.iconRes }.take(3),
+                                    iconSize = if (showPeek) 64.dp else 50.dp,
                                     titleSize = 19,
-                                    peek = if (showPeek) games.take(4).map { it.icon } else emptyList(),
                                     badge = games.size.toString(),
                                     soundManager = soundManager,
                                     haptics = haptics,
@@ -345,7 +345,7 @@ private fun RecentChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
-            .height(52.dp)
+            .height(64.dp)
             .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.lerp(item.color, Color.White, 0.5f), item.color)), shape)
             .border(BorderStroke(2.5.dp, ColorInk), shape)
             .plasticineClickable(haptics = haptics) {
@@ -354,8 +354,16 @@ private fun RecentChip(
             }
             .padding(horizontal = 6.dp)
     ) {
-        Text(item.icon, fontSize = 24.sp)
-        Spacer(Modifier.width(4.dp))
+        if (item.iconRes != null) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = item.iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(44.dp)
+            )
+        } else {
+            Text(item.icon, fontSize = 24.sp)
+        }
+        Spacer(Modifier.width(2.dp))
         Text(item.title, fontSize = 11.sp, fontWeight = FontWeight.Black, color = ColorInk, maxLines = 2, lineHeight = 12.sp)
     }
 }
@@ -369,7 +377,7 @@ private fun MineButton(modifier: Modifier, soundManager: SoundManager, haptics: 
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .height(48.dp)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFFFFF59D), ColorYellow)), shape)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFFFFE9A6), ColorYellow)), shape)
             .border(BorderStroke(3.dp, ColorInk), shape)
             .plasticineClickable(haptics = haptics) {
                 soundManager.play("chime")

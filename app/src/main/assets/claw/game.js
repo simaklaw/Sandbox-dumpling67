@@ -110,36 +110,20 @@ scene.add(machine);
   box(machine, [-3.5, 1.75, 1.9], [3, 3, 0.2], chute);
 }
 
-// ───────────────────────── андроид (Bugdroid) ─────────────────────────
-function makeBugdroid() {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: '#34A853', roughness: 0.4, metalness: 0.1 });
-  const white = new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: 0.2 });
-  const add = (geo, pos, mat2, rot) => {
-    const m = new THREE.Mesh(geo, mat2 || mat);
-    m.position.set(pos[0], pos[1], pos[2]);
-    if (rot) m.rotation.set(rot[0], rot[1], rot[2]);
-    m.castShadow = true; m.receiveShadow = true;
-    g.add(m);
-  };
-  add(new THREE.CylinderGeometry(1, 1, 1.8, 24), [0, 2.4, 0]);
-  add(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), [0, 3.3, 0]);
-  add(new THREE.SphereGeometry(0.1, 12, 12), [-0.4, 3.7, 0.9], white);
-  add(new THREE.SphereGeometry(0.1, 12, 12), [0.4, 3.7, 0.9], white);
-  add(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 8), [-0.4, 4.3, 0], mat, [0, 0, Math.PI / 6]);
-  add(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 8), [0.4, 4.3, 0], mat, [0, 0, -Math.PI / 6]);
-  add(new THREE.CapsuleGeometry(0.25, 1.3, 4, 12), [-1.4, 2.4, 0]);
-  add(new THREE.CapsuleGeometry(0.25, 1.3, 4, 12), [1.4, 2.4, 0]);
-  add(new THREE.CapsuleGeometry(0.25, 1, 4, 12), [-0.4, 0.75, 0]);
-  add(new THREE.CapsuleGeometry(0.25, 1, 4, 12), [0.4, 0.75, 0]);
-  return g;
-}
+// ───────────────────────── зелёный инопланетянин на крыше ─────────────────────────
+// Картинка с прозрачностью (alien.png) лежит на крыше автомата, откинувшись назад, как игрушка.
 {
-  const top = makeBugdroid();
-  top.position.set(0, 10.5, 0);
-  top.rotation.y = Math.PI / 4;
-  top.scale.setScalar(0.6);
-  scene.add(top);
+  const tex = new THREE.TextureLoader().load('./alien.png');
+  if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, toneMapped: false });
+  const h = 3.8, w = h * 311 / 512;
+  const geo = new THREE.PlaneGeometry(w, h);
+  geo.translate(0, h / 2, 0); // точка опоры у ног
+  const toy = new THREE.Mesh(geo, mat);
+  toy.position.set(3.7, 10.55, 1.2);
+  toy.rotation.set(-0.55, 0, -0.28); // полулёжа, откинувшись назад и набок
+  toy.renderOrder = 4;
+  scene.add(toy);
 }
 
 // ───────────────────────── коготь ─────────────────────────

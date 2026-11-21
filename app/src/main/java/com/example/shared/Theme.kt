@@ -20,11 +20,11 @@ import androidx.compose.ui.unit.sp
 // ==========================================================
 // 🎨 "SOFT PLASTICINE" COLORS
 // ==========================================================
-val ColorBg = Color(0xFFFFF6E5)
-val ColorBgSoft = Color(0xFFFFEFD1)
-val ColorInk = Color(0xFF5A3E36)
+val ColorBg = Color(0xFFFBF4EA)
+val ColorBgSoft = Color(0xFFF1E3D8)
+val ColorInk = Color(0xFF52372F)
 val ColorPink = Color(0xFFFF8FB1)
-val ColorYellow = Color(0xFFFFD35C)
+val ColorYellow = Color(0xFFF8C95C)
 val ColorBlue = Color(0xFF7FC8FF)
 val ColorGreen = Color(0xFF8EDC9D)
 val ColorOrange = Color(0xFFFFB36B)

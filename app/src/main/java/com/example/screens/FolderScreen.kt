@@ -73,7 +73,7 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
             FolderItem("Жадная акула", "🦈", 35, ColorBlue, R.drawable.room_35),
             FolderItem("Птичка-летунья", "🐦", 44, ColorGreen, R.drawable.room_44),
             FolderItem("Ракетный робот", "🤖", 50, ColorBlue, R.drawable.room_50),
-            FolderItem("Гипертрасса", "🚀", 52, ColorPurple)
+            FolderItem("Гипертрасса", "🚀", 52, ColorPurple, R.drawable.room_52)
         ))
     ),
     FolderType.SHOOTING to listOf(
@@ -92,7 +92,7 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
             FolderItem("Рисование", "🎨", 9, ColorGreen, R.drawable.room_9),
             FolderItem("Кинетический песок", "🏖️", 22, ColorOrange, R.drawable.room_22),
             FolderItem("Песочница с формочками", "🏖️", 40, ColorYellow, R.drawable.room_40),
-            FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen),
+            FolderItem("Фигурки-окошки", "🔷", 26, ColorGreen, R.drawable.room_26),
             FolderItem("Сундучки-сюрпризы", "🎁", 46, ColorOrange, R.drawable.room_46)
         ))
     ),
@@ -126,7 +126,7 @@ val FOLDER_SECTIONS: Map<FolderType, List<FolderSection>> = mapOf(
             FolderItem("Кнопочная радость", "🔴", 34, ColorPink, R.drawable.room_34),
             FolderItem("Поп-ит Антистресс", "🟣", 16, ColorPurple, R.drawable.room_16),
             FolderItem("Пузырчатая пленка", "📦", 20, ColorBlue, R.drawable.room_20),
-            FolderItem("Бизиборд", "🎛️", 10, ColorGreen),
+            FolderItem("Бизиборд", "🎛️", 10, ColorGreen, R.drawable.room_10),
             FolderItem("Музыкальная колыбелька", "🌙", 39, ColorPurple, R.drawable.room_39)
         ))
     )
@@ -317,13 +317,13 @@ fun FolderGameCard(
     CandyCard(
         modifier = Modifier
             .fillMaxWidth()
-            .height(158.dp),
+            .height(206.dp),
         title = item.title,
         icon = item.icon,
         iconRes = item.iconRes,
         cardColor = item.color,
         phaseOffset = phaseOffset,
-        iconSize = 46.dp,
+        iconSize = 86.dp,
         titleSize = 16,
         soundManager = soundManager,
         haptics = haptics,

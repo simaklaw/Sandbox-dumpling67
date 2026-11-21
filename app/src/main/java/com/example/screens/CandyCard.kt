@@ -41,6 +41,8 @@ fun CandyCard(
     title: String,
     icon: String,
     iconRes: Int? = null,
+    /** Картинки комнат мира: рисуются веером вместо одной иконки (главный экран). */
+    collage: List<Int> = emptyList(),
     cardColor: Color,
     phaseOffset: Int,
     iconSize: Dp = 52.dp,
@@ -119,7 +121,33 @@ fun CandyCard(
                 verticalArrangement = Arrangement.Center,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
-                if (iconRes != null) {
+                if (collage.isNotEmpty()) {
+                    // веер из картинок комнат: первая по центру и крупнее, остальные за ней
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxWidth().height(iconSize + 34.dp)
+                    ) {
+                        val side = collage.drop(1).take(2)
+                        side.forEachIndexed { i, res ->
+                            val dir = if (i == 0) -1 else 1
+                            Image(
+                                painter = painterResource(id = res),
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .size(iconSize + 4.dp)
+                                    .offset(x = (iconSize.value * 0.78f * dir).dp, y = 6.dp)
+                                    .graphicsLayer { rotationZ = 7f * dir }
+                            )
+                        }
+                        Image(
+                            painter = painterResource(id = collage.first()),
+                            contentDescription = title,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(iconSize + 34.dp)
+                        )
+                    }
+                } else if (iconRes != null) {
                     // картинка комнаты с прозрачным фоном: целиком, без рамки и обрезки
                     Image(
                         painter = painterResource(id = iconRes),

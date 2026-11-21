@@ -167,6 +167,25 @@ body[data-mode="count"] #countdown{display:flex}
 #cdNum.tick{animation:cdTick .58s cubic-bezier(.2,1.4,.3,1)}
 @keyframes cdTick{0%{transform:scale(1.8);opacity:0}32%{transform:scale(1);opacity:1}}
 
+
+/* ---------- упрощённое меню и экран проигрыша (детская комната) ---------- */
+.mpanel.minimal{justify-content:center;gap:26px;text-align:center}
+.mpanel.minimal .mhead{text-align:center}
+.mpanel.minimal .mhead .title{font-size:clamp(38px,11vw,64px)}
+.mpanel.minimal .mtabs,.mpanel.minimal .mscroll,.mpanel.minimal .subtitle,.mpanel.minimal .eyebrow,
+.mpanel.minimal .chip.cyan,.mpanel.minimal .chip.violet,.mpanel.minimal #btnDaily{display:none}
+.mpanel.minimal .chiprow{justify-content:center;margin-top:14px}
+.mpanel.minimal #bestChip{font-size:20px;padding:12px 22px}
+.mpanel.minimal .mfoot{flex-direction:column;align-items:stretch;border-top:none}
+.mpanel.minimal .mfoot .bigbtn{min-height:68px;font-size:22px}
+.mpanel.minimal .mfoot .ghostbtn{flex:none}
+#over .panel #recordBadge,#achv{display:none!important}
+#over .panel #ovEyebrow,#over .panel #missionResult,#over .panel #ovEarn,#over .panel .fineprint{display:none}
+#over .panel #stats{grid-template-columns:repeat(2,1fr);margin:6px 0 12px}
+#over .panel #stats .stat:nth-child(n+3){display:none}
+#over .panel .btnrow{flex-direction:column;align-items:stretch}
+#over .panel .bigbtn{min-height:64px}
+
 /* ---------- overlays ---------- */
 .overlay{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
   padding:calc(14px + var(--sat)) 14px calc(14px + var(--sab));overflow-y:auto;touch-action:pan-y;
@@ -488,7 +507,7 @@ body.touch[data-mode="run"] #touch,body.touch[data-mode="count"] #touch{display:
   <div class="tcluster right"><button class="tbtn" id="tSlide">▼<small>ПОДСКАТ</small></button><button class="tbtn" id="tJump">▲<small>ПРЫЖОК</small></button></div>
 </div>
 
-<div class="overlay" id="menu"><div class="mpanel">
+<div class="overlay" id="menu"><div class="mpanel minimal">
   <div class="mhead">
     <div class="eyebrow">НЕОНОВЫЙ РАННЕР · COSMIC ULTRA v3.5</div>
     <h1 class="title">ГИПЕРТРАССА</h1>
@@ -538,8 +557,6 @@ body.touch[data-mode="run"] #touch,body.touch[data-mode="count"] #touch{display:
         <button data-q="auto" class="act">АВТО</button><button data-q="high">УЛЬТРА</button>
         <button data-q="med">ВЫСОКО</button><button data-q="low">БЫСТРО</button>
       </div>
-      <div class="segLbl">Звук</div>
-      <div class="seg"><button id="btnMuteM">ЗВУК: ВКЛ</button></div>
       <div class="segLbl">Управление</div>
       <div id="legend">
         <div><kbd>◀</kbd><kbd>▶</kbd>/<kbd>A</kbd><kbd>D</kbd> — манёвр</div>
@@ -555,6 +572,7 @@ body.touch[data-mode="run"] #touch,body.touch[data-mode="count"] #touch{display:
   </div>
   <div class="mfoot">
     <button class="bigbtn" id="btnStart" disabled>ЗАГРУЗКА…</button>
+    <button class="ghostbtn" id="btnMuteM">ЗВУК: ВКЛ</button>
     <button class="ghostbtn" id="btnDaily" disabled>ТРАССА ДНЯ</button>
   </div>
 </div></div>
@@ -565,7 +583,7 @@ body.touch[data-mode="run"] #touch,body.touch[data-mode="count"] #touch{display:
   <div class="btnrow">
     <button class="bigbtn" id="btnResume">ПРОДОЛЖИТЬ</button>
     <button class="ghostbtn" id="btnRestartP">ЗАНОВО</button>
-    <button class="ghostbtn" id="btnMenuP">В АНГАР</button>
+    <button class="ghostbtn" id="btnMenuP">В МЕНЮ</button>
   </div>
   <div class="fineprint">P / ESC — продолжить · R — заново</div>
 </div></div>
@@ -579,7 +597,7 @@ body.touch[data-mode="run"] #touch,body.touch[data-mode="count"] #touch{display:
   <div id="ovEarn">+0 ⚡ В ХРАНИЛИЩЕ</div>
   <div class="btnrow">
     <button class="bigbtn" id="btnAgain">ЕЩЁ РАЗ</button>
-    <button class="ghostbtn" id="btnMenuO">В АНГАР</button>
+    <button class="ghostbtn" id="btnMenuO">В МЕНЮ</button>
   </div>
   <div class="fineprint">R / ПРОБЕЛ — мгновенный рестарт</div>
 </div></div>
@@ -1331,7 +1349,7 @@ function autoQuality(dt){
 const DIFFS={
   zen:{label:'ДЗЕН',base:16,max:32,r0:1.25,r1:.85,hull:99,desc:'Без гибели. Тренировка и созерцание.',zen:true},
   calm:{label:'СПОКОЙНЫЙ',base:19,max:42,r0:1.08,r1:.68,hull:3,desc:'3 корпуса, мягкий разгон, редкие ловушки.'},
-  norm:{label:'СТАНДАРТ',base:24,max:59,r0:.94,r1:.54,hull:2,desc:'2 корпуса. Классический баланс.'},
+  norm:{label:'ГИПЕРТРАССА',base:20,max:50,r0:1.04,r1:.62,hull:3,desc:'3 корпуса, плавный разгон.'},
   wild:{label:'БЕЗУМНЫЙ',base:31,max:78,r0:.82,r1:.44,hull:1,desc:'1 корпус. Максимальная плотность. Реакция на пределе.'}
 };
 const SKINS=[
@@ -1363,7 +1381,7 @@ const UPGS=[
   {k:'dash',n:'РЫВОК',max:5,costs:[300,600,1000,1600,2400],d:'Быстрее перезарядка рывка (−0.5 с за ур.)'},
   {k:'armor',n:'БРОНЯ',max:3,costs:[800,1800,3500],d:'Ур.1: щит на старте · Ур.3: +1 корпус'}
 ];
-let diffKey=LS.get('hl3_diff','norm');if(!DIFFS[diffKey])diffKey='norm';
+let diffKey='norm';/* режим один: меню упрощено */
 let bests=LS.get('hl3_bests',{}),credits=LS.get('hl3_credits',0);
 let skinData=LS.get('hl3_skins',{unlocked:[0],sel:0});
 if(!skinData.unlocked.includes(0))skinData.unlocked.push(0);
@@ -2789,7 +2807,7 @@ function die(){
   flash('rgba(255,170,100,.55)',.3);SFX.crash();vib(95);
 }
 function gameOver(){
-  const sc=Math.floor(G.score),key=bestKey(),prev=bests[key]||0,isRec=sc>prev;
+  const sc=Math.floor(G.score),key=bestKey(),prev=Math.max(G.best||0,0),isRec=sc>prev;
   if(isRec){bests[key]=sc;LS.set('hl3_bests',bests);if(!dailyRun)TOT.recs++;}
   const earn=Math.floor(sc/140)+G.missionsDone*50+G.orbsGot+G.bossKills*150;
   credits+=earn;LS.set('hl3_credits',credits);
@@ -2811,7 +2829,7 @@ function gameOver(){
   }).join('');
   $('ovEarn').textContent='+'+fmt(earn)+' ⚡ В ХРАНИЛИЩЕ · ЦЕЛЕЙ: '+G.missionsDone+'/3';
   $('ovEyebrow').textContent=(D.zen?'СЕССИЯ ЗАВЕРШЕНА':'СИГНАЛ ПОТЕРЯН')+' // СЕКТОР '+String(G.sector).padStart(2,'0')+(dailyRun?' · ТРАССА ДНЯ':'');
-  $('ovTitle').textContent=D.zen?'ПОЛЁТ ЗАВЕРШЁН':'ТРАССА ОБОРВАЛАСЬ';
+  $('ovTitle').textContent=isRec?'НОВЫЙ РЕКОРД!':'ТРАССА ОБОРВАЛАСЬ';
   $('recordBadge').classList.toggle('on',isRec);
   setMode('over');updateMenuChips();buildSkinRow();buildUpgRow();checkAchs();
   if(isRec){SFX.record();burst(0,2.5,-2,70,[0xffd75e,0xffffff,0xffb020],10,1.5,3,4);}
@@ -3398,6 +3416,9 @@ function runSim(dt){
   if(!G.recordLive&&G.best>0&&G.score>G.best){
     G.recordLive=true;banner('РЕКОРД ПОБИТ!','так держать','gold',2);SFX.record();checkAchs();
   }
+  /* рекорд фиксируется по ходу забега, чтобы не пропасть при выходе из комнаты */
+  if(G.recordLive){const sv=Math.floor(G.score),k=bestKey();
+    if(sv>(bests[k]||0)+250){bests[k]=sv;LS.set('hl3_bests',bests);}}
   refreshHUD(false);
 }
 function updateCamera(dt){
@@ -3643,7 +3664,7 @@ document.addEventListener('visibilitychange',()=>{
 
 /* ═══════════════ MENU CHIPS ═══════════════ */
 function updateMenuChips(){
-  $('bestChip').textContent='РЕКОРД ('+DIFFS[diffKey].label+'): '+fmt(bests[diffKey]||0);
+  $('bestChip').textContent='РЕКОРД: '+fmt(bests[diffKey]||0);
   $('creditChip').textContent='⚡ '+fmt(credits);
   const n=ACHS.filter(a=>achs[a.id]).length;
   $('achChip').textContent='★ '+n+'/'+ACHS.length;buildAchList();
